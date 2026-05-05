@@ -69,7 +69,7 @@ export const IdentityVerification: React.FC<Props> = ({ onClose }) => {
         contents: [
           {
             parts: [
-              { text: "Is this a real governmental ID card, national identity card, or passport? Answer only with 'valid' or 'invalid' followed by a short reason in Arabic if invalid. Example: invalid: الصورة لا تبدو كبطاقة هوية رسمية." },
+              { text: "تحقق مما إذا كانت هذه الصورة تمثل وثيقة هوية رسمية حقيقية ومقروءة. الأنواع المقبولة هي: الهوية الوطنية السعودية، الإقامة، وجواز السفر. تأكد من أن المستند يحمل بيانات رسمية وصورة شخصية واضحة. إذا كانت الوثيقة واضحة وصحيحة، أجب بـ 'valid'. إذا كانت غير واضحة، منتهية بشكل صارخ، أو ليست وثيقة هوية، أجب بـ 'invalid' مع ذكر السبب بالتفصيل بالعربية. كن مرناً في قبول الوثائق الواضحة التي قد تختلف تصاميمها قليلاً (مثل الإصدارات القديمة والجديدة من الهوية أو الإقامة)." },
               { inlineData: { mimeType: file.type, data: base64Data } }
             ]
           }
