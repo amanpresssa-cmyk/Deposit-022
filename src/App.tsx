@@ -17,6 +17,45 @@ import { Shield, X } from 'lucide-react';
 import { doc, getDocFromServer } from 'firebase/firestore';
 import { db } from './lib/firebase';
 
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: any }> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error("ErrorBoundary caught an error", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-red-50 p-6 rtl" dir="rtl">
+          <div className="bg-white p-8 rounded-[2.5rem] border border-red-100 shadow-xl max-w-md text-center">
+            <Shield className="w-16 h-16 text-red-500 mx-auto mb-4" />
+            <h2 className="text-2xl font-black text-gray-900 mb-2">عذراً، حدث خطأ تقني</h2>
+            <p className="text-gray-500 mb-6">واجه النظام مشكلة أثناء تحميل الصفحة. يرجى محاولة التحديث.</p>
+            <pre className="text-[10px] bg-gray-50 p-4 rounded-xl overflow-auto text-left mb-6 max-h-40">
+              {this.state.error?.message || String(this.state.error)}
+            </pre>
+            <button 
+              onClick={() => window.location.reload()} 
+              className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold hover:bg-blue-700 transition-all"
+            >
+              إعادة تحميل الصفحة
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
   const { user, loading, error, clearError } = useAuth();
 
@@ -37,18 +76,18 @@ export default function App() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          className="w-12 h-12 border-4 border-[#3b82f6] border-t-transparent rounded-full"
-        />
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-[#3b82f6] border-t-transparent rounded-full animate-spin" />
+          <p className="text-gray-400 font-bold animate-pulse">جاري تحميل منصة عربون...</p>
+        </div>
       </div>
     );
   }
 
   return (
     <Router>
-      <div className="min-h-screen bg-[#f8fafc] font-sans antialiased rtl relative" dir="rtl">
+      <ErrorBoundary>
+        <div className="min-h-screen bg-[#f8fafc] font-sans antialiased rtl relative" dir="rtl">
         <AnimatePresence>
           {error && (
             <motion.div
@@ -102,6 +141,7 @@ export default function App() {
         <InstallPWAHint />
         <ProductTour />
       </div>
+      </ErrorBoundary>
     </Router>
   );
 }
