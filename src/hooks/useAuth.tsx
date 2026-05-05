@@ -57,7 +57,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               email: user.email || '',
               phoneNumber: user.phoneNumber || undefined,
               photoURL: user.photoURL || '',
-              rating: 0,
+              rating: 3,
               reviewsCount: 0,
               isVerified: false,
               isSeller: false,

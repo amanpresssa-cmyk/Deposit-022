@@ -19,9 +19,17 @@ export const Home: React.FC = () => {
   React.useEffect(() => {
     const fetchSellers = async () => {
       try {
-        const q = query(collection(db, 'users'), where('isSeller', '==', true), limit(3));
+        const q = query(
+          collection(db, 'users'), 
+          where('isSeller', '==', true),
+          limit(10) // Fetch slightly more to account for potentially blocked ones
+        );
         const snap = await getDocs(q);
-        setFeaturedSellers(snap.docs.map(d => ({ uid: d.id, ...d.data() } as UserProfile)));
+        const sellers = snap.docs
+          .map(d => ({ uid: d.id, ...d.data() } as UserProfile))
+          .filter(u => u.isBlocked !== true)
+          .slice(0, 3);
+        setFeaturedSellers(sellers);
       } catch (e) {
         console.error(e);
       }

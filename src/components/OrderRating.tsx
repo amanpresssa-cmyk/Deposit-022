@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { doc, updateDoc, increment, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc, increment, collection, addDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Star, MessageSquare, Send } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { sendAdminNotification, recordAuditLog } from '../lib/notificationService';
 
 interface OrderRatingProps {
   orderId: string;
@@ -35,28 +36,52 @@ export const OrderRating: React.FC<OrderRatingProps> = ({ orderId, reviewerId, r
         createdAt: serverTimestamp()
       });
 
-      // 2. Update reviewee's stats and trustLevel
+      // 2. Calculate dynamic rating change
+      let ratingChange = 0;
+      if (rating >= 4) ratingChange = 0.1;
+      else if (rating <= 2) ratingChange = -0.1;
+
+      // 3. Update reviewee's stats and trustLevel
       const userRef = doc(db, 'users', revieweeId);
-      // This is a simplification. Ideally, you'd calculate the real average.
-      // But for a demo, we can just increment.
+      const userSnap = await getDoc(userRef);
+      const currentRating = userSnap.data()?.rating || 3;
+      const newRating = Math.min(5, Math.max(0, currentRating + ratingChange));
+
       await updateDoc(userRef, {
         reviewsCount: increment(1),
-        // Simplified dynamic rating update (moving average logic would be better in cloud functions)
-        rating: increment(0.1), 
-        trustLevel: increment(2) 
+        rating: newRating,
+        trustLevel: increment(rating >= 4 ? 5 : -5) 
       });
 
-      // 3. Update order status to mark rating as completed
+      // 4. Audit Log
+      await recordAuditLog({
+        action: 'order_rated',
+        targetId: revieweeId,
+        details: { rating, comment, orderId }
+      });
+
+      // 5. Notifications
+      if (rating <= 2) {
+        await sendAdminNotification(
+          'تقييم سيء لمستخدم',
+          `تلقى المستخدم ${revieweeId} تقييماً سيئاً (${rating} نجوم) مع تعليق: ${comment}`,
+          revieweeId
+        );
+      } else {
+        await sendAdminNotification(
+          'تقييم جديد',
+          `تلقى المستخدم ${revieweeId} تقييماً جديداً (${rating} نجوم)`,
+          revieweeId
+        );
+      }
+
+      // 6. Update order status to mark rating as completed
       const orderRef = doc(db, 'orders', orderId);
       if (type === 'buyer-to-seller') {
         await updateDoc(orderRef, { buyerRatingCompleted: true });
       } else {
         await updateDoc(orderRef, { sellerRatingCompleted: true });
       }
-
-      // 4. Update reviewer's trustLevel for participating in the community
-      const reviewerRef = doc(db, 'users', reviewerId);
-      await updateDoc(reviewerRef, { trustLevel: increment(1) });
 
       onSuccess();
     } catch (error) {

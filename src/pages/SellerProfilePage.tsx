@@ -39,14 +39,16 @@ export const SellerProfilePage: React.FC = () => {
         const servicesSnap = await getDocs(servicesQuery);
         setServices(servicesSnap.docs.map(d => ({ id: d.id, ...d.data() } as Service)));
 
-        // Fetch reviews (simplified for now)
+        // Fetch reviews (full fetch, filter client-side to avoid index requirement for now)
         const reviewsQuery = query(
           collection(db, 'reviews'),
           where('revieweeId', '==', sellerId),
           orderBy('createdAt', 'desc')
         );
         const reviewsSnap = await getDocs(reviewsQuery);
-        setReviews(reviewsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Review)));
+        const allReviews = reviewsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Review));
+        // Shadow blocking: Hide low reviews from public
+        setReviews(allReviews.filter(r => r.rating >= 4));
 
       } catch (error) {
         console.error("Error fetching seller profile:", error);

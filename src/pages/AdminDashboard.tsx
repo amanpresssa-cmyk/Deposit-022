@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { collection, query, where, getDocs, doc, updateDoc, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { handleFirestoreError, OperationType } from '../lib/error-handler';
+import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { UserProfile } from '../types';
 import { ShieldCheck, UserCheck, UserX, Clock, Search, AlertCircle, CheckCircle2, XCircle, TrendingUp, Wallet, PieChart, Activity } from 'lucide-react';
@@ -15,7 +17,8 @@ export const AdminDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'pending' | 'verified' | 'rejected'>('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [tab, setTab] = useState<'users' | 'finance' | 'disputes' | 'system'>('users');
+  const [tab, setTab] = useState<'users' | 'finance' | 'disputes' | 'system' | 'alerts'>('users');
+  const [notifications, setNotifications] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [disputes, setDisputes] = useState<any[]>([]);
   const [stats, setStats] = useState({
@@ -28,6 +31,14 @@ export const AdminDashboard: React.FC = () => {
   useEffect(() => {
     if (profile?.email !== 'khyratfarmdates@gmail.com') return;
 
+    // Fetch Alerts
+    const alertsQ = query(collection(db, 'notifications'), where('userId', '==', 'ADMIN'), orderBy('createdAt', 'desc'));
+    const unsubAlerts = onSnapshot(alertsQ, (snapshot) => {
+      setNotifications(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'notifications/ADMIN');
+    });
+
     // Fetch Stats & Transactions
     const txQ = query(collection(db, 'transactions'), orderBy('createdAt', 'desc'));
     const unsubTx = onSnapshot(txQ, (snapshot) => {
@@ -39,15 +50,20 @@ export const AdminDashboard: React.FC = () => {
       const escrowed = txs.filter(tx => tx.status === 'escrowed').length;
       
       setStats(prev => ({ ...prev, totalVolume: volume, totalFees: fees, activeEscrows: escrowed }));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'transactions');
     });
 
     // Fetch Disputes
     const dispQ = query(collection(db, 'disputes'), orderBy('createdAt', 'desc'));
     const unsubDisp = onSnapshot(dispQ, (snapshot) => {
       setDisputes(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'disputes');
     });
 
     return () => {
+      unsubAlerts();
       unsubTx();
       unsubDisp();
     };
@@ -62,6 +78,8 @@ export const AdminDashboard: React.FC = () => {
       setUsers(allUsers);
       setStats(prev => ({ ...prev, pendingVerifications: allUsers.filter(u => u.verificationStatus === 'pending').length }));
       setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'users');
     });
 
     return () => unsubscribe();
@@ -74,6 +92,7 @@ export const AdminDashboard: React.FC = () => {
         await updateDoc(userRef, {
           verificationStatus: 'verified',
           isVerified: true,
+          rating: 4,
           trustLevel: 80 // Jump to high trust upon manual verification
         });
         await sendNotification(uid, 'تهانينا! تم توثيق حسابك', 'تم مراجعة بياناتك بنجاح وأصبح حسابك الآن موثقاً في منصة عربون.', 'system');
@@ -86,6 +105,18 @@ export const AdminDashboard: React.FC = () => {
       }
     } catch (error) {
       console.error("Error updating user verification:", error);
+    }
+  };
+
+  const handleToggleBlock = async (uid: string, currentStatus: boolean | undefined) => {
+    try {
+      const userRef = doc(db, 'users', uid);
+      await updateDoc(userRef, {
+        isBlocked: !currentStatus,
+        updatedAt: serverTimestamp()
+      });
+    } catch (error) {
+      console.error("Error toggling block status:", error);
     }
   };
 
@@ -120,6 +151,7 @@ export const AdminDashboard: React.FC = () => {
              { id: 'users', label: 'المستخدمين', icon: <UserCheck className="w-4 h-4" /> },
              { id: 'finance', label: 'المالية', icon: <Wallet className="w-4 h-4" /> },
              { id: 'disputes', label: 'النزاعات', icon: <AlertCircle className="w-4 h-4" /> },
+             { id: 'alerts', label: 'البلاغات الطارئة', icon: <Activity className="w-4 h-4" /> },
              { id: 'system', label: 'الإعدادات', icon: <ShieldCheck className="w-4 h-4" /> },
            ].map(t => (
              <button
@@ -208,6 +240,47 @@ export const AdminDashboard: React.FC = () => {
                     {/* Disputes list would go here */}
                 </div>
             )}
+        </div>
+      )}
+
+      {tab === 'alerts' && (
+        <div className="space-y-6 animate-in fade-in duration-500">
+           <div className="flex items-center gap-3 mb-4">
+              <Activity className="w-6 h-6 text-red-600" />
+              <h2 className="text-2xl font-black">بلاغات التقييم والأنظمة</h2>
+           </div>
+           {notifications.length === 0 ? (
+             <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm p-20 text-center text-gray-300 font-bold">
+                لا توجد بلاغات طارئة حالياً
+             </div>
+           ) : (
+             <div className="grid grid-cols-1 gap-4">
+                {notifications.map(alert => (
+                  <div key={alert.id} className="bg-white p-6 rounded-3xl border-r-4 border-red-500 shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                     <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 bg-red-50 rounded-2xl flex items-center justify-center text-red-600 shrink-0">
+                           <AlertCircle className="w-6 h-6" />
+                        </div>
+                        <div>
+                           <h4 className="font-black text-gray-900">{alert.title}</h4>
+                           <p className="text-gray-500 text-sm font-medium">{alert.message}</p>
+                           <p className="text-[10px] text-gray-400 font-bold mt-2">
+                              {format(alert.createdAt?.toDate?.() || new Date(), 'dd MMM HH:mm', { locale: ar })}
+                           </p>
+                        </div>
+                     </div>
+                     {alert.targetUserId && (
+                        <Link 
+                           to={`/seller/${alert.targetUserId}`}
+                           className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100"
+                        >
+                           عرض ملف المستخدم
+                        </Link>
+                     )}
+                  </div>
+                ))}
+             </div>
+           )}
         </div>
       )}
 
@@ -358,6 +431,14 @@ export const AdminDashboard: React.FC = () => {
                                         إلغاء التوثيق
                                     </button>
                                   )}
+                                  <button 
+                                      onClick={() => handleToggleBlock(user.uid, user.isBlocked)}
+                                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                                        user.isBlocked ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'
+                                      }`}
+                                  >
+                                      {user.isBlocked ? 'إلغاء الحظر' : 'حظر المستخدم'}
+                                  </button>
                               </div>
                             </td>
                         </motion.tr>

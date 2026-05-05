@@ -37,7 +37,7 @@ service cloud.firestore {
 
     // --- Users ---
     match /users/{userId} {
-      allow read: if isSignedIn();
+      allow read: if isSignedIn() && (isAdmin() || (isOwner(userId) || (existing().isBlocked != true)));
       allow create: if isOwner(userId)
         && incoming().uid == userId
         && (incoming().isAdmin == (request.auth.token.email == 'khyratfarmdates@gmail.com'))
@@ -92,6 +92,7 @@ service cloud.firestore {
       allow create: if isSignedIn() 
         && isValidOrder(incoming())
         && isOwner(incoming().buyerId)
+        && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isBlocked != true)
         && incoming().status == 'pending'
         && incoming().createdAt == request.time;
         
@@ -139,6 +140,7 @@ service cloud.firestore {
       allow create: if isSignedIn() 
         && incoming().senderId == request.auth.uid
         && incoming().orderId == orderId
+        && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isBlocked != true)
         && canChat(orderId);
     }
 
@@ -157,10 +159,12 @@ service cloud.firestore {
     // --- Disputes ---
     match /disputes/{disputeId} {
       allow read: if isSignedIn() && (
+        isAdmin() ||
         isOwner(existing().raisedById) || 
         get(/databases/$(database)/documents/orders/$(existing().orderId)).data.buyerId == request.auth.uid ||
         get(/databases/$(database)/documents/orders/$(existing().orderId)).data.sellerId == request.auth.uid
       );
+      allow update: if isAdmin();
       allow create: if isSignedIn()
         && incoming().raisedById == request.auth.uid
         && incoming().status == 'open'
@@ -181,8 +185,8 @@ service cloud.firestore {
 
     // --- Notifications ---
     match /notifications/{notifId} {
-      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow update: if isSignedIn() && resource.data.userId == request.auth.uid 
+      allow read: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid || resource.data.userId == 'ADMIN');
+      allow update: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid) 
         && incoming().diff(existing()).affectedKeys().hasOnly(['isRead']);
       allow create: if isSignedIn();
     }

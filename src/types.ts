@@ -28,6 +28,7 @@ export interface UserProfile {
   idNumber?: string;
   idPhotoUrl?: string;
   agreedToTerms?: boolean;
+  isBlocked?: boolean;
   createdAt: any;
 }
 
