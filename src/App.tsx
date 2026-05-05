@@ -11,11 +11,12 @@ import { BottomNav } from './components/layout/BottomNav';
 import { InstallPWAHint } from './components/layout/InstallPWAHint';
 import { ProductTour } from './components/layout/ProductTour';
 import { motion, AnimatePresence } from 'motion/react';
+import { Shield, X } from 'lucide-react';
 import { doc, getDocFromServer } from 'firebase/firestore';
 import { db } from './lib/firebase';
 
 export default function App() {
-  const { user, loading } = useAuth();
+  const { user, loading, error, clearError } = useAuth();
 
   // Test connection as required by integration instructions
   useEffect(() => {
@@ -45,7 +46,27 @@ export default function App() {
 
   return (
     <Router>
-      <div className="min-h-screen bg-[#f8fafc] font-sans antialiased rtl" dir="rtl">
+      <div className="min-h-screen bg-[#f8fafc] font-sans antialiased rtl relative" dir="rtl">
+        <AnimatePresence>
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -50 }}
+              className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] w-full max-w-md px-4"
+            >
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl shadow-lg flex items-center justify-between">
+                <span className="text-sm font-medium">{error}</span>
+                <button 
+                  onClick={clearError}
+                  className="p-1 hover:bg-red-100 rounded-lg transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
         <Navbar />
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-20 md:pb-8">
           <AnimatePresence mode="wait">
