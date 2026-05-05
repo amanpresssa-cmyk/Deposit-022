@@ -70,6 +70,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Login error:', err);
       if (err.code === 'auth/popup-closed-by-user') {
         setError('تم إغلاق نافذة تسجيل الدخول قبل إتمام العملية');
+      } else if (err.code === 'auth/unauthorized-domain') {
+        setError('خطأ: هذا النطاق غير مصرح له بتسجيل الدخول. يجب إضافة الرابط الحالي في إعدادات Firebase Console (Authorized Domains).');
       } else if (err.code === 'auth/cancelled-popup-request') {
         // Ignore parallel popup requests
       } else {
