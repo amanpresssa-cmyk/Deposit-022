@@ -8,10 +8,18 @@
         "uid": { "type": "string" },
         "displayName": { "type": "string" },
         "email": { "type": "string" },
+        "phoneNumber": { "type": "string" },
         "photoURL": { "type": "string" },
         "rating": { "type": "number" },
         "reviewsCount": { "type": "number" },
         "isVerified": { "type": "boolean" },
+        "isSeller": { "type": "boolean" },
+        "bio": { "type": "string" },
+        "isAdmin": { "type": "boolean" },
+        "trustLevel": { "type": "number" },
+        "verificationStatus": { "type": "string", "enum": ["none", "pending", "verified", "rejected"] },
+        "idNumber": { "type": "string" },
+        "idPhotoUrl": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["uid", "email", "createdAt"]
@@ -29,6 +37,8 @@
         "status": { "type": "string", "enum": ["pending", "escrowed", "delivered", "completed", "disputed", "cancelled"] },
         "visibility": { "type": "string", "enum": ["public", "private"] },
         "category": { "type": "string" },
+        "buyerRatingCompleted": { "type": "boolean" },
+        "sellerRatingCompleted": { "type": "boolean" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },

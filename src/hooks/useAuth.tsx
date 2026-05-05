@@ -1,6 +1,16 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { onAuthStateChanged, User, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { 
+  onAuthStateChanged, 
+  User, 
+  signInWithPopup, 
+  GoogleAuthProvider, 
+  signOut,
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
+  ConfirmationResult,
+  updateProfile
+} from 'firebase/auth';
+import { doc, getDoc, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { UserProfile } from '../types';
 
@@ -11,6 +21,10 @@ interface AuthContextType {
   error: string | null;
   login: () => Promise<void>;
   logout: () => Promise<void>;
+  sendOTP: (phoneNumber: string, recaptchaContainerId: string) => Promise<ConfirmationResult | null>;
+  verifyOTP: (confirmationResult: ConfirmationResult, code: string) => Promise<void>;
+  updateUserPhone: (phoneNumber: string) => Promise<void>;
+  submitVerification: (data: { idNumber: string, idPhotoUrl: string, agreedToTerms: boolean }) => Promise<void>;
   clearError: () => void;
 }
 
@@ -35,16 +49,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               uid: user.uid,
               displayName: user.displayName || 'مستخدم جديد',
               email: user.email || '',
+              phoneNumber: user.phoneNumber || undefined,
               photoURL: user.photoURL || '',
               rating: 0,
               reviewsCount: 0,
               isVerified: false,
+              isSeller: false,
+              isAdmin: user.email === 'khyratfarmdates@gmail.com', // Auto-admin for this email
+              trustLevel: 10,
+              verificationStatus: 'none',
               createdAt: serverTimestamp(),
             };
             await setDoc(userRef, newProfile);
             setProfile(newProfile);
           } else {
-            setProfile(userSnap.data() as UserProfile);
+            const data = userSnap.data() as UserProfile;
+            // Ensure admin flag is set if email matches
+            if (user.email === 'khyratfarmdates@gmail.com' && !data.isAdmin) {
+              await updateDoc(userRef, { isAdmin: true });
+              data.isAdmin = true;
+            }
+            setProfile(data);
           }
         } else {
           setProfile(null);
@@ -72,11 +97,66 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setError('تم إغلاق نافذة تسجيل الدخول قبل إتمام العملية');
       } else if (err.code === 'auth/unauthorized-domain') {
         setError('خطأ: هذا النطاق غير مصرح له بتسجيل الدخول. يجب إضافة الرابط الحالي في إعدادات Firebase Console (Authorized Domains).');
-      } else if (err.code === 'auth/cancelled-popup-request') {
-        // Ignore parallel popup requests
       } else {
-        setError(err.message || 'فشل تسجيل الدخول، تأكد من إعدادات المتصفح');
+        setError(err.message || 'فشل تسجيل الدخول');
       }
+    }
+  };
+
+  const sendOTP = async (phoneNumber: string, recaptchaContainerId: string): Promise<ConfirmationResult | null> => {
+    try {
+      const recaptchaVerifier = new RecaptchaVerifier(auth, recaptchaContainerId, {
+        size: 'invisible',
+      });
+      const confirmation = await signInWithPhoneNumber(auth, phoneNumber, recaptchaVerifier);
+      return confirmation;
+    } catch (err: any) {
+      console.error('SMS Send Error:', err);
+      setError('فشل إرسال كود التحقق. تأكد من صحة الرقم وتفعيل ميزة الـ SMS في Firebase.');
+      return null;
+    }
+  };
+
+  const verifyOTP = async (confirmationResult: ConfirmationResult, code: string) => {
+    try {
+      const result = await confirmationResult.confirm(code);
+      if (result.user) {
+        // Phone verification success
+        const userRef = doc(db, 'users', result.user.uid);
+        await updateDoc(userRef, { 
+          phoneNumber: result.user.phoneNumber,
+          isVerified: true 
+        });
+      }
+    } catch (err: any) {
+      console.error('OTP Verification Error:', err);
+      setError('كود التحقق غير صحيح');
+      throw err;
+    }
+  };
+
+  const updateUserPhone = async (phoneNumber: string) => {
+    if (!user) return;
+    try {
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, { phoneNumber });
+      setProfile(prev => prev ? { ...prev, phoneNumber } : null);
+    } catch (err: any) {
+      setError('فشل تحديث رقم الهاتف في الملف الشخصي');
+    }
+  };
+
+  const submitVerification = async (data: { idNumber: string, idPhotoUrl: string, agreedToTerms: boolean }) => {
+    if (!user) return;
+    try {
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, {
+        ...data,
+        verificationStatus: 'pending'
+      });
+      setProfile(prev => prev ? { ...prev, ...data, verificationStatus: 'pending' } : null);
+    } catch (err: any) {
+      setError('فشل إرسال طلب التوثيق');
     }
   };
 
@@ -84,7 +164,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await signOut(auth);
     } catch (err: any) {
-      console.error('Logout error:', err);
       setError('حدث خطأ أثناء تسجيل الخروج');
     }
   };
@@ -92,7 +171,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const clearError = () => setError(null);
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, error, login, logout, clearError }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      profile, 
+      loading, 
+      error, 
+      login, 
+      logout, 
+      sendOTP, 
+      verifyOTP, 
+      updateUserPhone,
+      submitVerification,
+      clearError 
+    }}>
       {children}
     </AuthContext.Provider>
   );

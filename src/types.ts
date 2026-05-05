@@ -1,11 +1,33 @@
+export interface Service {
+  id: string;
+  sellerId: string;
+  title: string;
+  description: string;
+  price: number;
+  category: string;
+  deliveryTime: string;
+  imageUrl?: string;
+  createdAt: any;
+}
+
 export interface UserProfile {
   uid: string;
   displayName: string;
   email: string;
+  phoneNumber?: string;
   photoURL: string;
   rating: number;
   reviewsCount: number;
   isVerified: boolean;
+  isSeller: boolean;
+  bio?: string;
+  specialties?: string[];
+  isAdmin?: boolean;
+  trustLevel?: number;
+  verificationStatus?: 'none' | 'pending' | 'verified' | 'rejected';
+  idNumber?: string;
+  idPhotoUrl?: string;
+  agreedToTerms?: boolean;
   createdAt: any;
 }
 
@@ -15,12 +37,16 @@ export interface Order {
   id: string;
   buyerId: string;
   sellerId: string;
+  sellerEmail?: string | null;
+  sellerPhone?: string | null;
   title: string;
   description: string;
   amount: number;
   status: OrderStatus;
   category: string;
   visibility: 'public' | 'private';
+  buyerRatingCompleted?: boolean;
+  sellerRatingCompleted?: boolean;
   createdAt: any;
   updatedAt: any;
 }

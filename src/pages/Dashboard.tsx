@@ -1,20 +1,48 @@
 import React, { useEffect, useState } from 'react';
-import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../hooks/useAuth';
 import { Order } from '../types';
 import { motion } from 'motion/react';
-import { Clock, CheckCircle2, AlertCircle, MessageCircle, ArrowLeft, Plus } from 'lucide-react';
+import { Clock, CheckCircle2, AlertCircle, MessageCircle, ArrowLeft, Plus, ShieldCheck, Wallet, ChevronRight, Briefcase, Globe, ExternalLink } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
+import { IdentityVerification } from '../components/IdentityVerification';
+import { TrustProgressBar } from '../components/TrustProgressBar';
 
 export const Dashboard: React.FC = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showIdentityVerify, setShowIdentityVerify] = useState(false);
+  const [isUpdatingSeller, setIsUpdatingSeller] = useState(false);
+  const [editSpecialties, setEditSpecialties] = useState(false);
+  const [newBio, setNewBio] = useState(profile?.bio || '');
   const navigate = useNavigate();
+
+  const specialtiesList = ['المرور', 'الجوازات', 'البلدية', 'وزارة العدل', 'مكتب العمل', 'أخرى'];
+
+  const handleUpdateProfile = async (specialties: string[]) => {
+    if (!user) return;
+    setIsUpdatingSeller(true);
+    try {
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, { 
+        isSeller: true,
+        bio: newBio || 'معقب محترف في منصة عربون، أقدم خدمات احترافية بضمان مالي.',
+        specialties: specialties,
+        trustLevel: (profile?.trustLevel || 0)
+      });
+      setEditSpecialties(false);
+      window.location.reload();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsUpdatingSeller(false);
+    }
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -118,6 +146,118 @@ export const Dashboard: React.FC = () => {
           <span>رفع طلب جديد</span>
         </button>
       </div>
+
+      {!profile?.isVerified && (
+        <div className="grid md:grid-cols-3 gap-8">
+           <div className="md:col-span-2">
+              <motion.div 
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-[2.5rem] p-10 text-white relative overflow-hidden shadow-xl shadow-blue-100"
+              >
+                <div className="relative z-10">
+                  <div className="flex items-center gap-6 mb-8">
+                    <div className="bg-white/20 p-5 rounded-[2rem] backdrop-blur-md border border-white/10">
+                      <ShieldCheck className="w-10 h-10 text-white" />
+                    </div>
+                    <div>
+                      <h2 className="text-3xl font-black mb-2">وثّق هويتك لزيادة أمانك</h2>
+                      <p className="text-blue-100 opacity-90 max-w-md font-medium">
+                         التوثيق بالهوية الوطنية يمنحك الأولوية في معالجة الطلبات ويزيد من مستوى الثقة في حسابك.
+                      </p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => setShowIdentityVerify(true)}
+                    className="bg-white text-blue-600 px-10 py-5 rounded-2xl font-bold text-lg hover:bg-blue-50 transition-all flex items-center gap-2 whitespace-nowrap shadow-xl"
+                  >
+                    بدء عملية التوثيق الشامل
+                    <ChevronRight className="w-6 h-6" />
+                  </button>
+                </div>
+                {/* Background decoration */}
+                <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-32 -mt-32 blur-3xl"></div>
+                <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-400/10 rounded-full -ml-32 -mb-32 blur-3xl"></div>
+              </motion.div>
+           </div>
+           <div>
+              <TrustProgressBar level={profile?.trustLevel || 0} />
+           </div>
+        </div>
+      )}
+
+      {profile?.isVerified && !profile?.isSeller && (
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-white border-2 border-blue-100 rounded-[2.5rem] p-10 shadow-sm overflow-hidden relative"
+        >
+          <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-full -mr-16 -mt-16"></div>
+          
+          <div className="relative z-10 max-w-2xl mx-auto text-center">
+            <div className="bg-blue-600 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-blue-200">
+              <Briefcase className="w-10 h-10 text-white" />
+            </div>
+            <h2 className="text-3xl font-black text-gray-900 mb-4">انتقل لمستوى "المعقب المعتمد"</h2>
+            <p className="text-gray-500 mb-10 text-lg leading-relaxed">
+              بصفتك معقب، يمكنك الآن تفعيل حسابك كبائع لبدء استقبال طلبات التعميد والوساطة. ستحصل على صفحة مبيعات خاصة وتقييمات ترفع من قيمتك السوقية.
+            </p>
+            
+            <div className="space-y-6 text-right mb-10">
+              <p className="font-black text-gray-700 mb-2">اختر تخصصاتك الرئيسية:</p>
+              <div className="flex flex-wrap justify-end gap-3">
+                {specialtiesList.map(s => (
+                  <button 
+                    key={s}
+                    onClick={() => handleUpdateProfile([s])}
+                    className="px-6 py-3 bg-gray-50 hover:bg-blue-600 hover:text-white rounded-2xl font-bold transition-all border border-gray-100"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button 
+              onClick={() => handleUpdateProfile(['عام'])}
+              disabled={isUpdatingSeller}
+              className="bg-blue-600 text-white px-12 py-5 rounded-2xl font-black text-xl hover:bg-blue-700 transition-all shadow-xl shadow-blue-100 disabled:opacity-50"
+            >
+              {isUpdatingSeller ? 'جاري التفعيل...' : 'تفعيل وضع البائع الآن'}
+            </button>
+          </div>
+        </motion.div>
+      )}
+
+      {profile?.isSeller && (
+        <div className="bg-white rounded-[2.5rem] p-8 border border-blue-50 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6">
+           <div className="flex items-center gap-6">
+             <div className="bg-blue-50 p-5 rounded-[2rem]">
+               <Globe className="w-10 h-10 text-blue-600" />
+             </div>
+             <div>
+               <h3 className="text-2xl font-black text-gray-900">موقعك الشخصي جاهز!</h3>
+               <p className="text-gray-500">يمكنك الآن مشاركة رابط ملفك الشخصي مع عملائك خارج المنصة.</p>
+             </div>
+           </div>
+           <Link 
+             to={`/seller/${user?.uid}`}
+             className="bg-gray-900 text-white px-8 py-4 rounded-2xl font-bold hover:bg-gray-800 transition-all flex items-center gap-2 shadow-lg"
+           >
+             معاينة موقعي
+             <ExternalLink className="w-5 h-5" />
+           </Link>
+        </div>
+      )}
+
+      {showIdentityVerify && (
+        <IdentityVerification 
+          onClose={() => {
+            setShowIdentityVerify(false);
+            window.location.reload();
+          }} 
+        />
+      )}
 
       <div className="grid md:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">

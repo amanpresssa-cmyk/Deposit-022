@@ -6,6 +6,8 @@ import { Dashboard } from './pages/Dashboard';
 import { OrderDetailsPage } from './pages/OrderDetailsPage';
 import { CreateOrderPage } from './pages/CreateOrderPage';
 import { SearchPage } from './pages/SearchPage';
+import { SellerProfilePage } from './pages/SellerProfilePage';
+import { AdminDashboard } from './pages/AdminDashboard';
 import { Navbar } from './components/layout/Navbar';
 import { BottomNav } from './components/layout/BottomNav';
 import { InstallPWAHint } from './components/layout/InstallPWAHint';
@@ -80,6 +82,14 @@ export default function App() {
               <Route
                 path="/order/:id"
                 element={user ? <OrderDetailsPage /> : <Navigate to="/" />}
+              />
+              <Route
+                path="/seller/:sellerId"
+                element={<SellerProfilePage />}
+              />
+              <Route
+                path="/admin"
+                element={<AdminDashboard />}
               />
               <Route
                 path="/create-order"

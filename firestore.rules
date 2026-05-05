@@ -16,6 +16,13 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function isAdmin() {
+      return isSignedIn() && (
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true ||
+        request.auth.token.email == 'khyratfarmdates@gmail.com'
+      );
+    }
+
     function isValidId(id) {
       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
@@ -35,11 +42,32 @@ service cloud.firestore {
         && incoming().uid == userId
         && incoming().createdAt == request.time
         && incoming().rating == 0
-        && incoming().reviewsCount == 0;
-      allow update: if isOwner(userId)
+        && incoming().reviewsCount == 0
+        && incoming().trustLevel == 10
+        && incoming().verificationStatus == 'none'
+        && incoming().isVerified == false
+        && incoming().isSeller == false
+        && (!('isAdmin' in incoming()) || incoming().isAdmin == (request.auth.token.email == 'khyratfarmdates@gmail.com'));
+      
+      allow update: if (isOwner(userId) || isAdmin())
         && incoming().uid == userId
         && incoming().createdAt == existing().createdAt
-        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL']);
+        && (
+          isAdmin() || (
+            isOwner(userId) && (
+              // Action: Basic Info
+              incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'phoneNumber']) ||
+              // Action: Become Seller
+              incoming().diff(existing()).affectedKeys().hasOnly(['isSeller', 'bio', 'specialties', 'trustLevel']) ||
+              // Action: Submit Verification
+              incoming().diff(existing()).affectedKeys().hasOnly(['idNumber', 'idPhotoUrl', 'agreedToTerms', 'verificationStatus', 'trustLevel']) ||
+              // Action: Rating update (from OrderRating component)
+              incoming().diff(existing()).affectedKeys().hasOnly(['reviewsCount', 'rating', 'trustLevel']) ||
+              // Action: Auto-admin for matching email (STRICT)
+              (incoming().diff(existing()).affectedKeys().hasOnly(['isAdmin']) && request.auth.token.email == 'khyratfarmdates@gmail.com' && incoming().isAdmin == true)
+            )
+          )
+        );
     }
 
     // --- Orders ---

@@ -15,10 +15,11 @@ export const CreateOrderPage: React.FC = () => {
     description: '',
     amount: '',
     sellerEmail: '',
+    sellerPhone: '',
     category: 'عام'
   });
 
-  const categories = ['عقارات', 'سيارات', 'خدمات إلكترونية', 'تعقيب معاملات', 'برمجة وتطوير', 'عام'];
+  const categories = ['عقارات', 'سيارات', 'خدمات إلكترونية', 'تعقيب معاملات', 'برمجة وتطوير', 'أجهزة إلكترونية', 'عام'];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,24 +27,34 @@ export const CreateOrderPage: React.FC = () => {
 
     setLoading(true);
     try {
-      // Find seller by email
-      const sellerQuery = query(collection(db, 'users'), where('email', '==', formData.sellerEmail.trim()));
-      const sellerSnap = await getDocs(sellerQuery);
+      // Find seller by email or phone
+      let sellerRef = null;
       
-      let targetSellerId = 'unknown';
-      if (!sellerSnap.empty) {
-        targetSellerId = sellerSnap.docs[0].id;
+      if (formData.sellerEmail) {
+        const sellerEmailQuery = query(collection(db, 'users'), where('email', '==', formData.sellerEmail.trim()));
+        const sellerSnap = await getDocs(sellerEmailQuery);
+        if (!sellerSnap.empty) sellerRef = sellerSnap.docs[0];
       }
+      
+      if (!sellerRef && formData.sellerPhone) {
+        const phone = formData.sellerPhone.startsWith('+') ? formData.sellerPhone : `+966${formData.sellerPhone.replace(/^0/, '')}`;
+        const sellerPhoneQuery = query(collection(db, 'users'), where('phoneNumber', '==', phone));
+        const sellerSnap = await getDocs(sellerPhoneQuery);
+        if (!sellerSnap.empty) sellerRef = sellerSnap.docs[0];
+      }
+      
+      const targetSellerId = sellerRef ? sellerRef.id : 'unknown';
 
       const orderData = {
         buyerId: user.uid,
         sellerId: targetSellerId,
-        sellerEmail: formData.sellerEmail.trim(),
+        sellerEmail: formData.sellerEmail.trim() || null,
+        sellerPhone: formData.sellerPhone.trim() || null,
         title: formData.title,
         description: formData.description,
         amount: parseFloat(formData.amount),
         status: 'pending',
-        visibility: 'public', // Default to public for now so it shows in search
+        visibility: 'public',
         category: formData.category,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -67,95 +78,118 @@ export const CreateOrderPage: React.FC = () => {
       </div>
 
       <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="bg-blue-600 p-8 text-white">
+        <div className="bg-[#2563eb] p-8 text-white">
           <div className="flex items-center gap-4 mb-4">
             <div className="bg-white/20 p-3 rounded-2xl">
               <Shield className="w-8 h-8 text-white" />
             </div>
             <h1 className="text-2xl font-bold">بدء عملية ضمان مالي</h1>
           </div>
-          <p className="opacity-90 leading-relaxed">
+          <p className="opacity-90 leading-relaxed font-light">
             قم بتعبئة بيانات الصفقة ليتم دعوتكم أنت والطرف الآخر لبدء عملية الوساطة وتأمين المبلغ.
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-8 space-y-6">
-          <div className="space-y-2">
-            <label className="text-sm font-bold text-gray-700 block">عنوان الصفقة</label>
-            <input
-              type="text"
-              required
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
-              placeholder="مثال: شراء سيارة تويوتا كامري 2020"
-              value={formData.title}
-              onChange={(e) => setFormData({...formData, title: e.target.value})}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
+        <form onSubmit={handleSubmit} className="p-8 space-y-8">
+          <div className="space-y-6">
+            <h3 className="font-bold text-gray-900 border-b pb-2">تفاصيل الصفقة</h3>
+            
             <div className="space-y-2">
-              <label className="text-sm font-bold text-gray-700 block">التصنيف</label>
-              <select
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 outline-none appearance-none bg-no-repeat bg-[right_1rem_center] bg-gray-50"
-                value={formData.category}
-                onChange={(e) => setFormData({...formData, category: e.target.value})}
-              >
-                {categories.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-bold text-gray-700 block">المبلغ الإجمالي (ر.س)</label>
+              <label className="text-sm font-bold text-gray-700 block">عنوان الصفقة</label>
               <input
-                type="number"
+                type="text"
                 required
-                min="1"
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 outline-none"
-                placeholder="0.00"
-                value={formData.amount}
-                onChange={(e) => setFormData({...formData, amount: e.target.value})}
+                className="w-full px-4 py-3.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                placeholder="مثال: شراء سيارة تويوتا كامري 2020"
+                value={formData.title}
+                onChange={(e) => setFormData({...formData, title: e.target.value})}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-gray-700 block">التصنيف</label>
+                <select
+                  className="w-full px-4 py-3.5 rounded-xl border border-gray-200 focus:border-blue-500 outline-none appearance-none bg-no-repeat bg-[right_1rem_center] bg-gray-50"
+                  value={formData.category}
+                  onChange={(e) => setFormData({...formData, category: e.target.value})}
+                >
+                  {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-gray-700 block">المبلغ الإجمالي (ر.س)</label>
+                <input
+                  type="number"
+                  required
+                  min="1"
+                  className="w-full px-4 py-3.5 rounded-xl border border-gray-200 focus:border-blue-500 outline-none"
+                  placeholder="0.00"
+                  value={formData.amount}
+                  onChange={(e) => setFormData({...formData, amount: e.target.value})}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-gray-700 block">شروط وتفاصيل الصفقة</label>
+              <textarea
+                required
+                rows={4}
+                className="w-full px-4 py-3.5 rounded-xl border border-gray-200 focus:border-blue-500 outline-none resize-none"
+                placeholder="اكتب بوضوح التفاصيل المتفق عليها، الشروط، ومواعيد التسليم..."
+                value={formData.description}
+                onChange={(e) => setFormData({...formData, description: e.target.value})}
               />
             </div>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-bold text-gray-700 block">البريد الإلكتروني للطرف الآخر (البائع/المعقب)</label>
-            <div className="relative">
-               <input
-                type="email"
-                required
-                className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 outline-none"
-                placeholder="seller@example.com"
-                value={formData.sellerEmail}
-                onChange={(e) => setFormData({...formData, sellerEmail: e.target.value})}
-              />
-              <Search className="absolute left-3 top-3.5 w-5 h-5 text-gray-400" />
+          <div className="space-y-6 pt-6 border-t">
+            <h3 className="font-bold text-gray-900 border-b pb-2">بيانات الطرف الآخر (البائع/المعقب)</h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-gray-700 block">البريد الإلكتروني</label>
+                <div className="relative">
+                  <input
+                    type="email"
+                    className="w-full px-4 py-3.5 rounded-xl border border-gray-200 focus:border-blue-500 outline-none"
+                    placeholder="name@example.com"
+                    value={formData.sellerEmail}
+                    onChange={(e) => setFormData({...formData, sellerEmail: e.target.value})}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-gray-700 block">رقم الجوال (اختياري)</label>
+                <div className="relative">
+                  <input
+                    type="tel"
+                    className="w-full px-4 py-3.5 rounded-xl border border-gray-200 focus:border-blue-500 outline-none"
+                    placeholder="05XXXXXXXX"
+                    value={formData.sellerPhone}
+                    onChange={(e) => setFormData({...formData, sellerPhone: e.target.value})}
+                  />
+                </div>
+              </div>
             </div>
-            <p className="text-xs text-blue-500 font-medium">سيتم إرسال دعوة للطرف الآخر عبر بريده الإلكتروني للانضمام لهذه الصفقة.</p>
+            <p className="text-xs text-blue-600 bg-blue-50 p-3 rounded-lg flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>إذا لم يكن للطرف الآخر حساب، سيتم إرسال دعوة له عبر البريد الإلكتروني أو الجوال للانضمام وإتمام الصفقة.</span>
+            </p>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-bold text-gray-700 block">شروط وتفاصيل الصفقة</label>
-            <textarea
-              required
-              rows={4}
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 outline-none resize-none"
-              placeholder="اكتب بوضوح التفاصيل المتفق عليها، الشروط، ومواعيد التسليم..."
-              value={formData.description}
-              onChange={(e) => setFormData({...formData, description: e.target.value})}
-            />
-          </div>
-
-          <div className="bg-orange-50 border border-orange-100 p-4 rounded-2xl flex gap-3 text-orange-800 text-sm">
-            <AlertCircle className="w-5 h-5 shrink-0" />
-            <p>عند إنشاء الصفقة، سيتم إرسال إشعار للطرف الآخر. تذكر أن عربون هي وسيط فقط للحفظ واستلام المبالغ، وهي لا تتدخل في الشحن أو المعاملة إلا في حال النزاع.</p>
+          <div className="bg-orange-50 border border-orange-100 p-5 rounded-2xl flex gap-4 text-orange-800 text-sm">
+            <Shield className="w-6 h-6 shrink-0 text-orange-500" />
+            <p className="leading-relaxed">عند استكمال الطلب، سيتم تجميد المبلغ في منصة عربون. بمجرد تنفيذ الخدمة أو استلام المنتج وتأكيدك لذلك، سيتم تحويل المبلغ للطرف الآخر فوراً.</p>
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-[#2563eb] text-white py-4 rounded-xl font-bold text-lg hover:bg-[#1d4ed8] shadow-lg shadow-blue-100 transition-all disabled:opacity-50"
+            className="w-full bg-[#2563eb] text-white py-4 rounded-2xl font-bold text-xl hover:bg-blue-700 shadow-xl shadow-blue-100 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            {loading ? 'جاري الإنشاء...' : 'إنشاء الصفقة وبدء المحادثة'}
+            {loading ? 'جاري إنشاء الصفقة...' : 'بدء الصفقة الآن'}
           </button>
         </form>
       </div>

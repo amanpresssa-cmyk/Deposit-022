@@ -1,12 +1,33 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { ShieldCheck, ArrowLeftRight, CheckCircle, Search, Clock, MessageSquare, Star } from 'lucide-react';
+import { ShieldCheck, ArrowLeftRight, CheckCircle, Search, Clock, MessageSquare, Star, LayoutGrid, Users, Briefcase } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
+import { collection, query, where, limit, getDocs } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import { UserProfile } from '../types';
+import { SellerCard } from '../components/SellerCard';
+import { TestimonialSlider } from '../components/TestimonialSlider';
+import { GeneralFeedbackForm } from '../components/GeneralFeedbackForm';
+import { Footer } from '../components/layout/Footer';
 
 export const Home: React.FC = () => {
   const { login, user } = useAuth();
+  const [featuredSellers, setFeaturedSellers] = React.useState<UserProfile[]>([]);
   const navigate = useNavigate();
+
+  React.useEffect(() => {
+    const fetchSellers = async () => {
+      try {
+        const q = query(collection(db, 'users'), where('isSeller', '==', true), limit(3));
+        const snap = await getDocs(q);
+        setFeaturedSellers(snap.docs.map(d => ({ uid: d.id, ...d.data() } as UserProfile)));
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    fetchSellers();
+  }, []);
 
   const steps = [
     {
@@ -81,35 +102,102 @@ export const Home: React.FC = () => {
       {/* Recommendations Section */}
       <section className="space-y-8">
         <div className="flex justify-between items-center">
-          <h2 className="text-3xl font-bold text-gray-900">ترشيحات تهمك</h2>
+          <div>
+            <h2 className="text-3xl font-bold text-gray-900">بائعين موثوقين</h2>
+            <p className="text-gray-500 mt-1">نخبة من مقدمي الخدمات ذوي التقييم المستمر</p>
+          </div>
           <button onClick={() => navigate('/search')} className="text-blue-600 font-bold hover:underline">عرض الكل</button>
         </div>
-        <div className="grid md:grid-cols-3 gap-6">
-          {[
-            { title: 'معقب معاملات معتمد', cat: 'تعقيب', price: 'من 200 ر.س', rating: '4.9' },
-            { title: 'فحص فني للسيارات', cat: 'سيارات', price: 'من 150 ر.س', rating: '4.8' },
-            { title: 'برمجة متاجر سلة وزد', cat: 'برمجة', price: 'من 800 ر.س', rating: '5.0' },
-          ].map((item, i) => (
-            <motion.div
-              key={i}
-              whileHover={{ y: -5 }}
-              className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4"
-            >
-              <div className="flex justify-between items-start">
-                 <span className="px-2 py-1 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold">{item.cat}</span>
-                 <div className="flex items-center gap-1 text-yellow-500 font-bold text-sm">
-                   <Star className="w-4 h-4 fill-current" />
-                   <span>{item.rating}</span>
-                 </div>
+        
+        {featuredSellers.length > 0 ? (
+          <div className="grid md:grid-cols-3 gap-6">
+            {featuredSellers.map(seller => (
+              <SellerCard key={seller.uid} seller={seller} />
+            ))}
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-3 gap-6">
+            {[
+              { title: 'معقب معاملات معتمد', cat: 'تعقيب', price: 'من 200 ر.س', rating: '4.9' },
+              { title: 'فحص فني للسيارات', cat: 'سيارات', price: 'من 150 ر.س', rating: '4.8' },
+              { title: 'برمجة متاجر سلة وزد', cat: 'برمجة', price: 'من 800 ر.س', rating: '5.0' },
+            ].map((item, i) => (
+              <motion.div
+                key={i}
+                whileHover={{ y: -5 }}
+                className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-4"
+              >
+                <div className="flex justify-between items-start">
+                   <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold">{item.cat}</span>
+                   <div className="flex items-center gap-1 text-orange-500 font-bold text-sm">
+                     <Star className="w-4 h-4 fill-current" />
+                     <span>{item.rating}</span>
+                   </div>
+                </div>
+                <h3 className="font-bold text-xl text-gray-900 h-14 leading-tight">{item.title}</h3>
+                <p className="text-blue-600 font-black text-lg">{item.price}</p>
+                <button onClick={() => navigate('/search')} className="w-full py-4 bg-gray-50 text-gray-600 rounded-2xl text-sm font-bold hover:bg-blue-50 hover:text-blue-600 transition-all">
+                  تفاصيل الخدمة
+                </button>
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Become a Seller Section */}
+      <section className="relative overflow-hidden bg-[#1e293b] rounded-[3.5rem] p-12 md:p-20 text-white">
+        <div className="relative z-10 grid md:grid-cols-2 gap-12 items-center">
+          <div className="space-y-8">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/20 text-blue-300 rounded-2xl border border-blue-500/30 font-bold text-sm">
+              <Briefcase className="w-5 h-5" />
+              <span>فرصة عمل حرة</span>
+            </div>
+            <h2 className="text-5xl font-black leading-tight">حول مهاراتك إلى <span className="text-blue-400">مصدر دخل</span> آمن</h2>
+            <p className="text-xl text-slate-300 leading-relaxed">
+              انضم لأكبر منصة وساطة مالية في المملكة. ابنِ سمعتك، وثّق خدماتك، واحصل على مستحقاتك فور التسليم بكل أمان.
+            </p>
+            <div className="flex flex-wrap gap-4">
+               <button onClick={() => navigate('/dashboard')} className="bg-white text-slate-900 px-8 py-4 rounded-2xl font-bold text-lg hover:bg-blue-50 transition-all flex items-center gap-2">
+                 ابدأ البيع الآن
+               </button>
+               <button className="bg-slate-700/50 backdrop-blur-md text-white border border-slate-600 px-8 py-4 rounded-2xl font-bold text-lg hover:bg-slate-700 transition-all">
+                 كيف نضمن حقك؟
+               </button>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            {[
+              { label: 'عملاء نشطين', val: '10K+', icon: Users },
+              { label: 'عمليات ناجحة', val: '50K+', icon: ShieldCheck },
+              { label: 'تقييم المنصة', val: '4.9/5', icon: Star },
+              { label: 'تصنيفات عمل', val: '20+', icon: LayoutGrid },
+            ].map((stat, i) => (
+              <div key={i} className="bg-white/5 border border-white/10 p-6 rounded-3xl backdrop-blur-sm">
+                <stat.icon className="w-8 h-8 text-blue-400 mb-4" />
+                <div className="text-3xl font-black mb-1">{stat.val}</div>
+                <div className="text-slate-400 font-medium text-sm">{stat.label}</div>
               </div>
-              <h3 className="font-bold text-lg text-gray-900">{item.title}</h3>
-              <p className="text-blue-600 font-black">{item.price}</p>
-              <button onClick={() => navigate('/search')} className="w-full py-2 bg-gray-50 text-gray-600 rounded-xl text-sm font-bold hover:bg-blue-50 hover:text-blue-600 transition-all">
-                تفاصيل الخدمة
-              </button>
-            </motion.div>
-          ))}
+            ))}
+          </div>
         </div>
+        {/* Background elements */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/20 rounded-full blur-[120px] -mr-48 -mt-48"></div>
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-indigo-600/20 rounded-full blur-[120px] -ml-48 -mb-48"></div>
+      </section>
+
+      {/* Testimonials Section */}
+      <section className="space-y-12 py-12">
+        <div className="text-center space-y-4">
+          <h2 className="text-4xl font-black text-gray-900">آراء من أحدث مستخدمينا</h2>
+          <p className="text-gray-500 font-medium text-lg">انضم إلى آلاف المستخدمين الذين يثقون في منصة عربون يومياً.</p>
+        </div>
+        <TestimonialSlider />
+      </section>
+
+      {/* Feedback Section */}
+      <section className="py-12">
+        <GeneralFeedbackForm />
       </section>
 
       {/* Steps Section */}
@@ -179,6 +267,25 @@ export const Home: React.FC = () => {
           </div>
         </div>
       </section>
+
+      {/* Feature Highlights Bar */}
+      <section className="grid grid-cols-2 lg:grid-cols-4 gap-4 pb-12">
+        {[
+          { label: 'ضمان كامل لحقوقك المالية', icon: ShieldCheck },
+          { label: 'تقييم شفاف للبائع والعميل', icon: Star },
+          { label: 'دعم فني على مدار الساعة', icon: Clock },
+          { label: 'سرعة وسهولة في الإجراءات', icon: CheckCircle },
+        ].map((item, i) => (
+          <div key={i} className="bg-white p-6 rounded-3xl border border-gray-100 flex flex-col items-center text-center gap-3">
+             <div className="bg-blue-50 p-3 rounded-2xl">
+               <item.icon className="w-6 h-6 text-blue-600" />
+             </div>
+             <p className="font-black text-sm text-gray-900">{item.label}</p>
+          </div>
+        ))}
+      </section>
+
+      <Footer />
     </div>
   );
 };

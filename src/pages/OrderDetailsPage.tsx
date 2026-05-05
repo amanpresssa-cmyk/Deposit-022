@@ -9,6 +9,7 @@ import { Shield, Clock, CheckCircle2, ChevronRight, AlertTriangle, CreditCard, P
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { ChatRoom } from '../components/chat/ChatRoom';
+import { OrderRating } from '../components/OrderRating';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 
 export const OrderDetailsPage: React.FC = () => {
@@ -18,6 +19,7 @@ export const OrderDetailsPage: React.FC = () => {
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [ratingSuccess, setRatingSuccess] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -220,9 +222,43 @@ export const OrderDetailsPage: React.FC = () => {
                     </button>
                  )}
                  {order.status === 'completed' && (
-                   <div className="flex items-center gap-2 text-green-600 font-bold bg-green-50 px-4 py-2 rounded-xl border border-green-100">
-                     <CheckCircle2 className="w-5 h-5" />
-                     <span>تم إغلاق الصفقة بنجاح</span>
+                   <div className="flex flex-col gap-4">
+                    <div className="flex items-center gap-2 text-green-600 font-bold bg-green-50 px-4 py-2 rounded-xl border border-green-100">
+                      <CheckCircle2 className="w-5 h-5" />
+                      <span>تم إغلاق الصفقة بنجاح</span>
+                    </div>
+                    
+                    {isBuyer && !order.buyerRatingCompleted && !ratingSuccess && (
+                      <div className="mt-8">
+                         <OrderRating 
+                            orderId={order.id}
+                            reviewerId={user!.uid}
+                            revieweeId={order.sellerId}
+                            type="buyer-to-seller"
+                            onSuccess={() => setRatingSuccess(true)}
+                         />
+                      </div>
+                    )}
+
+                    {isSeller && !order.sellerRatingCompleted && !ratingSuccess && (
+                      <div className="mt-8">
+                         <OrderRating 
+                            orderId={order.id}
+                            reviewerId={user!.uid}
+                            revieweeId={order.buyerId}
+                            type="seller-to-buyer"
+                            onSuccess={() => setRatingSuccess(true)}
+                         />
+                      </div>
+                    )}
+
+                    {ratingSuccess && (
+                      <div className="mt-8 p-6 bg-blue-50 border border-blue-100 rounded-3xl text-center">
+                         <CheckCircle2 className="w-12 h-12 text-blue-500 mx-auto mb-4" />
+                         <h3 className="text-xl font-bold text-blue-900">شكراً لتقييمك!</h3>
+                         <p className="text-blue-600 font-medium">مساهمتك تساعد في جعل المجتمع أكثر شفافية.</p>
+                      </div>
+                    )}
                    </div>
                  )}
                </div>
