@@ -1,0 +1,129 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Users ---
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isOwner(userId)
+        && incoming().uid == userId
+        && incoming().createdAt == request.time
+        && incoming().rating == 0
+        && incoming().reviewsCount == 0;
+      allow update: if isOwner(userId)
+        && incoming().uid == userId
+        && incoming().createdAt == existing().createdAt
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL']);
+    }
+
+    // --- Orders ---
+    function isValidOrder(data) {
+      return data.buyerId is string && data.sellerId is string
+        && data.title is string && data.title.size() <= 100
+        && data.amount is number && data.amount > 0
+        && data.status in ['pending', 'escrowed', 'delivered', 'completed', 'disputed', 'cancelled'];
+    }
+
+    match /orders/{orderId} {
+      allow get: if isSignedIn() && (isOwner(existing().buyerId) || isOwner(existing().sellerId) || existing().visibility == 'public');
+      allow list: if isSignedIn() && (
+        resource.data.buyerId == request.auth.uid || 
+        resource.data.sellerId == request.auth.uid || 
+        resource.data.visibility == 'public'
+      );
+      
+      allow create: if isSignedIn() 
+        && isValidOrder(incoming())
+        && isOwner(incoming().buyerId)
+        && incoming().status == 'pending'
+        && incoming().createdAt == request.time;
+        
+      allow update: if isSignedIn() 
+        && isValidOrder(incoming())
+        && (
+          // Action: Seller accepts/updates to escrowed (if we had specific flow)
+          // For now, allow transition between states based on roles
+          (isOwner(existing().buyerId) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) 
+            && (
+              (existing().status == 'pending' && incoming().status == 'cancelled') ||
+              (existing().status == 'delivered' && incoming().status == 'completed') ||
+              (existing().status == 'escrowed' && incoming().status == 'disputed') ||
+              (existing().status == 'delivered' && incoming().status == 'disputed')
+            )
+          ) ||
+          (isOwner(existing().sellerId) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+            && (
+              (existing().status == 'pending' && incoming().status == 'escrowed') ||
+              (existing().status == 'escrowed' && incoming().status == 'delivered')
+            )
+          )
+        );
+    }
+
+    // --- Messages ---
+    match /orders/{orderId}/messages/{messageId} {
+      allow read: if isSignedIn() && (
+        get(/databases/$(database)/documents/orders/$(orderId)).data.buyerId == request.auth.uid ||
+        get(/databases/$(database)/documents/orders/$(orderId)).data.sellerId == request.auth.uid
+      );
+      allow create: if isSignedIn() 
+        && incoming().senderId == request.auth.uid
+        && incoming().orderId == orderId
+        && (
+          get(/databases/$(database)/documents/orders/$(orderId)).data.buyerId == request.auth.uid ||
+          get(/databases/$(database)/documents/orders/$(orderId)).data.sellerId == request.auth.uid
+        );
+    }
+
+    // --- Reviews ---
+    match /reviews/{reviewId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && incoming().reviewerId == request.auth.uid
+        && get(/databases/$(database)/documents/orders/$(incoming().orderId)).data.status == 'completed'
+        && (
+           get(/databases/$(database)/documents/orders/$(incoming().orderId)).data.buyerId == request.auth.uid ||
+           get(/databases/$(database)/documents/orders/$(incoming().orderId)).data.sellerId == request.auth.uid
+        );
+    }
+
+    // --- Disputes ---
+    match /disputes/{disputeId} {
+      allow read: if isSignedIn() && (
+        isOwner(existing().raisedById) || 
+        get(/databases/$(database)/documents/orders/$(existing().orderId)).data.buyerId == request.auth.uid ||
+        get(/databases/$(database)/documents/orders/$(existing().orderId)).data.sellerId == request.auth.uid
+      );
+      allow create: if isSignedIn()
+        && incoming().raisedById == request.auth.uid
+        && incoming().status == 'open'
+        && get(/databases/$(database)/documents/orders/$(incoming().orderId)).data.status == 'disputed';
+    }
+  }
+}

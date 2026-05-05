@@ -1,0 +1,10 @@
+{
+  "name": "Arboon - عربون",
+  "description": "منصة وساطة مالية (Escrow) لضمان الحقوق بين البائع والمشتري أو مقدمي الخدمات المعاملات.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ],
+  "majorCapabilities": []
+}

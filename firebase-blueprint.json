@@ -1,0 +1,100 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "rating": { "type": "number" },
+        "reviewsCount": { "type": "number" },
+        "isVerified": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "createdAt"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Escrow transaction between buyer and seller",
+      "type": "object",
+      "properties": {
+        "buyerId": { "type": "string" },
+        "sellerId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "amount": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "escrowed", "delivered", "completed", "disputed", "cancelled"] },
+        "visibility": { "type": "string", "enum": ["public", "private"] },
+        "category": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["buyerId", "sellerId", "title", "amount", "status", "createdAt"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "Chat message for an order",
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["orderId", "senderId", "text", "createdAt"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "Rating and comment for a transaction",
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string" },
+        "reviewerId": { "type": "string" },
+        "revieweeId": { "type": "string" },
+        "rating": { "type": "number" },
+        "comment": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["orderId", "reviewerId", "revieweeId", "rating", "createdAt"]
+    },
+    "Dispute": {
+      "title": "Dispute",
+      "description": "Information about a disputed transaction",
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string" },
+        "raisedById": { "type": "string" },
+        "reason": { "type": "string" },
+        "status": { "type": "string", "enum": ["open", "resolved", "dismissed"] },
+        "resolution": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["orderId", "raisedById", "reason", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "users": {
+      "schema": "User",
+      "description": "Collection of user profiles"
+    },
+    "orders": {
+      "schema": "Order",
+      "description": "Collection of escrow orders"
+    },
+    "orders/{orderId}/messages": {
+      "schema": "Message",
+      "description": "Subcollection of chat messages for an order"
+    },
+    "reviews": {
+      "schema": "Review",
+      "description": "Collection of user reviews"
+    },
+    "disputes": {
+      "schema": "Dispute",
+      "description": "Collection of transaction disputes"
+    }
+  }
+}
