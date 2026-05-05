@@ -83,6 +83,19 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["orderId", "raisedById", "reason", "status", "createdAt"]
+    },
+    "PlatformFeedback": {
+      "title": "Platform Feedback",
+      "description": "User suggestions and ratings for the platform",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "comment": { "type": "string" },
+        "rating": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["comment", "rating", "createdAt"]
     }
   },
   "firestore": {
@@ -105,6 +118,10 @@
     "disputes": {
       "schema": "Dispute",
       "description": "Collection of transaction disputes"
+    },
+    "platform_feedback": {
+      "schema": "PlatformFeedback",
+      "description": "User feedback about the platform"
     }
   }
 }

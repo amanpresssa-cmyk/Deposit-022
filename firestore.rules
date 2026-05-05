@@ -169,5 +169,17 @@ service cloud.firestore {
         && incoming().status == 'open'
         && get(/databases/$(database)/documents/orders/$(incoming().orderId)).data.status == 'disputed';
     }
+
+    // --- Platform Feedback ---
+    match /platform_feedback/{feedbackId} {
+      allow read: if isAdmin() 
+        || (resource.data.userId == request.auth.uid)
+        || (resource.data.rating >= 4);
+      allow create: if isSignedIn()
+        && incoming().comment is string && incoming().comment.size() <= 2000
+        && incoming().rating is number && incoming().rating >= 1 && incoming().rating <= 5
+        && incoming().createdAt == request.time
+        && incoming().userId == request.auth.uid;
+    }
   }
 }

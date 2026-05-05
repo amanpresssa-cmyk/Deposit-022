@@ -18,9 +18,13 @@ export const GeneralFeedbackForm: React.FC = () => {
     
     setLoading(true);
     try {
+      if (!user) {
+        alert('يرجى تسجيل الدخول أولاً لإرسال رأيك');
+        return;
+      }
       await addDoc(collection(db, 'platform_feedback'), {
-        userId: user?.uid || 'anonymous',
-        userName: user?.displayName || 'زائر',
+        userId: user.uid,
+        userName: user.displayName || 'مستخدم',
         comment,
         rating,
         createdAt: serverTimestamp()
@@ -65,6 +69,11 @@ export const GeneralFeedbackForm: React.FC = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {!user && (
+            <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-2xl text-blue-300 text-sm font-bold">
+              يرجى تسجيل الدخول لتتمكن من مشاركتنا رأيك وتتبع مراجعتك.
+            </div>
+          )}
           <div className="flex justify-center gap-3">
             {[1, 2, 3, 4, 5].map((s) => (
               <button

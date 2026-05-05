@@ -91,7 +91,7 @@ export const IdentityVerification: React.FC<Props> = ({ onClose }) => {
 
                        <div className="space-y-4">
                           <div className="flex gap-4 p-5 rounded-2xl bg-gray-50 border border-gray-100">
-                             < smartphone className="w-8 h-8 text-blue-500" />
+                             <Smartphone className="w-8 h-8 text-blue-500" />
                              <div>
                                 <h4 className="font-bold text-gray-900">توثيق رقم الجوال</h4>
                                 <p className="text-xs text-gray-400">يجب أن يكون رقمك نشطاً لاستقبال كود التحقق.</p>
