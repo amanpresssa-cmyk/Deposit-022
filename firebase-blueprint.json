@@ -96,6 +96,38 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["comment", "rating", "createdAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "System alerts for users",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "type": { "type": "string", "enum": ["order_update", "payment", "dispute", "system"] },
+        "orderId": { "type": "string" },
+        "isRead": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "message", "type", "isRead", "createdAt"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Financial records for orders",
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string" },
+        "buyerId": { "type": "string" },
+        "sellerId": { "type": "string" },
+        "amount": { "type": "number" },
+        "fee": { "type": "number" },
+        "netAmount": { "type": "number" },
+        "status": { "type": "string", "enum": ["escrowed", "completed", "refunded"] },
+        "specialty": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["orderId", "amount", "status", "createdAt"]
     }
   },
   "firestore": {
@@ -122,6 +154,14 @@
     "platform_feedback": {
       "schema": "PlatformFeedback",
       "description": "User feedback about the platform"
+    },
+    "notifications": {
+      "schema": "Notification",
+      "description": "User notifications collection"
+    },
+    "transactions": {
+      "schema": "Transaction",
+      "description": "Financial audit log for escrow"
     }
   }
 }

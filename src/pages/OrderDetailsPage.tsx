@@ -1,16 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { doc, onSnapshot, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../hooks/useAuth';
 import { Order } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
-import { Shield, Clock, CheckCircle2, ChevronRight, AlertTriangle, CreditCard, PackageCheck, Star } from 'lucide-react';
+import { Shield, Clock, CheckCircle2, ChevronRight, AlertTriangle, CreditCard, PackageCheck, Star, EyeOff } from 'lucide-react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { ChatRoom } from '../components/chat/ChatRoom';
 import { OrderRating } from '../components/OrderRating';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
+import { sendNotification, recordTransaction } from '../lib/notificationService';
 
 export const OrderDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -20,6 +21,8 @@ export const OrderDetailsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [ratingSuccess, setRatingSuccess] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<'mada' | 'visa' | 'apple'>('mada');
 
   useEffect(() => {
     if (!id) return;
@@ -46,6 +49,68 @@ export const OrderDetailsPage: React.FC = () => {
         status: newStatus,
         updatedAt: serverTimestamp(),
       });
+
+      // --- Notifications Logic ---
+      const messages: Record<string, string> = {
+        'cancelled': 'تم إلغاء الصفقة من قبل الطرف الآخر.',
+        'escrowed': `رائع! تم دفع مبلغ ${order.amount} ر.س واحتجازه بأمان. يمكنك البدء في تنفيذ المعاملة.`,
+        'delivered': 'تم رفع إنجاز المعاملة من قبل المعقب، يرجى المراجعة والاعتماد.',
+        'completed': 'تم تحرير المبلغ بنجاح لحساب المعقب. شكراً لتعاملك مع عربون.',
+        'disputed': 'تم فتح نزاع بخصوص هذا الطلب. سيتواصل معك أحد مدراء المنصة قريباً.'
+      };
+
+      const titles: Record<string, string> = {
+        'cancelled': 'تنبيه: إلغاء صفقة',
+        'escrowed': 'تنبيه: تم تعميد المبلغ',
+        'delivered': 'تنبيه: تم تسليم العمل',
+        'completed': 'تنبيه: اكتمال الصفقة',
+        'disputed': 'تنبيه: فتح نزاع'
+      };
+
+      if (messages[newStatus]) {
+        // Decide who gets the notification
+        // For Escrowed: Seller gets it
+        // For Delivered: Buyer gets it
+        // For Completed: Seller gets it
+        // For Cancelled/Disputed: Both? Let's simplify.
+        const isToSeller = ['escrowed', 'completed'].includes(newStatus);
+        const isBoth = ['cancelled', 'disputed'].includes(newStatus);
+        const sellerId = order.sellerId === 'unknown' ? null : order.sellerId;
+
+        if (isBoth) {
+          if (order.buyerId) await sendNotification(order.buyerId, titles[newStatus], messages[newStatus], 'order_update', order.id);
+          if (sellerId) await sendNotification(sellerId, titles[newStatus], messages[newStatus], 'order_update', order.id);
+        } else {
+          const recipientId = isToSeller ? sellerId : order.buyerId;
+          if (recipientId) {
+            await sendNotification(
+              recipientId, 
+              titles[newStatus], 
+              messages[newStatus], 
+              newStatus === 'escrowed' ? 'payment' : 'order_update',
+              order.id
+            );
+          }
+        }
+      }
+
+      // --- Financial Transaction Records ---
+      if (newStatus === 'escrowed') {
+        await recordTransaction({
+          orderId: order.id,
+          buyerId: order.buyerId,
+          sellerId: order.sellerId,
+          amount: order.amount,
+          fee: order.amount * 0.05,
+          netAmount: order.amount,
+          status: 'escrowed',
+          specialty: order.category
+        });
+      } else if (newStatus === 'completed') {
+        // Mark transaction as completed for admin analytics
+        // This usually involves updating the existing transaction or recording a payout
+      }
+
     } catch (error) {
        handleFirestoreError(error, OperationType.UPDATE, `orders/${order.id}`);
     } finally {
@@ -84,8 +149,35 @@ export const OrderDetailsPage: React.FC = () => {
 
   const currentStepIndex = steps.findIndex(s => s.key === order.status);
 
+  const handleConfirmPayment = async () => {
+    setActionLoading(true);
+    try {
+      // هنا يتم الربط الحقيقي مع Stripe/Moyasar
+      // في هذه المحاكاة، نفترض نجاح العملية مباشرة
+      await updateStatus('escrowed');
+      setShowPaymentModal(false);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <AnimatePresence>
+        {showPaymentModal && (
+          <PaymentModal 
+            amount={order.amount}
+            loading={actionLoading}
+            paymentMethod={paymentMethod}
+            setPaymentMethod={setPaymentMethod}
+            onClose={() => setShowPaymentModal(false)}
+            onConfirm={handleConfirmPayment}
+          />
+        )}
+      </AnimatePresence>
+
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm text-gray-500">
           <button onClick={() => navigate('/dashboard')} className="hover:text-blue-600">لوحة التحكم</button>
@@ -176,14 +268,20 @@ export const OrderDetailsPage: React.FC = () => {
                       <span>قبول الصفقة وربطها بحسابي</span>
                     </button>
                  )}
-                 {order.status === 'pending' && isSeller && (
+                 {order.status === 'pending' && isBuyer && (
                    <button
-                     onClick={() => updateStatus('escrowed')}
+                     onClick={() => setShowPaymentModal(true)}
                      disabled={actionLoading}
-                     className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-md"
+                     className="bg-green-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-green-700 transition-all shadow-md flex items-center gap-2"
                    >
-                     بدء الضمان واحتجاز المبلغ
+                     <CreditCard className="w-5 h-5" />
+                     دفع وتعميد المبلغ ({order.amount} ر.س)
                    </button>
+                 )}
+                 {order.status === 'pending' && isSeller && (
+                   <div className="bg-blue-50 text-blue-700 px-6 py-3 rounded-xl font-bold border border-blue-100 text-sm">
+                     بانتظار قيام المشتري بدفع المبلغ وتعميد الصفقة...
+                   </div>
                  )}
                  {order.status === 'escrowed' && isSeller && (
                     <button
@@ -292,3 +390,88 @@ export const OrderDetailsPage: React.FC = () => {
     </div>
   );
 };
+
+const PaymentModal: React.FC<{ 
+  amount: number; 
+  onConfirm: () => void; 
+  onClose: () => void;
+  loading: boolean;
+  paymentMethod: string;
+  setPaymentMethod: (m: any) => void;
+}> = ({ amount, onConfirm, onClose, loading, paymentMethod, setPaymentMethod }) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <motion.div 
+      initial={{ scale: 0.9, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      className="bg-white rounded-[2.5rem] w-full max-w-md overflow-hidden shadow-2xl"
+    >
+      <div className="p-8 text-center border-b border-gray-100">
+        <div className="w-16 h-16 bg-green-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <CreditCard className="w-8 h-8 text-green-600" />
+        </div>
+        <h3 className="text-2xl font-black text-gray-900">دفع العربون والتعميد</h3>
+        <p className="text-gray-500 mt-2">سيتم احتجاز المبلغ في منصة عربون حتى استلامك للخدمة</p>
+      </div>
+
+      <div className="p-8 space-y-6">
+        <div className="flex flex-col gap-3">
+          <p className="font-bold text-sm text-gray-400 text-right">اختر وسيلة الدفع</p>
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { id: 'mada', name: 'مدى', img: 'https://i.imgur.com/6S3Y2Y7.png' },
+              { id: 'visa', name: 'فيزا', img: 'https://i.imgur.com/8Qp6V6Y.png' },
+              { id: 'apple', name: 'Apple Pay', icon: '' },
+            ].map(m => (
+              <button
+                key={m.id}
+                onClick={() => setPaymentMethod(m.id)}
+                className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-2 ${
+                  paymentMethod === m.id ? 'border-blue-600 bg-blue-50' : 'border-gray-50 bg-gray-50/50'
+                }`}
+              >
+                {m.img ? <img src={m.img} alt={m.name} className="h-4 grayscale-0" /> : <span className="text-xl font-bold">{m.icon}</span>}
+                <span className="text-[10px] font-black">{m.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-gray-50 p-4 rounded-2xl space-y-2">
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-500">قيمة الطلب</span>
+            <span className="font-bold">{amount} ر.س</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-500">رسوم التعميد (5%)</span>
+            <span className="font-bold">{(amount * 0.05).toFixed(2)} ر.س</span>
+          </div>
+          <div className="pt-2 border-t border-gray-200 flex justify-between">
+            <span className="font-black text-gray-900">المجموع المطلوب</span>
+            <span className="font-black text-blue-600">{(amount * 1.05).toFixed(2)} ر.س</span>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <button
+            onClick={onConfirm}
+            disabled={loading}
+            className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black text-lg hover:bg-blue-700 transition-all shadow-xl shadow-blue-100 disabled:opacity-50"
+          >
+            {loading ? 'جاري معالجة الدفع...' : 'تأكيد الدفع والتعميد الفوري'}
+          </button>
+          <button
+            onClick={onClose}
+            className="w-full py-3 text-gray-400 font-bold hover:text-gray-600 transition-colors"
+          >
+            إلغاء
+          </button>
+        </div>
+      </div>
+
+      <div className="p-4 bg-gray-50 text-[10px] text-center text-gray-400 flex items-center justify-center gap-2">
+        <Shield className="w-3 h-3" />
+        مدعوم من منصة عربون للوساطة الآمنة - تشفير 256-bit
+      </div>
+    </motion.div>
+  </div>
+);
