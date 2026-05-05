@@ -15,27 +15,52 @@ export const AdminDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'pending' | 'verified' | 'rejected'>('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [tab, setTab] = useState<'users' | 'finance'>('users');
+  const [tab, setTab] = useState<'users' | 'finance' | 'disputes' | 'system'>('users');
   const [transactions, setTransactions] = useState<any[]>([]);
+  const [disputes, setDisputes] = useState<any[]>([]);
+  const [stats, setStats] = useState({
+    totalVolume: 0,
+    totalFees: 0,
+    activeEscrows: 0,
+    pendingVerifications: 0
+  });
 
   useEffect(() => {
-    if (!profile?.isAdmin && profile?.email !== 'khyratfarmdates@gmail.com') return;
+    if (profile?.email !== 'khyratfarmdates@gmail.com') return;
 
+    // Fetch Stats & Transactions
     const txQ = query(collection(db, 'transactions'), orderBy('createdAt', 'desc'));
-    const unsubscribe = onSnapshot(txQ, (snapshot) => {
-      setTransactions(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    const unsubTx = onSnapshot(txQ, (snapshot) => {
+      const txs = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
+      setTransactions(txs);
+      
+      const volume = txs.reduce((acc, tx) => acc + (Number(tx.amount) || 0), 0);
+      const fees = txs.reduce((acc, tx) => acc + (Number(tx.fee) || 0), 0);
+      const escrowed = txs.filter(tx => tx.status === 'escrowed').length;
+      
+      setStats(prev => ({ ...prev, totalVolume: volume, totalFees: fees, activeEscrows: escrowed }));
     });
 
-    return () => unsubscribe();
+    // Fetch Disputes
+    const dispQ = query(collection(db, 'disputes'), orderBy('createdAt', 'desc'));
+    const unsubDisp = onSnapshot(dispQ, (snapshot) => {
+      setDisputes(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+
+    return () => {
+      unsubTx();
+      unsubDisp();
+    };
   }, [profile]);
 
   useEffect(() => {
-    // Only fetch if admin
-    if (!profile?.isAdmin && profile?.email !== 'khyratfarmdates@gmail.com') return;
+    if (profile?.email !== 'khyratfarmdates@gmail.com') return;
 
     const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setUsers(snapshot.docs.map(d => ({ uid: d.id, ...d.data() } as UserProfile)));
+      const allUsers = snapshot.docs.map(d => ({ uid: d.id, ...d.data() } as UserProfile));
+      setUsers(allUsers);
+      setStats(prev => ({ ...prev, pendingVerifications: allUsers.filter(u => u.verificationStatus === 'pending').length }));
       setLoading(false);
     });
 
@@ -83,70 +108,63 @@ export const AdminDashboard: React.FC = () => {
     return matchesFilter && matchesSearch;
   });
 
-  const stats = {
-    totalVolume: transactions.reduce((acc, tx) => acc + (tx.amount || 0), 0),
-    totalFees: transactions.reduce((acc, tx) => acc + (tx.fee || 0), 0),
-    escrowedCount: transactions.filter(tx => tx.status === 'escrowed').length,
-    activeSpecialties: Array.from(new Set(transactions.map(tx => tx.specialty).filter(Boolean)))
-  };
-
   return (
     <div className="max-w-7xl mx-auto px-4 py-12 space-y-12">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6">
         <div>
-           <h1 className="text-4xl font-black text-gray-900 mb-2">لوحة التحكم الإدارية</h1>
-           <p className="text-gray-500 font-medium">إدارة المستخدمين والعمليات المالية والنزاعات.</p>
+           <h1 className="text-4xl font-black text-gray-900 mb-2">مركز إدارة عربون</h1>
+           <p className="text-gray-500 font-medium">التحكم الكامل في المستخدمين، النزاعات، والتدفقات المالية.</p>
         </div>
-        <div className="flex bg-white p-1.5 rounded-2xl border border-gray-100 shadow-sm">
-           <button
-             onClick={() => setTab('users')}
-             className={`px-8 py-3 rounded-xl font-black text-sm transition-all ${
-               tab === 'users' ? 'bg-blue-600 text-white shadow-xl shadow-blue-100' : 'text-gray-400'
-             }`}
-           >
-             إدارة التوثيق
-           </button>
-           <button
-             onClick={() => setTab('finance')}
-             className={`px-8 py-3 rounded-xl font-black text-sm transition-all ${
-               tab === 'finance' ? 'bg-blue-600 text-white shadow-xl shadow-blue-100' : 'text-gray-400'
-             }`}
-           >
-             المالية والإحصائيات
-           </button>
+        <div className="flex bg-white p-1 rounded-2xl border border-gray-100 shadow-sm overflow-x-auto max-w-full">
+           {[
+             { id: 'users', label: 'المستخدمين', icon: <UserCheck className="w-4 h-4" /> },
+             { id: 'finance', label: 'المالية', icon: <Wallet className="w-4 h-4" /> },
+             { id: 'disputes', label: 'النزاعات', icon: <AlertCircle className="w-4 h-4" /> },
+             { id: 'system', label: 'الإعدادات', icon: <ShieldCheck className="w-4 h-4" /> },
+           ].map(t => (
+             <button
+               key={t.id}
+               onClick={() => setTab(t.id as any)}
+               className={`flex items-center gap-2 px-6 py-3 rounded-xl font-black text-xs transition-all whitespace-nowrap ${
+                 tab === t.id ? 'bg-blue-600 text-white shadow-xl shadow-blue-100' : 'text-gray-400 hover:text-gray-600'
+               }`}
+             >
+               {t.icon}
+               {t.label}
+             </button>
+           ))}
         </div>
       </div>
 
-      {tab === 'finance' ? (
-        <div className="space-y-8 animate-in fade-in duration-500">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-             {[
-               { label: 'إجمالي التداولات', value: `${stats.totalVolume} ر.س`, icon: <TrendingUp />, color: 'blue' },
-               { label: 'رسوم المنصة', value: `${stats.totalFees} ر.س`, icon: <Wallet />, color: 'green' },
-               { label: 'عمليات التعميد النشطة', value: stats.escrowedCount, icon: <Clock />, color: 'orange' },
-               { label: 'التخصصات النشطة', value: stats.activeSpecialties.length, icon: <PieChart />, color: 'indigo' },
-             ].map((s, idx) => (
-               <div key={idx} className="bg-white p-8 rounded-[2.5rem] border border-gray-50 shadow-sm hover:shadow-lg transition-all border-b-4" style={{ borderColor: `var(--${s.color}-500)` }}>
-                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-4 bg-${s.color}-50 text-${s.color}-600`}>
-                     {s.icon}
-                  </div>
-                  <p className="text-gray-400 font-bold text-sm mb-1">{s.label}</p>
-                  <p className="text-3xl font-black text-gray-900">{s.value}</p>
-               </div>
-             ))}
-          </div>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+         {[
+           { label: 'إجمالي التداولات', value: `${stats.totalVolume.toLocaleString()} ر.س`, icon: <TrendingUp />, color: 'blue' },
+           { label: 'أرباح المنصة', value: `${stats.totalFees.toLocaleString()} ر.س`, icon: <Wallet />, color: 'green' },
+           { label: 'طلبات توثيق قيد المراجعة', value: stats.pendingVerifications, icon: <ShieldCheck />, color: 'orange' },
+           { label: 'عمليات تعميد نشطة', value: stats.activeEscrows, icon: <Clock />, color: 'indigo' },
+         ].map((s, idx) => (
+           <div key={idx} className="bg-white p-6 rounded-[2rem] border border-gray-50 shadow-sm">
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 bg-gray-50 text-gray-600`}>
+                 {s.icon}
+              </div>
+              <p className="text-gray-400 font-bold text-[10px] uppercase mb-1">{s.label}</p>
+              <p className="text-2xl font-black text-gray-900">{s.value}</p>
+           </div>
+         ))}
+      </div>
 
+      {tab === 'finance' && (
+        <div className="space-y-8 animate-in fade-in duration-500">
           <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden">
              <div className="p-8 border-b border-gray-50 flex items-center gap-3">
                 <Activity className="w-6 h-6 text-blue-600" />
-                <h2 className="text-xl font-black">سجل العمليات المالية</h2>
+                <h2 className="text-xl font-black">آخر العمليات المالية</h2>
              </div>
              <div className="overflow-x-auto">
                 <table className="w-full text-right">
                    <thead>
                       <tr className="bg-gray-50/50 text-gray-400 text-xs font-black uppercase tracking-widest">
-                         <th className="px-8 py-5">الصفقة</th>
-                         <th className="px-8 py-5">التخصص</th>
+                         <th className="px-8 py-5">المستخدم</th>
                          <th className="px-8 py-5">المبلغ</th>
                          <th className="px-8 py-5">الرسوم</th>
                          <th className="px-8 py-5">الحالة</th>
@@ -156,8 +174,7 @@ export const AdminDashboard: React.FC = () => {
                    <tbody className="divide-y divide-gray-50">
                       {transactions.map(tx => (
                         <tr key={tx.id} className="hover:bg-gray-50/50 transition-colors">
-                           <td className="px-8 py-5 font-bold text-blue-600">#{tx.orderId.slice(-6)}</td>
-                           <td className="px-8 py-5 text-sm font-bold text-gray-600">{tx.specialty || 'عام'}</td>
+                           <td className="px-8 py-5 font-bold text-gray-600">{tx.userEmail || 'نظام'}</td>
                            <td className="px-8 py-5 font-black text-gray-900">{tx.amount} ر.س</td>
                            <td className="px-8 py-5 font-bold text-green-600">{(tx.fee || 0).toFixed(2)} ر.س</td>
                            <td className="px-8 py-5">
@@ -177,7 +194,30 @@ export const AdminDashboard: React.FC = () => {
              </div>
           </div>
         </div>
-      ) : (
+      )}
+
+      {tab === 'disputes' && (
+        <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm p-12 text-center">
+            <AlertCircle className="w-16 h-16 text-orange-400 mx-auto mb-4" />
+            <h3 className="text-xl font-black mb-2">إدارة النزاعات</h3>
+            <p className="text-gray-500 mb-8 max-w-md mx-auto">سيتم عرض كافة الصفقات المتنازع عليها هنا ليتم التدخل اليدوي وحلها من قبل الإدارة.</p>
+            {disputes.length === 0 ? (
+                <div className="py-8 text-gray-300 font-bold">لا توجد نزاعات حالية تتطلب تدخل</div>
+            ) : (
+                <div className="grid grid-cols-1 gap-4">
+                    {/* Disputes list would go here */}
+                </div>
+            )}
+        </div>
+      )}
+
+      {tab === 'system' && (
+        <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm p-12 text-center text-gray-400 font-bold">
+            قريباً: إعدادات النظام المتقدمة، تعديل العمولات، والرسائل الجماعية.
+        </div>
+      )}
+
+      {tab === 'users' && (
         <div className="space-y-12 animate-in fade-in duration-500">
           <div className="flex bg-white p-1.5 rounded-2xl border border-gray-100 shadow-sm w-fit">
              {[

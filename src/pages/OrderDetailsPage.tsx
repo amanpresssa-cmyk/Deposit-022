@@ -319,6 +319,34 @@ export const OrderDetailsPage: React.FC = () => {
                       إلغاء الطلب
                     </button>
                  )}
+                 {user?.email === 'khyratfarmdates@gmail.com' && (
+                   <div className="w-full mt-6 p-6 bg-red-50 border border-red-100 rounded-3xl">
+                      <div className="flex items-center gap-2 text-red-600 font-black text-sm mb-4">
+                         <Shield className="w-4 h-4" />
+                         أدوات تحكم الإدارة (خاص بالمالك)
+                      </div>
+                      <div className="flex flex-wrap gap-3">
+                         <button 
+                           onClick={() => updateStatus('completed')}
+                           className="bg-red-600 text-white px-6 py-2 rounded-xl font-bold text-xs hover:bg-red-700 transition-all"
+                         >
+                           إكمال قسري (تحرير المبلغ)
+                         </button>
+                         <button 
+                           onClick={() => updateStatus('cancelled')}
+                           className="bg-white text-red-600 border border-red-200 px-6 py-2 rounded-xl font-bold text-xs hover:bg-red-50 transition-all"
+                         >
+                           إلغاء قسري (إعادة المبلغ)
+                         </button>
+                         <button 
+                           onClick={() => updateStatus('escrowed')}
+                           className="bg-white text-gray-600 border border-gray-200 px-6 py-2 rounded-xl font-bold text-xs hover:bg-gray-50 transition-all"
+                         >
+                           تغيير الحالة إلى "معمد"
+                         </button>
+                      </div>
+                   </div>
+                 )}
                  {order.status === 'completed' && (
                    <div className="flex flex-col gap-4">
                     <div className="flex items-center gap-2 text-green-600 font-bold bg-green-50 px-4 py-2 rounded-xl border border-green-100">
@@ -418,19 +446,18 @@ const PaymentModal: React.FC<{
           <p className="font-bold text-sm text-gray-400 text-right">اختر وسيلة الدفع</p>
           <div className="grid grid-cols-3 gap-3">
             {[
-              { id: 'mada', name: 'مدى', img: 'https://i.imgur.com/6S3Y2Y7.png' },
-              { id: 'visa', name: 'فيزا', img: 'https://i.imgur.com/8Qp6V6Y.png' },
-              { id: 'apple', name: 'Apple Pay', icon: '' },
+              { id: 'mada', name: 'MADA' },
+              { id: 'visa', name: 'VISA' },
+              { id: 'apple', name: 'APPLE PAY' },
             ].map(m => (
               <button
                 key={m.id}
                 onClick={() => setPaymentMethod(m.id)}
-                className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-2 ${
+                className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-1 ${
                   paymentMethod === m.id ? 'border-blue-600 bg-blue-50' : 'border-gray-50 bg-gray-50/50'
                 }`}
               >
-                {m.img ? <img src={m.img} alt={m.name} className="h-4 grayscale-0" /> : <span className="text-xl font-bold">{m.icon}</span>}
-                <span className="text-[10px] font-black">{m.name}</span>
+                <span className="text-[10px] font-black tracking-tighter">{m.name}</span>
               </button>
             ))}
           </div>

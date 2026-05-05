@@ -40,14 +40,11 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create: if isOwner(userId)
         && incoming().uid == userId
-        && incoming().createdAt == request.time
+        && (incoming().isAdmin == (request.auth.token.email == 'khyratfarmdates@gmail.com'))
         && incoming().rating == 0
         && incoming().reviewsCount == 0
-        && incoming().trustLevel == 10
-        && incoming().verificationStatus == 'none'
-        && incoming().isVerified == false
-        && incoming().isSeller == false
-        && (!('isAdmin' in incoming()) || incoming().isAdmin == (request.auth.token.email == 'khyratfarmdates@gmail.com'));
+        && incoming().trustLevel >= 10
+        && incoming().verificationStatus == 'none';
       
       allow update: if (isOwner(userId) || isAdmin())
         && incoming().uid == userId

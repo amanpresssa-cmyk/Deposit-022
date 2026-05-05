@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { Component, ReactNode, useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { Home } from './pages/Home';
@@ -9,6 +9,8 @@ import { SearchPage } from './pages/SearchPage';
 import { SellerProfilePage } from './pages/SellerProfilePage';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { Navbar } from './components/layout/Navbar';
+import { Footer } from './components/layout/Footer';
+import { SupportButton } from './components/ui/SupportButton';
 import { BottomNav } from './components/layout/BottomNav';
 import { InstallPWAHint } from './components/layout/InstallPWAHint';
 import { ProductTour } from './components/layout/ProductTour';
@@ -17,21 +19,30 @@ import { Shield, X } from 'lucide-react';
 import { doc, getDocFromServer } from 'firebase/firestore';
 import { db } from './lib/firebase';
 
-class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: any }> {
-  constructor(props: any) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
+interface ErrorBoundaryProps {
+  children: ReactNode;
+}
 
-  static getDerivedStateFromError(error: any) {
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: any;
+}
+
+class ErrorBoundary extends Component<any, any> {
+  public state: any = {
+    hasError: false,
+    error: null
+  };
+
+  public static getDerivedStateFromError(error: any): any {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: any, errorInfo: any) {
+  public componentDidCatch(error: any, errorInfo: any) {
     console.error("ErrorBoundary caught an error", error, errorInfo);
   }
 
-  render() {
+  public render() {
     if (this.state.hasError) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-red-50 p-6 rtl" dir="rtl">
@@ -52,7 +63,8 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
         </div>
       );
     }
-    return this.props.children;
+
+    return (this as any).props.children;
   }
 }
 
@@ -137,9 +149,11 @@ export default function App() {
             </Routes>
           </AnimatePresence>
         </main>
+        <Footer />
         <BottomNav />
         <InstallPWAHint />
         <ProductTour />
+        <SupportButton />
       </div>
       </ErrorBoundary>
     </Router>

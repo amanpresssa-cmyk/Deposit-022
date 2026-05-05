@@ -72,12 +72,13 @@ export const Footer: React.FC = () => {
 
         <div className="pt-8 border-t border-gray-50 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest">
-            © 2024 منصة عربون للوساطة الذكية. ملك لخدمة العملاء: 0501505813
+            © 2024 منصة عربون للوساطة الذكية. توثيق رسمي برقم هوية.
           </p>
-          <div className="flex items-center gap-4">
-            <img src="https://i.imgur.com/8Qp6V6Y.png" alt="Visa" className="h-4 grayscale opacity-30" />
-            <img src="https://i.imgur.com/2SuvT7t.png" alt="Mastercard" className="h-4 grayscale opacity-30" />
-            <img src="https://i.imgur.com/6S3Y2Y7.png" alt="Mada" className="h-4 grayscale opacity-30" />
+          <div className="flex items-center gap-6">
+            <span className="text-[10px] font-black text-gray-300 tracking-tighter">VISA</span>
+            <span className="text-[10px] font-black text-gray-300 tracking-tighter">MASTERCARD</span>
+            <span className="text-[10px] font-black text-gray-300 tracking-tighter">MADA</span>
+            <span className="text-[10px] font-black text-gray-300 tracking-tighter">APPLE PAY</span>
           </div>
         </div>
       </div>
