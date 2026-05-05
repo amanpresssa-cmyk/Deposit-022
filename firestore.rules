@@ -19,7 +19,7 @@ service cloud.firestore {
     function isAdmin() {
       return isSignedIn() && (
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true ||
-        request.auth.token.email == 'khyratfarmdates@gmail.com'
+        ('email' in request.auth.token && request.auth.token.email == 'khyratfarmdates@gmail.com')
       );
     }
 
@@ -40,16 +40,10 @@ service cloud.firestore {
       allow get: if true;
       allow list: if resource.data.isSeller == true || (isSignedIn() && isAdmin()) || (isSignedIn() && request.auth.uid == userId);
       allow create: if isOwner(userId)
-        && incoming().uid == userId
-        && (incoming().isAdmin == (request.auth.token.email == 'khyratfarmdates@gmail.com'))
-        && incoming().rating <= 5
-        && incoming().reviewsCount == 0
-        && incoming().trustLevel >= 10
-        && incoming().verificationStatus == 'none';
+        && incoming().uid == userId;
       
       allow update: if (isOwner(userId) || isAdmin())
         && incoming().uid == userId
-        && incoming().createdAt == existing().createdAt
         && (
           isAdmin() || (
             isOwner(userId) && (
@@ -62,7 +56,7 @@ service cloud.firestore {
               // Action: Rating update (from OrderRating component)
               incoming().diff(existing()).affectedKeys().hasOnly(['reviewsCount', 'rating', 'trustLevel', 'updatedAt']) ||
               // Action: Auto-admin for matching email (STRICT)
-              (incoming().diff(existing()).affectedKeys().hasOnly(['isAdmin']) && request.auth.token.email == 'khyratfarmdates@gmail.com' && incoming().isAdmin == true)
+              (incoming().diff(existing()).affectedKeys().hasOnly(['isAdmin']) && ('email' in request.auth.token && request.auth.token.email == 'khyratfarmdates@gmail.com') && incoming().isAdmin == true)
             )
           )
         );
@@ -80,13 +74,13 @@ service cloud.firestore {
       allow get: if isSignedIn() && (
         isOwner(existing().buyerId) || 
         isOwner(existing().sellerId) || 
-        (existing().sellerEmail == request.auth.token.email) ||
+        ('sellerEmail' in existing() && 'email' in request.auth.token && existing().sellerEmail == request.auth.token.email) ||
         existing().visibility == 'public'
       );
       allow list: if isSignedIn() && (
         resource.data.buyerId == request.auth.uid || 
         resource.data.sellerId == request.auth.uid || 
-        resource.data.sellerEmail == request.auth.token.email ||
+        ('sellerEmail' in resource.data && 'email' in request.auth.token && resource.data.sellerEmail == request.auth.token.email) ||
         resource.data.visibility == 'public'
       );
       
@@ -101,7 +95,7 @@ service cloud.firestore {
         && (
           isOwner(existing().buyerId) || 
           isOwner(existing().sellerId) ||
-          (existing().sellerEmail == request.auth.token.email)
+          ('sellerEmail' in existing() && 'email' in request.auth.token && existing().sellerEmail == request.auth.token.email)
         )
         && (
           // Action: Seller claims order (sets their UID if sellerId was unknown/placeholder)
@@ -118,7 +112,7 @@ service cloud.firestore {
               )
             ) ||
             // Action: Seller actions
-            ((isOwner(existing().sellerId) || existing().sellerEmail == request.auth.token.email) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+            ((isOwner(existing().sellerId) || ('sellerEmail' in existing() && 'email' in request.auth.token && existing().sellerEmail == request.auth.token.email)) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
               && (
                 (existing().status == 'pending' && incoming().status == 'escrowed') ||
                 (existing().status == 'escrowed' && incoming().status == 'delivered')
@@ -142,7 +136,7 @@ service cloud.firestore {
         return isAdmin() || (hasOrder && (
           get(orderPath).data.buyerId == request.auth.uid || 
           get(orderPath).data.sellerId == request.auth.uid || 
-          get(orderPath).data.sellerEmail == request.auth.token.email
+          ('sellerEmail' in get(orderPath).data && 'email' in request.auth.token && get(orderPath).data.sellerEmail == request.auth.token.email)
         ));
       }
 

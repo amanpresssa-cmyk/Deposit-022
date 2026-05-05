@@ -8,6 +8,7 @@ import { CreateOrderPage } from './pages/CreateOrderPage';
 import { SearchPage } from './pages/SearchPage';
 import { SellerProfilePage } from './pages/SellerProfilePage';
 import { SettingsPage } from './pages/SettingsPage';
+import { UserProfilePage } from './pages/UserProfilePage';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { Navbar } from './components/layout/Navbar';
 import { Footer } from './components/layout/Footer';
@@ -146,6 +147,10 @@ export default function App() {
               <Route
                 path="/settings"
                 element={user ? <SettingsPage /> : <Navigate to="/" />}
+              />
+              <Route
+                path="/profile"
+                element={user ? <UserProfilePage /> : <Navigate to="/" />}
               />
               <Route
                 path="/create-order"

@@ -83,25 +83,25 @@ export const SettingsPage: React.FC = () => {
   const filteredTabs = tabs.filter(tab => !tab.adminOnly || profile?.role === 'admin' || profile?.isAdmin);
 
   return (
-    <div className="max-w-5xl mx-auto py-8">
-      <div className="flex flex-col md:flex-row gap-8">
+    <div className="max-w-5xl mx-auto py-6 px-4 md:py-8 pb-32">
+      <div className="flex flex-col md:flex-row gap-6 md:gap-8">
         {/* Sidebar Tabs */}
         <div className="w-full md:w-64 shrink-0">
-          <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm p-4 sticky top-24">
-            <h1 className="text-xl font-black text-gray-900 px-4 mb-6">الإعدادات</h1>
-            <nav className="space-y-2">
+          <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm p-4 sticky top-6 md:top-24">
+            <h1 className="text-xl font-black text-gray-900 px-2 md:px-4 mb-4 md:mb-6 hidden md:block">الإعدادات</h1>
+            <nav className="flex md:flex-col gap-2 md:gap-2 overflow-x-auto pb-1 md:pb-0 no-scrollbar mb-2 md:mb-0">
               {filteredTabs.map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all font-bold text-sm ${
+                  className={`flex-shrink-0 flex items-center gap-2 md:gap-3 px-5 py-2.5 md:px-4 md:py-3 rounded-full md:rounded-2xl transition-all font-bold text-sm ${
                     activeTab === tab.id 
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' 
-                    : 'text-gray-500 hover:bg-gray-50'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-100' 
+                    : 'text-gray-500 hover:bg-gray-50 bg-gray-50 md:bg-transparent border border-gray-100 md:border-transparent'
                   }`}
                 >
-                  <tab.icon className="w-5 h-5" />
-                  {tab.label}
+                  <tab.icon className="w-4 h-4 md:w-5 md:h-5 shrink-0" />
+                  <span className="whitespace-nowrap">{tab.label}</span>
                 </button>
               ))}
             </nav>
@@ -110,7 +110,7 @@ export const SettingsPage: React.FC = () => {
 
         {/* Content Area */}
         <div className="flex-1">
-          <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden min-h-[600px]">
+          <div className="bg-white rounded-[2rem] md:rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden min-h-[500px] md:min-h-[600px] flex flex-col justify-between">
             <AnimatePresence mode="wait">
               {activeTab === 'profile' && (
                 <motion.div
@@ -118,7 +118,7 @@ export const SettingsPage: React.FC = () => {
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -20 }}
-                  className="p-8 space-y-8"
+                  className="p-5 md:p-8 space-y-6 md:space-y-8"
                 >
                   <section>
                     <h2 className="text-2xl font-black text-gray-900 mb-6 flex items-center gap-3">
@@ -250,7 +250,7 @@ export const SettingsPage: React.FC = () => {
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -20 }}
-                  className="p-8 space-y-8"
+                  className="p-5 md:p-8 space-y-6 md:space-y-8"
                 >
                   <h2 className="text-2xl font-black text-gray-900 mb-6 flex items-center gap-3">
                     <ShieldCheck className="w-7 h-7 text-green-600" />
@@ -309,7 +309,7 @@ export const SettingsPage: React.FC = () => {
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -20 }}
-                  className="p-8 space-y-8"
+                  className="p-5 md:p-8 space-y-6 md:space-y-8"
                 >
                   <h2 className="text-2xl font-black text-gray-900 mb-6 flex items-center gap-3">
                     <Palette className="w-7 h-7 text-purple-600" />
@@ -342,8 +342,8 @@ export const SettingsPage: React.FC = () => {
               )}
             </AnimatePresence>
 
-            <div className="px-8 py-6 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
-              <div className="flex items-center gap-2">
+            <div className="px-5 md:px-8 py-5 md:py-6 bg-gray-50 border-t border-gray-100 flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-2 order-2 md:order-1">
                 {savedStatus && (
                   <motion.span 
                     initial={{ opacity: 0, y: 10 }}
@@ -358,7 +358,7 @@ export const SettingsPage: React.FC = () => {
               <button 
                 onClick={handleSave}
                 disabled={loading}
-                className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold flex items-center gap-2 hover:bg-blue-700 disabled:bg-gray-300 transition-all shadow-xl shadow-blue-100"
+                className="w-full md:w-auto order-1 md:order-2 bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-blue-700 disabled:bg-gray-300 transition-all shadow-xl shadow-blue-100"
               >
                 {loading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Save className="w-5 h-5" />}
                 حفظ الإعدادات

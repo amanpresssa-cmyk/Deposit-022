@@ -97,7 +97,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   useEffect(() => {
-    if (!user) return;
+    if (!profile || !user) return;
 
     const userRef = doc(db, 'users', user.uid);
     
