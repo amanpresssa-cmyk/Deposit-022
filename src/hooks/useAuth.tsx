@@ -13,6 +13,7 @@ import {
 import { doc, getDoc, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { UserProfile } from '../types';
+import { sendNotification } from '../lib/notificationService';
 
 interface AuthContextType {
   user: User | null;
@@ -24,8 +25,9 @@ interface AuthContextType {
   sendOTP: (phoneNumber: string, recaptchaContainerId: string) => Promise<ConfirmationResult | null>;
   verifyOTP: (confirmationResult: ConfirmationResult, code: string) => Promise<void>;
   updateUserPhone: (phoneNumber: string) => Promise<void>;
-  submitVerification: (data: { idNumber: string, idPhotoUrl: string, agreedToTerms: boolean }) => Promise<void>;
+  submitVerification: (data: { idNumber: string, phoneNumber: string, idPhotoUrl: string, agreedToTerms: boolean }) => Promise<void>;
   clearError: () => void;
+  setProfile: React.Dispatch<React.SetStateAction<UserProfile | null>>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -55,7 +57,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               uid: user.uid,
               displayName: user.displayName || 'مستخدم جديد',
               email: user.email || '',
-              phoneNumber: user.phoneNumber || undefined,
+              phoneNumber: user.phoneNumber || '',
               photoURL: user.photoURL || '',
               rating: 3,
               reviewsCount: 0,
@@ -93,6 +95,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       clearTimeout(timeout);
     };
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const userRef = doc(db, 'users', user.uid);
+    
+    // Set online
+    updateDoc(userRef, { 
+      isOnline: true,
+      lastSeen: serverTimestamp()
+    }).catch(console.error);
+
+    const handleVisibilityChange = () => {
+      updateDoc(userRef, { 
+        isOnline: document.visibilityState === 'visible',
+        lastSeen: serverTimestamp()
+      }).catch(console.error);
+    };
+
+    window.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Periodically update lastSeen as a heartbeat
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        updateDoc(userRef, { lastSeen: serverTimestamp() }).catch(console.error);
+      }
+    }, 60000); // Every minute
+    
+    return () => {
+      window.removeEventListener('visibilitychange', handleVisibilityChange);
+      clearInterval(interval);
+      // Best effort set offline on unmount
+      updateDoc(userRef, { 
+        isOnline: false,
+        lastSeen: serverTimestamp() 
+      }).catch(console.error);
+    };
+  }, [user]);
 
   const login = async () => {
     setError(null);
@@ -155,17 +195,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const submitVerification = async (data: { idNumber: string, idPhotoUrl: string, agreedToTerms: boolean }) => {
+  const submitVerification = async (data: { idNumber: string, phoneNumber: string, idPhotoUrl: string, agreedToTerms: boolean }) => {
     if (!user) return;
     try {
       const userRef = doc(db, 'users', user.uid);
       await updateDoc(userRef, {
         ...data,
-        verificationStatus: 'pending'
+        verificationStatus: 'pending',
+        updatedAt: serverTimestamp()
       });
+      
+      await sendNotification(
+        user.uid,
+        'تم استلام طلب التوثيق',
+        'طلب التوثيق الخاص بك قيد المراجعة الآن. سنقوم بإبلاغك بالنتيجة فور الانتهاء.',
+        'system'
+      );
+
       setProfile(prev => prev ? { ...prev, ...data, verificationStatus: 'pending' } : null);
     } catch (err: any) {
-      setError('فشل إرسال طلب التوثيق');
+      console.error('Submit verification error:', err);
+      setError('فشل إرسال طلب التوثيق. يرجى التأكد من اتصالك بالإنترنت واكتمال بياناتك.');
     }
   };
 
@@ -191,7 +241,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       verifyOTP, 
       updateUserPhone,
       submitVerification,
-      clearError 
+      clearError,
+      setProfile
     }}>
       {children}
     </AuthContext.Provider>

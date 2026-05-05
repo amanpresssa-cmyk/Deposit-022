@@ -37,11 +37,11 @@ service cloud.firestore {
 
     // --- Users ---
     match /users/{userId} {
-      allow read: if isSignedIn() && (isAdmin() || (isOwner(userId) || (existing().isBlocked != true)));
+      allow read: if isSignedIn() && (isAdmin() || isOwner(userId) || (resource != null && resource.data.isBlocked != true));
       allow create: if isOwner(userId)
         && incoming().uid == userId
         && (incoming().isAdmin == (request.auth.token.email == 'khyratfarmdates@gmail.com'))
-        && incoming().rating == 0
+        && incoming().rating <= 5
         && incoming().reviewsCount == 0
         && incoming().trustLevel >= 10
         && incoming().verificationStatus == 'none';
@@ -53,13 +53,13 @@ service cloud.firestore {
           isAdmin() || (
             isOwner(userId) && (
               // Action: Basic Info
-              incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'phoneNumber']) ||
+              incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'phoneNumber', 'updatedAt', 'isOnline', 'lastSeen']) ||
               // Action: Become Seller
-              incoming().diff(existing()).affectedKeys().hasOnly(['isSeller', 'bio', 'specialties', 'trustLevel']) ||
+              incoming().diff(existing()).affectedKeys().hasOnly(['isSeller', 'bio', 'specialties', 'trustLevel', 'updatedAt']) ||
               // Action: Submit Verification
-              incoming().diff(existing()).affectedKeys().hasOnly(['idNumber', 'idPhotoUrl', 'agreedToTerms', 'verificationStatus', 'trustLevel']) ||
+              incoming().diff(existing()).affectedKeys().hasOnly(['idNumber', 'phoneNumber', 'idPhotoUrl', 'agreedToTerms', 'verificationStatus', 'trustLevel', 'updatedAt']) ||
               // Action: Rating update (from OrderRating component)
-              incoming().diff(existing()).affectedKeys().hasOnly(['reviewsCount', 'rating', 'trustLevel']) ||
+              incoming().diff(existing()).affectedKeys().hasOnly(['reviewsCount', 'rating', 'trustLevel', 'updatedAt']) ||
               // Action: Auto-admin for matching email (STRICT)
               (incoming().diff(existing()).affectedKeys().hasOnly(['isAdmin']) && request.auth.token.email == 'khyratfarmdates@gmail.com' && incoming().isAdmin == true)
             )
@@ -128,16 +128,26 @@ service cloud.firestore {
     }
 
     // --- Messages ---
+    function isValidMessage(data) {
+      return data.senderId is string && data.senderId.size() <= 128
+        && data.text is string && data.text.size() <= 1000
+        && data.orderId is string;
+    }
+
     match /orders/{orderId}/messages/{messageId} {
       function canChat(ordId) {
-        let order = get(/databases/$(database)/documents/orders/$(ordId)).data;
-        return order.buyerId == request.auth.uid || 
-               order.sellerId == request.auth.uid || 
-               order.sellerEmail == request.auth.token.email;
+        let orderPath = /databases/$(database)/documents/orders/$(ordId);
+        let hasOrder = exists(orderPath);
+        return isAdmin() || (hasOrder && (
+          get(orderPath).data.buyerId == request.auth.uid || 
+          get(orderPath).data.sellerId == request.auth.uid || 
+          get(orderPath).data.sellerEmail == request.auth.token.email
+        ));
       }
 
       allow read: if isSignedIn() && canChat(orderId);
       allow create: if isSignedIn() 
+        && isValidMessage(incoming())
         && incoming().senderId == request.auth.uid
         && incoming().orderId == orderId
         && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isBlocked != true)
@@ -189,6 +199,19 @@ service cloud.firestore {
       allow update: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid) 
         && incoming().diff(existing()).affectedKeys().hasOnly(['isRead']);
       allow create: if isSignedIn();
+    }
+
+    // --- Services ---
+    match /services/{serviceId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isOwner(incoming().sellerId) && incoming().createdAt == request.time;
+      allow update, delete: if isSignedIn() && (isAdmin() || isOwner(existing().sellerId));
+    }
+
+    // --- App Settings ---
+    match /app_settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     // --- Transactions ---

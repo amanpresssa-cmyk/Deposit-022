@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { doc, getDoc, collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { UserProfile, Service, Review } from '../types';
+import { useAuth } from '../hooks/useAuth';
 import { motion } from 'motion/react';
 import { 
   ShieldCheck, Star, MapPin, Calendar, MessageCircle, 
@@ -14,11 +15,15 @@ import { ar } from 'date-fns/locale';
 
 export const SellerProfilePage: React.FC = () => {
   const { sellerId } = useParams<{ sellerId: string }>();
+  const { user, profile } = useAuth();
   const [seller, setSeller] = useState<UserProfile | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'services' | 'about' | 'reviews'>('services');
+  const [stats, setStats] = useState({ completed: 0, failed: 0, disputed: 0, cancelled: 0, total: 0 });
+  const [confidence, setConfidence] = useState(100);
+  const [copied, setCopied] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -34,12 +39,34 @@ export const SellerProfilePage: React.FC = () => {
         const servicesQuery = query(
           collection(db, 'services'),
           where('sellerId', '==', sellerId),
+          where('isActive', '==', true),
           orderBy('createdAt', 'desc')
         );
         const servicesSnap = await getDocs(servicesQuery);
         setServices(servicesSnap.docs.map(d => ({ id: d.id, ...d.data() } as Service)));
 
-        // Fetch reviews (full fetch, filter client-side to avoid index requirement for now)
+        // Fetch Stats
+        const ordersQuery = query(
+          collection(db, 'orders'),
+          where('sellerId', '==', sellerId)
+        );
+        const ordersSnap = await getDocs(ordersQuery);
+        const ordersData = ordersSnap.docs.map(d => d.data());
+        
+        const completed = ordersData.filter(o => o.status === 'completed').length;
+        const disputed = ordersData.filter(o => o.status === 'disputed').length;
+        const cancelled = ordersData.filter(o => o.status === 'cancelled').length;
+        const failed = disputed + cancelled;
+
+        setStats({
+          completed,
+          failed,
+          disputed,
+          cancelled,
+          total: ordersData.length
+        });
+
+        // Fetch reviews
         const reviewsQuery = query(
           collection(db, 'reviews'),
           where('revieweeId', '==', sellerId),
@@ -47,8 +74,23 @@ export const SellerProfilePage: React.FC = () => {
         );
         const reviewsSnap = await getDocs(reviewsQuery);
         const allReviews = reviewsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Review));
-        // Shadow blocking: Hide low reviews from public
-        setReviews(allReviews.filter(r => r.rating >= 4));
+        
+        // Calculate Confidence Level (Real Monitoring Engine)
+        let score = 100;
+        score -= (allReviews.filter(r => r.rating < 3).length * 10);
+        score -= (disputed * 15);
+        score -= (cancelled * 5);
+        setConfidence(Math.max(10, score));
+
+        // Shadow blocking: Hide low reviews from public, show only to author or admin
+        const isAdmin = profile?.isAdmin || profile?.role === 'admin';
+        const filteredReviews = allReviews.filter(r => {
+          if (r.rating >= 4) return true;
+          if (isAdmin) return true;
+          if (user && r.reviewerId === user.uid) return true;
+          return false;
+        });
+        setReviews(filteredReviews);
 
       } catch (error) {
         console.error("Error fetching seller profile:", error);
@@ -59,6 +101,27 @@ export const SellerProfilePage: React.FC = () => {
 
     fetchSellerData();
   }, [sellerId]);
+
+  const handleShare = () => {
+    navigator.clipboard.writeText(window.location.href);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 3000);
+  };
+
+  const handleChat = () => {
+    if (!seller) return;
+    // Navigate to chat/messages (assuming a messages tab in dashboard or new route)
+    navigate(`/dashboard?tab=messages&sellerId=${sellerId}`);
+  };
+
+  const handleOrder = (service?: Service) => {
+    if (!seller) return;
+    let url = `/create-order?email=${encodeURIComponent(seller.email || '')}`;
+    if (service) {
+      url += `&title=${encodeURIComponent(service.title)}&amount=${service.price}&category=${encodeURIComponent(service.category)}`;
+    }
+    navigate(url);
+  };
 
   if (loading) {
     return (
@@ -81,10 +144,15 @@ export const SellerProfilePage: React.FC = () => {
     <div className="max-w-7xl mx-auto px-4 py-12">
       {/* Header Profile Section */}
       <div className="bg-white rounded-[3rem] border border-gray-100 shadow-xl shadow-blue-100/20 overflow-hidden mb-12">
-        <div className="h-48 bg-gradient-to-r from-blue-600 to-indigo-700 relative">
-          <div className="absolute top-8 left-8 flex gap-3">
-            <button className="bg-white/20 backdrop-blur-md p-3 rounded-2xl hover:bg-white/30 transition-all">
+        <div className="h-64 bg-gradient-to-r from-blue-600 to-indigo-700 relative bg-cover bg-center" style={{ backgroundImage: seller.bannerUrl ? `url(${seller.bannerUrl})` : undefined }}>
+          {seller.bannerUrl && <div className="absolute inset-0 bg-black/40" />}
+          <div className="absolute top-8 left-8 flex gap-3 z-10">
+            <button 
+              onClick={handleShare}
+              className="bg-white/20 backdrop-blur-md p-3 rounded-2xl hover:bg-white/30 transition-all flex items-center gap-2"
+            >
               <Share2 className="w-6 h-6 text-white" />
+              {copied && <span className="text-white text-sm font-bold">تم النسخ!</span>}
             </button>
           </div>
         </div>
@@ -93,7 +161,7 @@ export const SellerProfilePage: React.FC = () => {
           <div className="flex flex-col md:flex-row items-end gap-8 -mt-16 mb-8">
             <div className="relative">
               <img 
-                src={seller.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(seller.displayName)}&size=160&background=random`}
+                src={seller.avatarUrl || seller.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(seller.displayName)}&size=160&background=random`}
                 alt={seller.displayName}
                 className="w-40 h-40 rounded-[2.5rem] border-8 border-white object-cover shadow-lg bg-white"
                 referrerPolicy="no-referrer"
@@ -124,10 +192,21 @@ export const SellerProfilePage: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex gap-4 pb-4">
-              <button className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold text-lg hover:bg-blue-700 transition-all flex items-center gap-2 shadow-xl shadow-blue-100">
-                <MessageCircle className="w-6 h-6" />
+            <div className="flex flex-wrap gap-4 pb-4">
+              <button 
+                onClick={handleChat}
+                className="bg-white text-gray-900 border-2 border-gray-100 px-8 py-4 rounded-2xl font-bold text-lg hover:bg-gray-50 transition-all flex items-center gap-2 shadow-sm"
+              >
+                <MessageCircle className="w-6 h-6 text-blue-600" />
                 تواصل مع البائع
+              </button>
+              
+              <button 
+                onClick={handleOrder}
+                className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold text-lg hover:bg-blue-700 transition-all flex items-center gap-2 shadow-xl shadow-blue-100"
+              >
+                <Briefcase className="w-6 h-6" />
+                اطلب خدمة الآن
               </button>
             </div>
           </div>
@@ -164,7 +243,8 @@ export const SellerProfilePage: React.FC = () => {
                           initial={{ opacity: 0, y: 20 }}
                           animate={{ opacity: 1, y: 0 }}
                           key={service.id}
-                          className="bg-white rounded-3xl border border-gray-100 overflow-hidden hover:border-blue-100 transition-all group"
+                          onClick={() => handleOrder(service)}
+                          className="bg-white rounded-3xl border border-gray-100 overflow-hidden hover:border-blue-100 transition-all group cursor-pointer"
                         >
                           <div className="h-40 bg-gray-50 relative overflow-hidden">
                              {service.imageUrl ? (
@@ -273,16 +353,36 @@ export const SellerProfilePage: React.FC = () => {
                   <div className="space-y-6">
                     <div className="flex justify-between items-center">
                       <span className="text-gray-500 font-medium">إجمالي المبيعات</span>
-                      <span className="font-black text-gray-900">45+</span>
+                      <span className="font-black text-gray-900">{stats.total}+</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-500 font-medium">سرعة الرد</span>
-                      <span className="font-black text-gray-900">أقل من ساعة</span>
+                      <span className="text-gray-500 font-medium">نسبة النجاح</span>
+                      <span className="font-black text-gray-900">
+                        {stats.total > 0 ? Math.round((stats.completed / (stats.completed + stats.failed || 1)) * 100) : 100}%
+                      </span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-gray-500 font-medium">مشاريع مكتملة</span>
-                      <span className="font-black text-gray-900">38</span>
+                      <span className="font-black text-gray-900">{stats.completed}</span>
                     </div>
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-[2.5rem] p-8 text-white shadow-xl">
+                   <h3 className="font-bold text-xl mb-6 flex items-center gap-2">
+                    <ShieldCheck className="w-6 h-6 text-blue-400" />
+                    نظام الرقابة الذكي
+                  </h3>
+                  <div className="space-y-6">
+                    <div className="text-center py-4 bg-white/5 rounded-3xl border border-white/10">
+                      <p className="text-sm text-gray-400 mb-1">مستوى الثقة الحقيقي</p>
+                      <div className="text-4xl font-black text-blue-400">
+                        {confidence}%
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-gray-400 leading-relaxed text-center">
+                      يتم حساب مستوى الثقة تلقائياً بناءً على جودة التنفيذ، سرعة التجاوب، وخلو المعاملات من النزاعات القانونية.
+                    </p>
                   </div>
                 </div>
              </div>

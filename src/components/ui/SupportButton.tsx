@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MessageCircle, X, Send, Bot, Rocket, Shield, User, Headphones } from 'lucide-react';
+import { MessageCircle, X, Send, Bot, Rocket, Shield, User, Headphones, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../../hooks/useAuth';
 import { sendAdminNotification } from '../../lib/notificationService';
+import { GoogleGenAI } from "@google/genai";
 
 interface Message {
   id: string;
@@ -10,6 +11,21 @@ interface Message {
   sender: 'bot' | 'user' | 'agent';
   timestamp: Date;
 }
+
+const SYSTEM_PROMPT = `أنت "مساعد عربون الذكي" (الروبوت الخاص بمنصة عربون). منصة عربون هي منصة وساطة مالية (Escrow) تضمن حقوق البائع والمشتري في السعودية.
+مميزات المنصة:
+1. نظام "العربون" (التعميد): يحفظ المشتري مبلغه في المنصة، ولا يتم تحويله للبائع إلا بعد تأكيد استلام الخدمة.
+2. التوثيق: نلزم المستخدمين (خاصة البائعين) بتوثيق هويتهم الوطنية لضمان الجدية والأمان.
+3. معقبين وخدمات محترفة: المنصة تركز على خدمات التعقيب، الخدمات القانونية، وخدمات السيارات بشكل أساسي.
+4. الخصوصية: التواصل يجب أن يكون داخل المنصة لضمان الحقوق في حال حدوث نزاع.
+5. العمولات: عمولة المنصة تنافسية وضئيلة تهدف لاستدامة الخدمة (عادة يتحملها البائع أو حسب الاتفاق).
+
+قواعدك:
+- أجب بلهجة سعودية/عربية مهذبة وودودة.
+- وجه المستخدمين دائماً نحو "التوثيق" إذا كانوا بائعين.
+- اشرح للمشترين أن أموالهم في أمان طالما أنهم يدفعون عبر نظام "العربون" في المنصة.
+- إذا لم تعرف الإجابة، اقترح عليهم "التحدث مع أحد ممثلي الخدمة" من الخيارات المتاحة.
+- لا تقدم معلومات عن التواصل خارج المنصة أبداً.`;
 
 export const SupportButton: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -24,7 +40,11 @@ export const SupportButton: React.FC = () => {
   ]);
   const [chatMode, setChatMode] = useState<'bot' | 'agent'>('bot');
   const [inputText, setInputText] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Initialize Gemini
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -32,7 +52,7 @@ export const SupportButton: React.FC = () => {
 
   useEffect(() => {
     if (isOpen) scrollToBottom();
-  }, [messages, isOpen]);
+  }, [messages, isOpen, isTyping]);
 
   const addMessage = (text: string, sender: 'user' | 'bot' | 'agent') => {
     setMessages(prev => [...prev, {
@@ -43,35 +63,67 @@ export const SupportButton: React.FC = () => {
     }]);
   };
 
+  const getAIResponse = async (userText: string) => {
+    setIsTyping(true);
+    try {
+      const history = messages.map(m => ({
+        role: m.sender === 'user' ? 'user' as const : 'model' as const,
+        parts: [{ text: m.text }]
+      }));
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: [
+          ...history,
+          { role: 'user', parts: [{ text: userText }] }
+        ],
+        config: {
+          systemInstruction: SYSTEM_PROMPT
+        }
+      });
+
+      const responseText = response.text || "عذراً، لم أستطع معالجة طلبك حالياً.";
+      addMessage(responseText, 'bot');
+    } catch (error) {
+      console.error("Gemini Error:", error);
+      addMessage("عذراً، أواجه مشكلة بسيطة في الاتصال. هل تود تجربة خيار التحدث مع الدعم الفني؟", 'bot');
+    } finally {
+      setIsTyping(false);
+    }
+  };
+
   const handleBotOption = (option: string) => {
+    if (isTyping) return;
     addMessage(option, 'user');
     
-    setTimeout(() => {
-      if (option === 'التحدث مع خدمة العملاء') {
+    if (option === 'التحدث مع خدمة العملاء') {
+      setTimeout(() => {
         setChatMode('agent');
         addMessage('جاري تحويلك لأحد ممثلي الخدمة... يرجى الانتظار.', 'bot');
         sendAdminNotification('طلب محادثة فورية', `المستخدم ${user?.email || 'زائر'} يرغب في التحدث مع الدعم الفني الآن.`, user?.uid);
         setTimeout(() => {
           addMessage('أهلاً بك، أنا "عمر" من فريق الدعم. كيف يمكنني مساعدتك؟ (ملاحظة: هذا النظام قيد التطوير وسيتم الرد عليك قريباً عبر إشعارات المنصة)', 'agent');
         }, 2000);
-      } else if (option === 'كيف أقوم بطلبي الأول؟') {
-        addMessage('الأمر بسيط! ابحث عن الخدمة التي تحتاجها، اضغط على "طلب الخدمة"، قم بوصف متطلباتك، ثم ادفع العربون بأمان. سنحفظ أموالك حتى تستلم الخدمة وتؤكد الرضا عنها.', 'bot');
-      } else if (option === 'سياسة استخدام عربون') {
-        addMessage('منصة عربون تضمن حق الطرفين. يمنع التواصل خارج المنصة، ويتم حفظ الأموال في (التعميد) حتى اكتمال العمل. عمولتنا هي الأقل لضمان استمرارية الخدمة والأمان.', 'bot');
-      }
-    }, 600);
+      }, 600);
+    } else {
+      getAIResponse(option);
+    }
   };
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputText.trim()) return;
+    if (!inputText.trim() || isTyping) return;
     
-    addMessage(inputText, 'user');
+    const text = inputText.trim();
+    addMessage(text, 'user');
     setInputText('');
 
     if (chatMode === 'bot') {
+      await getAIResponse(text);
+    } else {
+      // In agent mode, we'd normally sync with a backend
       setTimeout(() => {
-        addMessage('فهمت استفسارك. هل تود التحدث مع أحد موظفينا لمزيد من التفاصيل؟', 'bot');
+        addMessage('فهمت، سأقوم بإحالة طلبك لفريق العمل وسيأتيك الرد فور توفره.', 'agent');
       }, 1000);
     }
   };
@@ -129,6 +181,17 @@ export const SupportButton: React.FC = () => {
                   </div>
                 </div>
               ))}
+              
+              {isTyping && (
+                <div className="flex justify-start">
+                   <div className="bg-white p-3 rounded-2xl rounded-tl-none border border-gray-100 shadow-sm flex gap-1 items-center">
+                      <div className="w-1 h-1 bg-gray-300 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                      <div className="w-1 h-1 bg-gray-300 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                      <div className="w-1 h-1 bg-gray-300 rounded-full animate-bounce"></div>
+                   </div>
+                </div>
+              )}
+
               <div ref={messagesEndRef} />
               
               {chatMode === 'bot' && (

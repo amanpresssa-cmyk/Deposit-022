@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { Search, PlusCircle, LayoutDashboard, LogOut, User, ShieldCheck, Bell, X, CreditCard, AlertTriangle, Clock, CheckCircle2 } from 'lucide-react';
+import { Search, PlusCircle, LayoutDashboard, User, ShieldCheck, Bell, X, CreditCard, AlertTriangle, Clock, CheckCircle2, MessageSquare, Settings } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { collection, query, where, orderBy, onSnapshot, limit, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -14,6 +14,8 @@ export const Navbar: React.FC = () => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [lastNotification, setLastNotification] = useState<any>(null);
+  const [showToast, setShowToast] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -25,13 +27,27 @@ export const Navbar: React.FC = () => {
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const items = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      const items = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as any));
+      
+      // Real-time Toast Logic
+      if (items.length > 0) {
+        const newest = items[0];
+        if (lastNotification && newest.id !== lastNotification.id && !newest.isRead) {
+          setLastNotification(newest);
+          setShowToast(true);
+          // Play a subtle sound if possible or just show toast
+          setTimeout(() => setShowToast(false), 5000);
+        } else if (!lastNotification) {
+          setLastNotification(newest);
+        }
+      }
+
       setNotifications(items);
       setUnreadCount(items.filter((n: any) => !n.isRead).length);
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user, lastNotification]);
 
   const markAllAsRead = async () => {
     const unread = notifications.filter(n => !n.isRead);
@@ -44,6 +60,8 @@ export const Navbar: React.FC = () => {
     switch (type) {
       case 'payment': return <CreditCard className="w-4 h-4 text-green-500" />;
       case 'dispute': return <AlertTriangle className="w-4 h-4 text-red-500" />;
+      case 'message': return <MessageSquare className="w-4 h-4 text-purple-500" />;
+      case 'emergency': return <AlertTriangle className="w-4 h-4 text-orange-500" />;
       default: return <Bell className="w-4 h-4 text-blue-500" />;
     }
   };
@@ -51,37 +69,53 @@ export const Navbar: React.FC = () => {
   return (
     <nav className="sticky top-0 z-40 w-full bg-white/80 backdrop-blur-xl border-b border-gray-100 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-2 group">
+        <Link to="/" className="flex items-center gap-3 group">
           <img 
             src="https://i.imgur.com/OYaLVgI.png" 
             alt="عربون" 
-            className="h-10 w-auto object-contain hover:scale-105 transition-transform duration-300" 
+            className="h-10 w-auto object-contain flex-shrink-0" 
           />
+          <span className="text-[10px] font-black text-gray-400 tracking-widest uppercase">وساطة مالية</span>
         </Link>
 
         {/* Desktop Menu */}
         <div className="hidden md:flex items-center gap-10">
-          <Link to="/search" className="text-gray-500 hover:text-blue-600 font-bold text-sm transition-all flex items-center gap-1.5 hover:-translate-y-0.5 transform">
-            <Search className="w-4 h-4" />
-            تصفح الخدمات
-          </Link>
-          {user && (
-            <>
-              {profile?.isAdmin && (
-                <Link to="/admin" className="px-5 py-2 bg-red-50 text-red-600 rounded-2xl font-black text-[11px] uppercase tracking-wider hover:bg-red-100 transition-all flex items-center gap-2 border border-red-100 shadow-sm">
-                  <ShieldCheck className="w-4 h-4" />
-                  لوحة الإدارة
-                </Link>
-              )}
-              <Link to="/create-order" className="text-blue-600 hover:text-blue-700 font-black text-sm flex items-center gap-1.5 hover:scale-105 transition-transform">
-                <PlusCircle className="w-4 h-4" />
-                ابدأ صفقة جديدة
-              </Link>
-            </>
+          {user && profile?.isAdmin && (
+            <Link to="/admin" className="px-5 py-2 bg-red-50 text-red-600 rounded-2xl font-black text-[11px] uppercase tracking-wider hover:bg-red-100 transition-all flex items-center gap-2 border border-red-100 shadow-sm">
+              <ShieldCheck className="w-4 h-4" />
+              لوحة الإدارة
+            </Link>
           )}
         </div>
 
         <div className="flex items-center gap-4">
+          <AnimatePresence>
+            {showToast && lastNotification && (
+              <motion.div
+                initial={{ opacity: 0, y: -20, x: 20 }}
+                animate={{ opacity: 1, y: 0, x: 0 }}
+                exit={{ opacity: 0, y: -20, scale: 0.9 }}
+                className="fixed top-24 left-4 z-50 bg-white rounded-2xl shadow-2xl border border-blue-100 p-4 w-72 flex gap-3 cursor-pointer overflow-hidden"
+                onClick={() => {
+                  setShowToast(false);
+                  setShowNotifications(true);
+                }}
+              >
+                <div className="absolute top-0 right-0 w-1 h-full bg-blue-600"></div>
+                <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
+                  {getIcon(lastNotification.type)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-black text-gray-900 truncate">{lastNotification.title}</p>
+                  <p className="text-[10px] text-gray-500 line-clamp-1 mt-0.5">{lastNotification.message}</p>
+                </div>
+                <button onClick={(e) => { e.stopPropagation(); setShowToast(false); }} className="text-gray-400 hover:text-gray-600">
+                  <X className="w-3 h-3" />
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {user ? (
             <div className="flex items-center gap-3">
               <div className="relative">
@@ -141,6 +175,22 @@ export const Navbar: React.FC = () => {
                   )}
                 </AnimatePresence>
               </div>
+
+              <Link 
+                to="/dashboard" 
+                className="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
+                title="لوحة التحكم"
+              >
+                <LayoutDashboard className="w-6 h-6" />
+              </Link>
+              
+              <Link 
+                to="/settings" 
+                className="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
+                title="الإعدادات"
+              >
+                <Settings className="w-6 h-6" />
+              </Link>
               
               <div className="h-10 w-[1px] bg-gray-100 mx-1"></div>
 
@@ -161,14 +211,6 @@ export const Navbar: React.FC = () => {
                   referrerPolicy="no-referrer"
                 />
               </motion.button>
-              
-              <button 
-                onClick={logout}
-                className="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
-                title="تسجيل الخروج"
-              >
-                <LogOut className="w-6 h-6" />
-              </button>
             </div>
           ) : (
             <div className="flex items-center gap-3">

@@ -7,6 +7,7 @@ import { OrderDetailsPage } from './pages/OrderDetailsPage';
 import { CreateOrderPage } from './pages/CreateOrderPage';
 import { SearchPage } from './pages/SearchPage';
 import { SellerProfilePage } from './pages/SellerProfilePage';
+import { SettingsPage } from './pages/SettingsPage';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { Navbar } from './components/layout/Navbar';
 import { Footer } from './components/layout/Footer';
@@ -121,7 +122,7 @@ export default function App() {
           )}
         </AnimatePresence>
         <Navbar />
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-20 md:pb-8">
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-16 md:pb-8">
           <AnimatePresence mode="wait">
             <Routes>
               <Route path="/" element={<Home />} />
@@ -141,6 +142,10 @@ export default function App() {
               <Route
                 path="/admin"
                 element={<AdminDashboard />}
+              />
+              <Route
+                path="/settings"
+                element={user ? <SettingsPage /> : <Navigate to="/" />}
               />
               <Route
                 path="/create-order"

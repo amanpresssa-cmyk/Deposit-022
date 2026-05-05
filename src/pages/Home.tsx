@@ -1,20 +1,29 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { ShieldCheck, ArrowLeftRight, CheckCircle, Search, Clock, MessageSquare, Star, LayoutGrid, Users, Briefcase } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate, Link } from 'react-router-dom';
-import { collection, query, where, limit, getDocs } from 'firebase/firestore';
+import { collection, query, where, limit, getDocs, doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { UserProfile } from '../types';
 import { SellerCard } from '../components/SellerCard';
 import { TestimonialSlider } from '../components/TestimonialSlider';
 import { GeneralFeedbackForm } from '../components/GeneralFeedbackForm';
-import { Footer } from '../components/layout/Footer';
 
 export const Home: React.FC = () => {
   const { login, user } = useAuth();
   const [featuredSellers, setFeaturedSellers] = React.useState<UserProfile[]>([]);
+  const [homeCard, setHomeCard] = useState<any>(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'app_settings', 'home_card'), (doc) => {
+      if (doc.exists()) {
+        setHomeCard(doc.data());
+      }
+    });
+    return () => unsub();
+  }, []);
 
   React.useEffect(() => {
     const fetchSellers = async () => {
@@ -262,16 +271,24 @@ export const Home: React.FC = () => {
           </ul>
         </div>
         
-        <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-3xl p-8 text-white relative overflow-hidden h-[400px] flex flex-col justify-end">
-          <Search className="absolute -top-10 -right-10 w-64 h-64 text-white/10" />
+        <div className={`rounded-3xl p-8 relative overflow-hidden h-[400px] flex flex-col justify-end transition-all ${!homeCard?.imageUrl ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white' : 'bg-gray-100 text-white'}`}>
+          {homeCard?.imageUrl ? (
+            <>
+              <img src={homeCard.imageUrl} className="absolute inset-0 w-full h-full object-cover" alt="Home Highlight" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+            </>
+          ) : (
+            <Search className="absolute -top-10 -right-10 w-64 h-64 text-white/10" />
+          )}
+          
           <div className="relative z-10 space-y-4">
             <div className="flex gap-2">
               {[1, 2, 3, 4, 5].map(s => <Star key={s} className="w-5 h-5 fill-yellow-400 text-yellow-400" />)}
             </div>
             <p className="text-2xl font-bold italic leading-tight">
-              "عربون ريحني كثير من هم التعامل مع الغرباء. الموثوقية هي أهم شيء عندي."
+              "{homeCard?.quote || "عربون ريحني كثير من هم التعامل مع الغرباء. الموثوقية هي أهم شيء عندي."}"
             </p>
-            <p className="font-medium opacity-80">— عبدالله، عميل مستمر</p>
+            <p className="font-medium opacity-80">— {homeCard?.author || "عبدالله، عميل مستمر"}</p>
           </div>
         </div>
       </section>
@@ -292,8 +309,6 @@ export const Home: React.FC = () => {
           </div>
         ))}
       </section>
-
-      <Footer />
     </div>
   );
 };

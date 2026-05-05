@@ -7,7 +7,7 @@ export const BottomNav: React.FC = () => {
   const { user } = useAuth();
 
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 z-50 px-6 h-16 flex items-center justify-between pb-safe">
+    <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 z-50 px-6 h-14 flex items-center justify-between pb-safe">
       <NavLink
         to="/"
         className={({ isActive }) =>

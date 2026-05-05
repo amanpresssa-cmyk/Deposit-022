@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { collection, addDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -9,6 +9,7 @@ import { handleFirestoreError, OperationType } from '../lib/error-handler';
 export const CreateOrderPage: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
@@ -18,6 +19,26 @@ export const CreateOrderPage: React.FC = () => {
     sellerPhone: '',
     category: 'عام'
   });
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const email = params.get('email');
+    const phone = params.get('phone');
+    const title = params.get('title');
+    const amount = params.get('amount');
+    const category = params.get('category');
+    
+    if (email || phone || title || amount || category) {
+      setFormData(prev => ({
+        ...prev,
+        sellerEmail: email || prev.sellerEmail,
+        sellerPhone: phone || prev.sellerPhone,
+        title: title || prev.title,
+        amount: amount || prev.amount,
+        category: category || prev.category
+      }));
+    }
+  }, [location.search]);
 
   const categories = ['عقارات', 'سيارات', 'خدمات إلكترونية', 'تعقيب معاملات', 'برمجة وتطوير', 'أجهزة إلكترونية', 'عام'];
 

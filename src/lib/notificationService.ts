@@ -1,7 +1,7 @@
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from './firebase';
 
-export type NotificationType = 'order_update' | 'payment' | 'dispute' | 'system' | 'emergency';
+export type NotificationType = 'order_update' | 'payment' | 'dispute' | 'system' | 'emergency' | 'message';
 
 export const sendNotification = async (
   userId: string,
@@ -12,6 +12,7 @@ export const sendNotification = async (
   targetUserId?: string
 ) => {
   try {
+    // Basic flood protection/deduplication could go here if needed
     await addDoc(collection(db, 'notifications'), {
       userId,
       title,

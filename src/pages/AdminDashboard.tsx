@@ -5,7 +5,7 @@ import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { UserProfile } from '../types';
-import { ShieldCheck, UserCheck, UserX, Clock, Search, AlertCircle, CheckCircle2, XCircle, TrendingUp, Wallet, PieChart, Activity } from 'lucide-react';
+import { ShieldCheck, UserCheck, UserX, Clock, Search, AlertCircle, CheckCircle2, XCircle, TrendingUp, Wallet, PieChart, Activity, LayoutGrid, Image as ImageIcon, Upload } from 'lucide-react';
 import { motion } from 'motion/react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
@@ -18,6 +18,11 @@ export const AdminDashboard: React.FC = () => {
   const [filter, setFilter] = useState<'all' | 'pending' | 'verified' | 'rejected'>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [tab, setTab] = useState<'users' | 'finance' | 'disputes' | 'system' | 'alerts'>('users');
+  const [homeCardSettings, setHomeCardSettings] = useState({
+    imageUrl: '',
+    quote: '',
+    author: ''
+  });
   const [notifications, setNotifications] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [disputes, setDisputes] = useState<any[]>([]);
@@ -70,6 +75,23 @@ export const AdminDashboard: React.FC = () => {
   }, [profile]);
 
   useEffect(() => {
+    if (tab === 'system') {
+      const fetchHomeSettings = async () => {
+        const docRef = doc(db, 'app_settings', 'home_card');
+        const snap = await getDocs(query(collection(db, 'app_settings'))); // Simpler just to get doc but need to handle non-existence
+        // Actually just use doc get
+      };
+      
+      const unsubHome = onSnapshot(doc(db, 'app_settings', 'home_card'), (doc) => {
+        if (doc.exists()) {
+          setHomeCardSettings(doc.data() as any);
+        }
+      });
+      return () => unsubHome();
+    }
+  }, [tab]);
+
+  useEffect(() => {
     if (profile?.email !== 'khyratfarmdates@gmail.com') return;
 
     const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
@@ -117,6 +139,38 @@ export const AdminDashboard: React.FC = () => {
       });
     } catch (error) {
       console.error("Error toggling block status:", error);
+    }
+  };
+
+  const handleHomeCardUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 1024 * 1024) {
+        alert("حجم الصورة كبير جداً، يرجى اختيار صورة أقل من 1 ميجابايت");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setHomeCardSettings(prev => ({ ...prev, imageUrl: reader.result as string }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const saveHomeCardSettings = async () => {
+    try {
+      const docRef = doc(db, 'app_settings', 'home_card');
+      // Using setDoc would be better if it doesn't exist, but updateDoc might fail. 
+      // I'll use a hack to ensure it exists or use setDoc from firestore
+      const { setDoc } = await import('firebase/firestore');
+      await setDoc(docRef, {
+        ...homeCardSettings,
+        updatedAt: serverTimestamp()
+      });
+      alert('تم حفظ الإعدادات بنجاح');
+    } catch (error) {
+      console.error("Error saving home card settings:", error);
+      alert('حدث خطأ أثناء الحفظ');
     }
   };
 
@@ -285,8 +339,78 @@ export const AdminDashboard: React.FC = () => {
       )}
 
       {tab === 'system' && (
-        <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm p-12 text-center text-gray-400 font-bold">
-            قريباً: إعدادات النظام المتقدمة، تعديل العمولات، والرسائل الجماعية.
+        <div className="space-y-8 animate-in fade-in duration-500">
+           <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm p-8">
+              <div className="flex items-center gap-3 mb-8">
+                 <LayoutGrid className="w-6 h-6 text-blue-600" />
+                 <h2 className="text-xl font-black text-gray-900">تخصيص الصفحة الرئيسية</h2>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-12">
+                 <div className="space-y-6">
+                    <div className="space-y-2">
+                       <label className="text-sm font-black text-gray-700 block px-1">صورة البطاقة التعريفية (Home Card)</label>
+                       <div className="flex flex-col gap-4">
+                          <div className="relative h-48 bg-gray-50 rounded-3xl overflow-hidden border-2 border-dashed border-gray-200">
+                             {homeCardSettings.imageUrl ? (
+                                <img src={homeCardSettings.imageUrl} className="w-full h-full object-cover" />
+                             ) : (
+                                <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 gap-2">
+                                   <ImageIcon className="w-12 h-12" />
+                                   <span className="text-sm font-bold">لا توجد صورة محملة</span>
+                                </div>
+                             )}
+                          </div>
+                          <label className="cursor-pointer">
+                             <div className="flex items-center justify-center gap-2 px-6 py-4 bg-blue-50 text-blue-600 rounded-2xl hover:bg-blue-100 transition-all font-black text-sm">
+                                <Upload className="w-5 h-5" />
+                                <span>رفع صورة جديدة</span>
+                             </div>
+                             <input 
+                                type="file" 
+                                accept="image/*" 
+                                className="hidden" 
+                                onChange={(e) => handleHomeCardUpload(e)} 
+                             />
+                          </label>
+                       </div>
+                    </div>
+                 </div>
+
+                 <div className="space-y-6">
+                    <div className="space-y-2">
+                       <label className="text-sm font-black text-gray-700 block px-1">نص الاقتباس / الوصف</label>
+                       <textarea 
+                          value={homeCardSettings.quote}
+                          onChange={(e) => setHomeCardSettings({...homeCardSettings, quote: e.target.value})}
+                          rows={4}
+                          className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 focus:ring-2 focus:ring-blue-100 outline-none transition-all font-medium"
+                          placeholder="اكتب الاقتباس هنا..."
+                       />
+                    </div>
+                    <div className="space-y-2">
+                       <label className="text-sm font-black text-gray-700 block px-1">اسم الكاتب / المصدر</label>
+                       <input 
+                          type="text"
+                          value={homeCardSettings.author}
+                          onChange={(e) => setHomeCardSettings({...homeCardSettings, author: e.target.value})}
+                          className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 focus:ring-2 focus:ring-blue-100 outline-none transition-all font-medium"
+                          placeholder="مثال: عبدالله، عميل مستمر"
+                       />
+                    </div>
+                    <button 
+                       onClick={saveHomeCardSettings}
+                       className="w-full py-4 bg-gray-900 text-white rounded-2xl font-black hover:bg-gray-800 transition-all shadow-xl shadow-gray-200"
+                    >
+                       حفظ التغييرات
+                    </button>
+                 </div>
+              </div>
+           </div>
+
+           <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm p-12 text-center text-gray-400 font-bold">
+               قريباً: إعدادات النظام المتقدمة، تعديل العمولات، والرسائل الجماعية.
+           </div>
         </div>
       )}
 

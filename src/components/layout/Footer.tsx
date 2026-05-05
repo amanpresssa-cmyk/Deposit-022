@@ -4,16 +4,17 @@ import { Link } from 'react-router-dom';
 
 export const Footer: React.FC = () => {
   return (
-    <footer className="bg-white border-t border-gray-100 py-12">
+    <footer className="hidden md:block bg-white border-t border-gray-100 py-12">
       <div className="max-w-7xl mx-auto px-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-10 mb-12 text-right">
           <div className="md:col-span-1 space-y-4">
-            <Link to="/" className="flex items-center gap-2">
+            <Link to="/" className="flex items-center gap-3">
               <img 
                 src="https://i.imgur.com/OYaLVgI.png" 
                 alt="عربون" 
-                className="h-10 w-auto object-contain" 
+                className="h-10 w-auto object-contain flex-shrink-0" 
               />
+              <span className="text-[10px] font-black text-gray-400 tracking-widest uppercase">وساطة مالية</span>
             </Link>
             <p className="text-gray-500 text-sm leading-loose">
               المنصة الأولى الموثوقة للوساطة المالية في المملكة العربية السعودية. نضمن حقك كبائع أو مشتري بكل أمان وشفافية برقم هوية موثق.

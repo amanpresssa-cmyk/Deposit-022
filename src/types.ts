@@ -6,6 +6,7 @@ export interface Service {
   price: number;
   category: string;
   deliveryTime: string;
+  isActive?: boolean;
   imageUrl?: string;
   createdAt: any;
 }
@@ -20,15 +21,20 @@ export interface UserProfile {
   reviewsCount: number;
   isVerified: boolean;
   isSeller: boolean;
+  avatarUrl?: string;
+  bannerUrl?: string;
   bio?: string;
   specialties?: string[];
   isAdmin?: boolean;
   trustLevel?: number;
+  confidenceScore?: number;
   verificationStatus?: 'none' | 'pending' | 'verified' | 'rejected';
   idNumber?: string;
   idPhotoUrl?: string;
   agreedToTerms?: boolean;
   isBlocked?: boolean;
+  isOnline?: boolean;
+  lastSeen?: any;
   createdAt: any;
 }
 
