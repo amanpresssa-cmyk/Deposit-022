@@ -3,6 +3,7 @@ import { useAuth } from '../hooks/useAuth';
 import { ShieldCheck, Upload, AlertCircle, X, CheckCircle2, FileText, Smartphone, Camera, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI } from "@google/genai";
+import { getGemini } from "../lib/gemini";
 
 interface Props {
   onClose: () => void;
@@ -23,8 +24,17 @@ export const IdentityVerification: React.FC<Props> = ({ onClose }) => {
   const [aiFeedback, setAiFeedback] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Initialize Gemini
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  // Initialize Gemini lazily
+  const getAI = () => {
+    try {
+      return getGemini();
+    } catch (error) {
+      if (error instanceof Error && error.message === 'API_KEY_MISSING') {
+        throw new Error("عذراً، لم يتم إعداد نظام التحقق الذكي بالكامل. يرجى التواصل مع الدعم.");
+      }
+      throw error;
+    }
+  };
 
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -50,6 +60,7 @@ export const IdentityVerification: React.FC<Props> = ({ onClose }) => {
     setAiFeedback('جاري فحص المستند باستخدام الذكاء الاصطناعي...');
 
     try {
+      const ai = getAI();
       const base64 = await fileToBase64(file);
       const base64Data = base64.split(',')[1];
 
@@ -65,16 +76,16 @@ export const IdentityVerification: React.FC<Props> = ({ onClose }) => {
         ]
       });
 
-      const result = response.text?.toLowerCase() || '';
+      const responseText = response.text?.toLowerCase() || '';
       
-      if (result.includes('valid')) {
+      if (responseText.includes('valid')) {
         setAiStatus('success');
         setAiFeedback('تم التحقق بنجاح من جودة ونوع المستند.');
         // In a real app, you'd upload this to Firebase Storage first
         setFormData({ ...formData, idPhotoUrl: base64 }); 
       } else {
         setAiStatus('error');
-        setAiFeedback(result.split(': ')[1] || 'عذراً، الصورة لا تبدو كبطاقة هوية رسمية واضحة. يرجى إعادة التصوير بوضوح.');
+        setAiFeedback(responseText.split(': ')[1] || 'عذراً، الصورة لا تبدو كبطاقة هوية رسمية واضحة. يرجى إعادة التصوير بوضوح.');
       }
     } catch (err) {
       console.error('AI Verification Error:', err);

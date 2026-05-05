@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../../hooks/useAuth';
 import { sendAdminNotification } from '../../lib/notificationService';
 import { GoogleGenAI } from "@google/genai";
+import { getGemini } from "../../lib/gemini";
 
 interface Message {
   id: string;
@@ -43,8 +44,17 @@ export const SupportButton: React.FC = () => {
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Initialize Gemini
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  // Initialize Gemini lazily to prevent crashes if API key is missing on startup
+  const getAI = () => {
+    try {
+      return getGemini();
+    } catch (error) {
+      if (error instanceof Error && error.message === 'API_KEY_MISSING') {
+        throw new Error("عذراً، لم يتم إعداد مفتاح الذكاء الاصطناعي الخاص بالمنصة بعد.");
+      }
+      throw error;
+    }
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -66,6 +76,7 @@ export const SupportButton: React.FC = () => {
   const getAIResponse = async (userText: string) => {
     setIsTyping(true);
     try {
+      const ai = getAI();
       const history = messages.map(m => ({
         role: m.sender === 'user' ? 'user' as const : 'model' as const,
         parts: [{ text: m.text }]
