@@ -56,6 +56,22 @@ export const OrderDetailsPage: React.FC = () => {
 
   const isBuyer = order.buyerId === user?.uid;
   const isSeller = order.sellerId === user?.uid;
+  const isSellerByEmail = order.sellerEmail === user?.email;
+
+  const claimOrder = async () => {
+    if (!user || !order) return;
+    setActionLoading(true);
+    try {
+      await updateDoc(doc(db, 'orders', order.id), {
+        sellerId: user.uid,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `orders/${order.id}`);
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   const steps = [
     { key: 'pending', label: 'بانتظار الموافقة', icon: <Clock /> },
@@ -148,6 +164,16 @@ export const OrderDetailsPage: React.FC = () => {
              {/* Action Bar */}
              <div className="p-8 bg-gray-50/50 border-t border-gray-100">
                <div className="flex flex-wrap gap-4">
+                 {order.sellerId === 'unknown' && isSellerByEmail && (
+                    <button
+                      onClick={claimOrder}
+                      disabled={actionLoading}
+                      className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-md flex items-center gap-2"
+                    >
+                      <CheckCircle2 className="w-5 h-5" />
+                      <span>قبول الصفقة وربطها بحسابي</span>
+                    </button>
+                 )}
                  {order.status === 'pending' && isSeller && (
                    <button
                      onClick={() => updateStatus('escrowed')}
