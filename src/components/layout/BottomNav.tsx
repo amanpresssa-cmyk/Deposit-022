@@ -7,56 +7,61 @@ export const BottomNav: React.FC = () => {
   const { user } = useAuth();
 
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 z-50 px-6 h-14 flex items-center justify-between pb-safe">
+    <div className="md:hidden fixed bottom-6 left-4 right-4 bg-white/90 backdrop-blur-xl border border-gray-100 z-50 px-6 h-18 flex items-center justify-between rounded-[2rem] shadow-2xl shadow-blue-100/50 pb-safe ring-1 ring-black/5">
       <NavLink
         to="/"
         className={({ isActive }) =>
-          `flex flex-col items-center gap-1 ${isActive ? 'text-blue-600' : 'text-gray-400'}`
+          `flex flex-col items-center gap-1.5 transition-all ${isActive ? 'text-blue-600 scale-110' : 'text-gray-400 hover:text-gray-600'}`
         }
       >
-        <Home className="w-6 h-6" />
-        <span className="text-[10px] font-bold">الرئيسية</span>
+        <div className="relative">
+          <Home className="w-6 h-6" />
+        </div>
+        <span className="text-[9px] font-black uppercase tracking-wider">الرئيسية</span>
       </NavLink>
 
       <NavLink
         to="/search"
         className={({ isActive }) =>
-          `flex flex-col items-center gap-1 ${isActive ? 'text-blue-600' : 'text-gray-400'}`
+          `flex flex-col items-center gap-1.5 transition-all ${isActive ? 'text-blue-600 scale-110' : 'text-gray-400 hover:text-gray-600'}`
         }
       >
         <Search className="w-6 h-6" />
-        <span className="text-[10px] font-bold">تصفح</span>
+        <span className="text-[9px] font-black uppercase tracking-wider">تصفح</span>
       </NavLink>
 
       {user && (
         <NavLink
-          to="/create-order"
+          to="/orders/create"
           className={({ isActive }) =>
-            `flex flex-col items-center -mt-8 bg-blue-600 text-white p-3 rounded-full shadow-lg border-4 border-gray-50 ${
-              isActive ? 'scale-110' : ''
-            } transition-transform`
+            `flex flex-col items-center -mt-12 bg-blue-600 text-white p-4 rounded-2xl shadow-xl shadow-blue-300 ring-4 ring-white transition-all transform active:scale-90 ${
+              isActive ? 'bg-blue-700' : ''
+            }`
           }
         >
           <PlusCircle className="w-7 h-7" />
         </NavLink>
       )}
 
-      {user ? (
-        <NavLink
-          to="/dashboard"
-          className={({ isActive }) =>
-            `flex flex-col items-center gap-1 ${isActive ? 'text-blue-600' : 'text-gray-400'}`
-          }
-        >
-          <LayoutDashboard className="w-6 h-6" />
-          <span className="text-[10px] font-bold">طلباتي</span>
-        </NavLink>
-      ) : (
-        <div className="flex flex-col items-center gap-1 text-gray-400">
-           <User className="w-6 h-6 opacity-30" />
-           <span className="text-[10px] font-bold">حسابي</span>
-        </div>
-      )}
+      <NavLink
+        to="/dashboard"
+        className={({ isActive }) =>
+          `flex flex-col items-center gap-1.5 transition-all ${isActive ? 'text-blue-600 scale-110' : 'text-gray-400 hover:text-gray-600'}`
+        }
+      >
+        <LayoutDashboard className="w-6 h-6" />
+        <span className="text-[9px] font-black uppercase tracking-wider">طلباتي</span>
+      </NavLink>
+
+      <NavLink
+        to="/settings"
+        className={({ isActive }) =>
+          `flex flex-col items-center gap-1.5 transition-all ${isActive ? 'text-blue-600 scale-110' : 'text-gray-400 hover:text-gray-600'}`
+        }
+      >
+        <User className="w-6 h-6" />
+        <span className="text-[9px] font-black uppercase tracking-wider">حسابي</span>
+      </NavLink>
     </div>
   );
 };

@@ -44,6 +44,8 @@ export const Navbar: React.FC = () => {
 
       setNotifications(items);
       setUnreadCount(items.filter((n: any) => !n.isRead).length);
+    }, (error) => {
+      console.warn('Notifications snapshot error:', error);
     });
 
     return () => unsubscribe();
@@ -67,35 +69,37 @@ export const Navbar: React.FC = () => {
   };
 
   return (
-    <nav className="sticky top-0 z-40 w-full bg-white/80 backdrop-blur-xl border-b border-gray-100 shadow-sm">
-      <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-3 group">
+    <nav className="sticky top-0 z-40 w-full bg-white/80 backdrop-blur-xl border-b border-gray-100 shadow-sm overflow-hidden">
+      <div className="max-w-7xl mx-auto px-4 h-16 md:h-20 flex items-center justify-between">
+        <Link to="/" className="flex items-center gap-2 group">
           <img 
             src="https://i.imgur.com/OYaLVgI.png" 
             alt="عربون" 
-            className="h-10 w-auto object-contain flex-shrink-0" 
+            className="h-8 md:h-10 w-auto object-contain flex-shrink-0" 
           />
-          <span className="text-[10px] font-black text-gray-400 tracking-widest uppercase">وساطة مالية</span>
+          <span className="text-[10px] font-black text-blue-600 tracking-widest uppercase border-r border-gray-100 pr-2">وساطة مالية</span>
         </Link>
 
         {/* Desktop Menu */}
-        <div className="hidden md:flex items-center gap-10">
+        <div className="hidden md:flex items-center gap-6">
           {user && profile?.isAdmin && (
             <Link to="/admin" className="px-5 py-2 bg-red-50 text-red-600 rounded-2xl font-black text-[11px] uppercase tracking-wider hover:bg-red-100 transition-all flex items-center gap-2 border border-red-100 shadow-sm">
               <ShieldCheck className="w-4 h-4" />
               لوحة الإدارة
             </Link>
           )}
+          <Link to="/search" className="text-sm font-bold text-gray-600 hover:text-blue-600 transition-colors">تصفح الخدمات</Link>
+          <Link to="/how-it-works" className="text-sm font-bold text-gray-600 hover:text-blue-600 transition-colors">كيف يعمل؟</Link>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 md:gap-4">
           <AnimatePresence>
             {showToast && lastNotification && (
               <motion.div
                 initial={{ opacity: 0, y: -20, x: 20 }}
                 animate={{ opacity: 1, y: 0, x: 0 }}
                 exit={{ opacity: 0, y: -20, scale: 0.9 }}
-                className="fixed top-24 left-4 z-50 bg-white rounded-2xl shadow-2xl border border-blue-100 p-4 w-72 flex gap-3 cursor-pointer overflow-hidden"
+                className="fixed top-20 right-4 left-4 md:left-auto md:top-24 md:right-4 md:w-72 z-50 bg-white rounded-2xl shadow-2xl border border-blue-100 p-4 flex gap-3 cursor-pointer overflow-hidden"
                 onClick={() => {
                   setShowToast(false);
                   setShowNotifications(true);
@@ -140,7 +144,7 @@ export const Navbar: React.FC = () => {
                       initial={{ opacity: 0, y: 15, scale: 0.95 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 15, scale: 0.95 }}
-                      className="absolute left-0 mt-4 w-80 bg-white rounded-3xl border border-gray-100 shadow-2xl p-4 overflow-hidden z-50 origin-top-left"
+                      className="absolute left-0 mt-4 w-[calc(100vw-2rem)] md:w-80 bg-white rounded-3xl border border-gray-100 shadow-2xl p-4 overflow-hidden z-50 origin-top-left"
                     >
                       <div className="flex items-center justify-between mb-4 px-2">
                         <h4 className="font-black text-gray-900">الإشعارات</h4>
@@ -176,50 +180,52 @@ export const Navbar: React.FC = () => {
                 </AnimatePresence>
               </div>
 
-              <Link 
-                to="/dashboard" 
-                className="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
-                title="لوحة التحكم"
-              >
-                <LayoutDashboard className="w-6 h-6" />
-              </Link>
-              
-              <Link 
-                to="/settings" 
-                className="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
-                title="الإعدادات"
-              >
-                <Settings className="w-6 h-6" />
-              </Link>
-              
-              <div className="h-10 w-[1px] bg-gray-100 mx-1"></div>
+              <div className="hidden md:flex items-center gap-3">
+                <Link 
+                  to="/dashboard" 
+                  className="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
+                  title="لوحة التحكم"
+                >
+                  <LayoutDashboard className="w-6 h-6" />
+                </Link>
+                
+                <Link 
+                  to="/settings" 
+                  className="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
+                  title="الإعدادات"
+                >
+                  <Settings className="w-6 h-6" />
+                </Link>
+                
+                <div className="h-10 w-[1px] bg-gray-100 mx-1"></div>
 
-              <motion.button 
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => navigate('/dashboard')}
-                className="flex items-center gap-3 bg-gray-50 p-1.5 pr-4 rounded-2xl hover:bg-gray-100 transition-all border border-gray-100 group"
-              >
-                <div className="text-right hidden sm:block">
-                  <p className="text-xs font-black text-gray-900 group-hover:text-blue-600 transition-colors uppercase tracking-tight">{profile?.displayName}</p>
-                  <p className="text-[10px] font-bold text-gray-400">%{profile?.trustLevel || 10} ثقة</p>
-                </div>
-                <img 
-                  src={user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile?.displayName || '')}&background=random`} 
-                  alt="" 
-                  className="w-10 h-10 rounded-xl object-cover border-2 border-white shadow-sm"
-                  referrerPolicy="no-referrer"
-                />
-              </motion.button>
+                <motion.button 
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => navigate('/dashboard')}
+                  className="flex items-center gap-3 bg-gray-50 p-1.5 pr-4 rounded-2xl hover:bg-gray-100 transition-all border border-gray-100 group"
+                >
+                  <div className="text-right hidden sm:block">
+                    <p className="text-xs font-black text-gray-900 group-hover:text-blue-600 transition-colors uppercase tracking-tight">{profile?.displayName}</p>
+                    <p className="text-[10px] font-bold text-gray-400">%{profile?.trustLevel || 10} ثقة</p>
+                  </div>
+                  <img 
+                    src={user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile?.displayName || '')}&background=random`} 
+                    alt="" 
+                    className="w-10 h-10 rounded-xl object-cover border-2 border-white shadow-sm"
+                    referrerPolicy="no-referrer"
+                  />
+                </motion.button>
+              </div>
             </div>
           ) : (
             <div className="flex items-center gap-3">
                <button 
                 onClick={login}
-                className="bg-blue-600 text-white px-8 py-3.5 rounded-2xl font-bold hover:bg-blue-700 shadow-xl shadow-blue-100 transition-all flex items-center gap-2"
+                className="bg-blue-600 text-white px-6 md:px-8 py-2.5 md:py-3.5 rounded-xl md:rounded-2xl font-bold hover:bg-blue-700 shadow-xl shadow-blue-100 transition-all flex items-center gap-2 text-sm md:text-base"
               >
-                <User className="w-5 h-5 pointer-events-none" />
-                تسجيل الدخول
+                <User className="w-4 h-4 md:w-5 md:h-5 pointer-events-none" />
+                دخول
               </button>
             </div>
           )}

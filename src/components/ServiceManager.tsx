@@ -31,6 +31,9 @@ export const ServiceManager: React.FC<ServiceManagerProps> = ({ sellerId }) => {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setServices(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service)));
       setLoading(false);
+    }, (error) => {
+      console.warn('Service manager snapshot error:', error);
+      setLoading(false);
     });
 
     return () => unsubscribe();

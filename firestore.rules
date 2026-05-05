@@ -37,7 +37,8 @@ service cloud.firestore {
 
     // --- Users ---
     match /users/{userId} {
-      allow read: if isSignedIn() && (isAdmin() || isOwner(userId) || (resource != null && resource.data.isBlocked != true));
+      allow get: if true;
+      allow list: if resource.data.isSeller == true || (isSignedIn() && isAdmin()) || (isSignedIn() && request.auth.uid == userId);
       allow create: if isOwner(userId)
         && incoming().uid == userId
         && (incoming().isAdmin == (request.auth.token.email == 'khyratfarmdates@gmail.com'))
@@ -156,7 +157,7 @@ service cloud.firestore {
 
     // --- Reviews ---
     match /reviews/{reviewId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow create: if isSignedIn()
         && incoming().reviewerId == request.auth.uid
         && get(/databases/$(database)/documents/orders/$(incoming().orderId)).data.status == 'completed'
@@ -183,9 +184,7 @@ service cloud.firestore {
 
     // --- Platform Feedback ---
     match /platform_feedback/{feedbackId} {
-      allow read: if isAdmin() 
-        || (resource.data.userId == request.auth.uid)
-        || (resource.data.rating >= 4);
+      allow read: if true;
       allow create: if isSignedIn()
         && incoming().comment is string && incoming().comment.size() <= 2000
         && incoming().rating is number && incoming().rating >= 1 && incoming().rating <= 5

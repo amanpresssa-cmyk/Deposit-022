@@ -107,20 +107,13 @@ export const Dashboard: React.FC = () => {
         orderBy('createdAt', 'desc')
       );
 
-      const qSellerEmail = query(
-        collection(db, 'orders'),
-        where('sellerEmail', '==', user.email),
-        orderBy('createdAt', 'desc')
-      );
-
       const unsubBuyer = onSnapshot(qBuyer, (snapshot) => {
         const buyerOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
         setOrders(prev => {
-          const others = prev.filter(o => o.sellerId === user.uid || o.sellerEmail === user.email);
+          const others = prev.filter(o => o.sellerId === user.uid || (user.email && o.sellerEmail === user.email));
           const combined = [...buyerOrders, ...others].sort((a, b) => 
             (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0)
           );
-          // Deduplicate by ID
           return Array.from(new Map(combined.map(item => [item.id, item])).values());
         });
         setLoading(false);
@@ -131,7 +124,7 @@ export const Dashboard: React.FC = () => {
       const unsubSeller = onSnapshot(qSeller, (snapshot) => {
         const sellerOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
         setOrders(prev => {
-          const others = prev.filter(o => o.buyerId === user.uid || o.sellerEmail === user.email);
+          const others = prev.filter(o => o.buyerId === user.uid || (user.email && o.sellerEmail === user.email));
           const combined = [...sellerOrders, ...others].sort((a, b) => 
             (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0)
           );
@@ -142,19 +135,27 @@ export const Dashboard: React.FC = () => {
         handleFirestoreError(error, OperationType.LIST, 'orders (seller)');
       });
 
-      const unsubSellerEmail = onSnapshot(qSellerEmail, (snapshot) => {
-        const sellerEmailOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
-        setOrders(prev => {
-          const others = prev.filter(o => o.buyerId === user.uid || o.sellerId === user.uid);
-          const combined = [...sellerEmailOrders, ...others].sort((a, b) => 
-            (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0)
-          );
-          return Array.from(new Map(combined.map(item => [item.id, item])).values());
+      let unsubSellerEmail = () => {};
+      if (user.email) {
+        const qSellerEmail = query(
+          collection(db, 'orders'),
+          where('sellerEmail', '==', user.email),
+          orderBy('createdAt', 'desc')
+        );
+        unsubSellerEmail = onSnapshot(qSellerEmail, (snapshot) => {
+          const sellerEmailOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
+          setOrders(prev => {
+            const others = prev.filter(o => o.buyerId === user.uid || o.sellerId === user.uid);
+            const combined = [...sellerEmailOrders, ...others].sort((a, b) => 
+              (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0)
+            );
+            return Array.from(new Map(combined.map(item => [item.id, item])).values());
+          });
+          setLoading(false);
+        }, (error) => {
+          handleFirestoreError(error, OperationType.LIST, 'orders (sellerEmail)');
         });
-        setLoading(false);
-      }, (error) => {
-        handleFirestoreError(error, OperationType.LIST, 'orders (sellerEmail)');
-      });
+      }
 
       return () => {
         unsubBuyer();
