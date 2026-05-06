@@ -676,20 +676,22 @@ const PaymentModal: React.FC<{
       <div className="p-8 space-y-6">
         <div className="flex flex-col gap-3">
           <p className="font-bold text-sm text-gray-400 text-right">اختر وسيلة الدفع</p>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {[
-              { id: 'mada', name: 'MADA' },
-              { id: 'visa', name: 'VISA' },
-              { id: 'apple', name: 'APPLE PAY' },
+              { id: 'mada', name: 'MADA', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/80/Mada_Logo.svg/512px-Mada_Logo.svg.png' },
+              { id: 'visa', name: 'VISA', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d6/Visa_2021.svg/512px-Visa_2021.svg.png' },
+              { id: 'mastercard', name: 'Mastercard', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Mastercard-logo.svg/512px-Mastercard-logo.svg.png' },
+              { id: 'apple', name: 'Apple Pay', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b0/Apple_Pay_logo.svg/512px-Apple_Pay_logo.svg.png' },
+              { id: 'google', name: 'Google Pay', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f2/Google_Pay_Logo.svg/512px-Google_Pay_Logo.svg.png' },
             ].map(m => (
               <button
                 key={m.id}
                 onClick={() => setPaymentMethod(m.id)}
-                className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-1 ${
+                className={`p-4 rounded-2xl border-2 transition-all flex items-center justify-center h-16 ${
                   paymentMethod === m.id ? 'border-blue-600 bg-blue-50' : 'border-gray-50 bg-gray-50/50'
                 }`}
               >
-                <span className="text-[10px] font-black tracking-tighter">{m.name}</span>
+                <img src={m.img} alt={m.name} className="max-h-8 max-w-full object-contain" />
               </button>
             ))}
           </div>

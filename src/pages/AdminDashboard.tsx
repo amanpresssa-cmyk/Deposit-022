@@ -17,12 +17,16 @@ export const AdminDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'pending' | 'verified' | 'rejected'>('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [tab, setTab] = useState<'users' | 'finance' | 'disputes' | 'system' | 'alerts'>('users');
+  const [tab, setTab] = useState<'users' | 'finance' | 'disputes' | 'system' | 'alerts' | 'support'>('users');
   const [homeCardSettings, setHomeCardSettings] = useState({
     imageUrl: '',
     quote: '',
     author: ''
   });
+  const [footerSettings, setFooterSettings] = useState({
+    description: ''
+  });
+  const [supportTickets, setSupportTickets] = useState<any[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [disputes, setDisputes] = useState<any[]>([]);
@@ -67,27 +71,38 @@ export const AdminDashboard: React.FC = () => {
       handleFirestoreError(error, OperationType.LIST, 'disputes');
     });
 
+    // Fetch Support Tickets
+    const supportQ = query(collection(db, 'support_tickets'), orderBy('createdAt', 'desc'));
+    const unsubSupport = onSnapshot(supportQ, (snapshot) => {
+      setSupportTickets(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'support_tickets');
+    });
+
     return () => {
       unsubAlerts();
       unsubTx();
       unsubDisp();
+      unsubSupport();
     };
   }, [profile]);
 
   useEffect(() => {
     if (tab === 'system') {
-      const fetchHomeSettings = async () => {
-        const docRef = doc(db, 'app_settings', 'home_card');
-        const snap = await getDocs(query(collection(db, 'app_settings'))); // Simpler just to get doc but need to handle non-existence
-        // Actually just use doc get
-      };
-      
       const unsubHome = onSnapshot(doc(db, 'app_settings', 'home_card'), (doc) => {
         if (doc.exists()) {
           setHomeCardSettings(doc.data() as any);
         }
       });
-      return () => unsubHome();
+      const unsubFooter = onSnapshot(doc(db, 'app_settings', 'footer'), (doc) => {
+        if (doc.exists()) {
+          setFooterSettings(doc.data() as any);
+        }
+      });
+      return () => {
+        unsubHome();
+        unsubFooter();
+      };
     }
   }, [tab]);
 
@@ -198,6 +213,33 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
+  const saveFooterSettings = async () => {
+    try {
+      const docRef = doc(db, 'app_settings', 'footer');
+      const { setDoc } = await import('firebase/firestore');
+      await setDoc(docRef, {
+        ...footerSettings,
+        updatedAt: serverTimestamp()
+      });
+      alert('تم حفظ إعدادات التذييل بنجاح');
+    } catch (error) {
+      console.error("Error saving footer settings:", error);
+      alert('حدث خطأ أثناء فظ إعدادات التذييل');
+    }
+  };
+
+  const handleUpdateTicketStatus = async (ticketId: string, newStatus: string) => {
+    try {
+      const ticketRef = doc(db, 'support_tickets', ticketId);
+      await updateDoc(ticketRef, {
+        status: newStatus,
+        updatedAt: serverTimestamp()
+      });
+    } catch (error) {
+      console.error("Error updating ticket status:", error);
+    }
+  };
+
   const filteredUsers = users.filter(u => {
     const matchesFilter = filter === 'all' || u.verificationStatus === filter;
     const matchesSearch = u.displayName.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -246,6 +288,7 @@ export const AdminDashboard: React.FC = () => {
              { id: 'users', label: 'المستخدمين', icon: <UserCheck className="w-4 h-4" /> },
              { id: 'finance', label: 'المالية', icon: <Wallet className="w-4 h-4" /> },
              { id: 'disputes', label: 'النزاعات', icon: <AlertCircle className="w-4 h-4" /> },
+             { id: 'support', label: 'خدمة العملاء', icon: <MessageSquare className="w-4 h-4" /> },
              { id: 'alerts', label: 'البلاغات الطارئة', icon: <Activity className="w-4 h-4" /> },
              { id: 'system', label: 'الإعدادات', icon: <ShieldCheck className="w-4 h-4" /> },
            ].map(t => (
@@ -379,6 +422,85 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
+      {tab === 'support' && (
+        <div className="space-y-8 animate-in fade-in duration-500">
+           <div className="flex items-center gap-3 mb-6">
+              <MessageSquare className="w-6 h-6 text-blue-600" />
+              <h2 className="text-2xl font-black">طلبات الدعم والشكاوى</h2>
+           </div>
+
+           <div className="grid grid-cols-1 gap-4">
+              {supportTickets.length === 0 ? (
+                <div className="bg-white rounded-[2.5rem] p-20 text-center text-gray-300 font-bold border border-gray-100">
+                   لا توجد تذاكر دعم حالياً
+                </div>
+              ) : (
+                supportTickets.map(ticket => (
+                  <div key={ticket.id} className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col md:flex-row justify-between gap-6">
+                     <div className="flex items-start gap-5">
+                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm ${
+                           ticket.type === 'complaint' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'
+                        }`}>
+                           {ticket.type === 'complaint' ? <AlertCircle className="w-7 h-7" /> : <MessageCircle className="w-7 h-7" />}
+                        </div>
+                        <div className="space-y-1">
+                           <div className="flex items-center gap-2">
+                              <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase ${
+                                 ticket.type === 'complaint' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
+                              }`}>
+                                 {ticket.type === 'complaint' ? 'بلاغ' : 'محادثة مباشرة'}
+                              </span>
+                              <h4 className="font-black text-lg text-gray-900">{ticket.userName}</h4>
+                           </div>
+                           <p className="text-sm font-bold text-gray-400">{ticket.userEmail}</p>
+                           {ticket.category && (
+                              <p className="text-xs font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-lg inline-block">
+                                 التصنيف: {ticket.category}
+                              </p>
+                           )}
+                           <div className="mt-4 p-4 bg-gray-50 rounded-2xl text-sm font-medium text-gray-600 leading-relaxed border border-gray-100">
+                              {ticket.message || 'طلب محادثة مباشرة'}
+                           </div>
+                           <p className="text-[10px] text-gray-300 font-bold">
+                              تم التقديم: {format(ticket.createdAt?.toDate?.() || new Date(), 'dd MMM yyyy HH:mm', { locale: ar })}
+                           </p>
+                        </div>
+                     </div>
+                     
+                     <div className="flex flex-col gap-3 min-w-[160px]">
+                        <div className="text-center p-3 rounded-2xl bg-gray-50 border border-gray-100">
+                           <p className="text-[10px] font-black text-gray-400 uppercase mb-1">الحالة الحالية</p>
+                           <span className={`text-xs font-black ${
+                              ticket.status === 'open' || ticket.status === 'requested' ? 'text-orange-600' : 'text-green-600'
+                           }`}>
+                              {ticket.status === 'open' ? 'قيد المراجعة' : 
+                               ticket.status === 'requested' ? 'بانتظار الرد' : 
+                               ticket.status === 'resolved' ? 'تم الحل' : 'مغلق'}
+                           </span>
+                        </div>
+                        
+                        {(ticket.status === 'open' || ticket.status === 'requested') && (
+                           <button 
+                              onClick={() => handleUpdateTicketStatus(ticket.id, 'resolved')}
+                              className="w-full py-3 bg-green-600 text-white rounded-xl font-black text-xs hover:bg-green-700 transition-all shadow-lg shadow-green-100"
+                           >
+                              تحديد كتم الحل
+                           </button>
+                        )}
+                        <button 
+                           onClick={() => handleUpdateTicketStatus(ticket.id, 'closed')}
+                           className="w-full py-3 bg-gray-100 text-gray-600 rounded-xl font-black text-xs hover:bg-gray-200 transition-all"
+                        >
+                           إغلاق التذكرة
+                        </button>
+                     </div>
+                  </div>
+                ))
+              )}
+           </div>
+        </div>
+      )}
+
       {tab === 'system' && (
         <div className="space-y-8 animate-in fade-in duration-500">
            <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm p-8">
@@ -450,6 +572,31 @@ export const AdminDashboard: React.FC = () => {
            </div>
 
            <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm p-12 text-center text-gray-400 font-bold">
+               <div className="flex items-center gap-3 mb-8">
+                  <Activity className="w-6 h-6 text-blue-600" />
+                  <h2 className="text-xl font-black text-gray-900">تخصيص تذييل الموقع (Footer)</h2>
+               </div>
+               <div className="space-y-6">
+                  <div className="space-y-2">
+                     <label className="text-sm font-black text-gray-700 block px-1">وصف المنصة في التذييل</label>
+                     <textarea 
+                        value={footerSettings.description}
+                        onChange={(e) => setFooterSettings({description: e.target.value})}
+                        rows={3}
+                        className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 focus:ring-2 focus:ring-blue-100 outline-none transition-all font-medium text-right"
+                        placeholder="المنصة الأولى الموثوقة للوساطة المالية..."
+                     />
+                  </div>
+                  <button 
+                     onClick={saveFooterSettings}
+                     className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black hover:bg-blue-700 transition-all shadow-xl shadow-blue-100"
+                  >
+                     حفظ وصف التذييل
+                  </button>
+               </div>
+            </div>
+
+            <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm p-12 text-center text-gray-400 font-bold">
                قريباً: إعدادات النظام المتقدمة، تعديل العمولات، والرسائل الجماعية.
            </div>
         </div>

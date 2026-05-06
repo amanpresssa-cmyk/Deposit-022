@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'motion/react';
-import { ShieldCheck, ArrowLeftRight, CheckCircle, Search, Clock, MessageSquare, Star, LayoutGrid, Users, Briefcase } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { ShieldCheck, ArrowLeftRight, CheckCircle, Search, Clock, MessageSquare, Star, LayoutGrid, Users, Briefcase, Lock, Zap } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { collection, query, where, limit, getDocs, doc, onSnapshot, orderBy } from 'firebase/firestore';
@@ -15,7 +15,22 @@ export const Home: React.FC = () => {
   const [featuredSellers, setFeaturedSellers] = React.useState<UserProfile[]>([]);
   const [homeCard, setHomeCard] = useState<any>(null);
   const [loadingSellers, setLoadingSellers] = useState(true);
+  const [trustIndex, setTrustIndex] = useState(0);
   const navigate = useNavigate();
+
+  const trustMessages = [
+    { text: "الخيار الأول للتعاملات الآمنة", icon: <ShieldCheck className="w-4 h-4" /> },
+    { text: "وساطة مالية ذكية وموثوقة", icon: <Lock className="w-4 h-4" /> },
+    { text: "حقك محفوظ بأمان تام", icon: <CheckCircle className="w-4 h-4" /> },
+    { text: "دفع إلكتروني معتمد 100%", icon: <Zap className="w-4 h-4" /> }
+  ];
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTrustIndex((prev) => (prev + 1) % trustMessages.length);
+    }, 2000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'app_settings', 'home_card'), (doc) => {
@@ -99,9 +114,20 @@ export const Home: React.FC = () => {
           transition={{ duration: 0.8, ease: "easeOut" }}
           className="relative z-10 text-center space-y-6"
         >
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-blue-50 text-blue-600 rounded-full text-xs font-bold ring-1 ring-blue-100 shadow-sm mb-4">
-            <ShieldCheck className="w-4 h-4" />
-            <span>موثق رسمياً برقم هوية</span>
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-blue-50 text-blue-600 rounded-full text-xs font-bold ring-1 ring-blue-100 shadow-sm mb-4 min-w-[220px] justify-center h-9 overflow-hidden">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={trustIndex}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.3 }}
+                className="flex items-center gap-2"
+              >
+                {trustMessages[trustIndex].icon}
+                <span>{trustMessages[trustIndex].text}</span>
+              </motion.div>
+            </AnimatePresence>
           </div>
           <h1 className="text-4xl md:text-7xl font-black text-gray-900 tracking-tight leading-[1.1]">
             حقك محفوظ <br/> مع <span className="text-blue-600 relative inline-block">
@@ -148,6 +174,23 @@ export const Home: React.FC = () => {
         {/* Floating Decorative Elements */}
         <div className="absolute top-20 -right-20 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl -z-10 animate-pulse" />
         <div className="absolute top-40 -left-20 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl -z-10" />
+
+        {/* Payment Methods Trust Bar */}
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1, duration: 1 }}
+          className="mt-16 border-t border-gray-50 pt-8"
+        >
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-6">وسائل دفع آمنة ومعتمدة</p>
+          <div className="flex flex-wrap justify-center items-center gap-6 md:gap-10 opacity-40 hover:opacity-100 transition-opacity grayscale hover:grayscale-0">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/80/Mada_Logo.svg/512px-Mada_Logo.svg.png" alt="Mada" className="h-4 md:h-6 object-contain" />
+            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/d6/Visa_2021.svg/512px-Visa_2021.svg.png" alt="Visa" className="h-3 md:h-5 object-contain" />
+            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Mastercard-logo.svg/512px-Mastercard-logo.svg.png" alt="Mastercard" className="h-6 md:h-8 object-contain" />
+            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b0/Apple_Pay_logo.svg/512px-Apple_Pay_logo.svg.png" alt="Apple Pay" className="h-5 md:h-7 object-contain" />
+            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/f/f2/Google_Pay_Logo.svg/512px-Google_Pay_Logo.svg.png" alt="Google Pay" className="h-4 md:h-6 object-contain" />
+          </div>
+        </motion.div>
       </section>
 
       {/* Quick Access Actions Grid */}

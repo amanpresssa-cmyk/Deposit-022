@@ -10,6 +10,11 @@ import { SellerProfilePage } from './pages/SellerProfilePage';
 import { SettingsPage } from './pages/SettingsPage';
 import { UserProfilePage } from './pages/UserProfilePage';
 import { AdminDashboard } from './pages/AdminDashboard';
+import { HelpCenterPage } from './pages/HelpCenterPage';
+import { TermsPage } from './pages/TermsPage';
+import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
+import { FAQPage } from './pages/FAQPage';
+import { HowItWorksPage } from './pages/HowItWorksPage';
 import { NotificationProvider } from './components/providers/NotificationProvider';
 import { Toaster } from 'sonner';
 import { Navbar } from './components/layout/Navbar';
@@ -157,6 +162,11 @@ export default function App() {
                     path="/create-order"
                     element={user ? <CreateOrderPage /> : <Navigate to="/" />}
                   />
+                  <Route path="/help-center" element={<HelpCenterPage />} />
+                  <Route path="/terms" element={<TermsPage />} />
+                  <Route path="/privacy" element={<PrivacyPolicyPage />} />
+                  <Route path="/faq" element={<FAQPage />} />
+                  <Route path="/how-it-works" element={<HowItWorksPage />} />
                   <Route path="*" element={<Navigate to="/" />} />
                 </Routes>
               </AnimatePresence>

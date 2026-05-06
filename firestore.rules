@@ -241,5 +241,13 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow create, update: if isAdmin();
     }
+
+    // --- Support Tickets ---
+    match /support_tickets/{ticketId} {
+      allow create: if true; 
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow list: if isAdmin();
+      allow update: if isAdmin();
+    }
   }
 }
