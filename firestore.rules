@@ -38,28 +38,55 @@ service cloud.firestore {
     // --- Users ---
     match /users/{userId} {
       allow get: if true;
-      allow list: if resource.data.isSeller == true || (isSignedIn() && isAdmin()) || (isSignedIn() && request.auth.uid == userId);
+      allow list: if resource.data.isSeller == true || 
+                    (isSignedIn() && isAdmin()) || 
+                    (isSignedIn() && request.auth.uid == userId) ||
+                    (request.query.limit <= 1 && request.query.filters.size() == 1 && 'referralCode' in request.query.filters[0]);
       allow create: if isOwner(userId)
         && incoming().uid == userId;
       
-      allow update: if (isOwner(userId) || isAdmin())
+      allow update: if (isSignedIn() && (
+          isOwner(userId) || 
+          isAdmin() || 
+          // Action: Reward Inviter (Allows an invitee to reward their inviter upon completion)
+          (incoming().diff(existing()).affectedKeys().hasOnly(['freeFeeTransactions', 'updatedAt']) && incoming().freeFeeTransactions == existing().freeFeeTransactions + 1)
+        ))
         && incoming().uid == userId
         && (
-          isAdmin() || (
+          isAdmin() || 
+          (incoming().diff(existing()).affectedKeys().hasOnly(['freeFeeTransactions', 'updatedAt']) && incoming().freeFeeTransactions == existing().freeFeeTransactions + 1) ||
+          (
             isOwner(userId) && (
               // Action: Basic Info
               incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'phoneNumber', 'updatedAt', 'isOnline', 'lastSeen']) ||
+              // Action: Referral Code (for migration of old users)
+              incoming().diff(existing()).affectedKeys().hasOnly(['referralCode', 'updatedAt']) ||
               // Action: Become Seller
               incoming().diff(existing()).affectedKeys().hasOnly(['isSeller', 'bio', 'specialties', 'trustLevel', 'updatedAt']) ||
               // Action: Submit Verification
               incoming().diff(existing()).affectedKeys().hasOnly(['idNumber', 'phoneNumber', 'idPhotoUrl', 'agreedToTerms', 'verificationStatus', 'trustLevel', 'updatedAt']) ||
               // Action: Rating update (from OrderRating component)
               incoming().diff(existing()).affectedKeys().hasOnly(['reviewsCount', 'rating', 'trustLevel', 'updatedAt']) ||
+              // Action: Referral reward consumption
+              incoming().diff(existing()).affectedKeys().hasOnly(['freeFeeTransactions', 'updatedAt']) && incoming().freeFeeTransactions == existing().freeFeeTransactions - 1 ||
               // Action: Auto-admin for matching email (STRICT)
               (incoming().diff(existing()).affectedKeys().hasOnly(['isAdmin']) && ('email' in request.auth.token && request.auth.token.email == 'khyratfarmdates@gmail.com') && incoming().isAdmin == true)
             )
           )
         );
+    }
+
+    // --- Referrals ---
+    match /referrals/{refId} {
+      allow read: if isSignedIn() && (isAdmin() || resource.data.inviterId == request.auth.uid || resource.data.inviteeId == request.auth.uid);
+      allow create: if isSignedIn() && incoming().inviteeId == request.auth.uid;
+      allow update: if isSignedIn() && isAdmin();
+    }
+
+    // --- SMS Logs ---
+    match /sms_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn(); // Allow apps to log sent SMS for debugging
     }
 
     // --- Orders ---
