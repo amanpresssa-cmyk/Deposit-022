@@ -369,12 +369,25 @@ export const SettingsPage: React.FC = () => {
                                 موثق بالكامل
                              </div>
                            ) : (
-                             <button 
-                               onClick={() => setShowIdentityVerification(true)}
-                               className="bg-blue-600 text-white px-8 py-3 rounded-2xl text-xs font-black hover:bg-blue-700 transition-all shadow-xl shadow-blue-200"
-                             >
-                               ابدأ التوثيق الآن
-                             </button>
+                             <div className="flex flex-col gap-3 items-end">
+                               {profile?.verificationStatus === 'rejected' && profile.verificationRejectionReason && (
+                                 <div className="bg-red-50 p-4 rounded-2xl border border-red-100 text-right space-y-2 max-w-md">
+                                    <div className="flex items-center gap-2 text-red-600 font-black text-xs">
+                                      <ShieldAlert className="w-4 h-4" />
+                                      سبب الرفض:
+                                    </div>
+                                    <p className="text-xs text-red-700 font-medium leading-relaxed">
+                                      {profile.verificationRejectionReason}
+                                    </p>
+                                 </div>
+                               )}
+                               <button 
+                                 onClick={() => setShowIdentityVerification(true)}
+                                 className="bg-blue-600 text-white px-8 py-3 rounded-2xl text-xs font-black hover:bg-blue-700 transition-all shadow-xl shadow-blue-200"
+                               >
+                                 {profile?.verificationStatus === 'rejected' ? 'إعادة المحاولة' : 'ابدأ التوثيق الآن'}
+                               </button>
+                             </div>
                            )}
                         </div>
                       </div>

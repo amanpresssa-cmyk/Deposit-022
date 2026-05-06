@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { Search, PlusCircle, LayoutDashboard, User, ShieldCheck, Bell, X, CreditCard, AlertTriangle, Clock, CheckCircle2, MessageSquare, Settings } from 'lucide-react';
+import { Search, PlusCircle, LayoutDashboard, User, ShieldCheck, Bell, X, CreditCard, AlertTriangle, Clock, CheckCircle2, MessageSquare, Settings, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { collection, query, where, orderBy, onSnapshot, limit, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -17,6 +17,17 @@ export const Navbar: React.FC = () => {
   const navigate = useNavigate();
   const [showNotifications, setShowNotifications] = useState(false);
   const [activeFilter, setActiveFilter] = useState<'all' | 'urgent' | 'settlement' | 'normal'>('all');
+
+  const [announcement, setAnnouncement] = useState<any>(null);
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'app_settings', 'announcement'), (snapshot) => {
+      if (snapshot.exists()) {
+        setAnnouncement(snapshot.data());
+      }
+    });
+    return () => unsub();
+  }, []);
 
   const handleMarkAllAsRead = async () => {
     if (!user) return;
@@ -60,17 +71,39 @@ export const Navbar: React.FC = () => {
   };
 
   return (
-    <nav className="sticky top-0 z-40 w-full bg-white/80 backdrop-blur-xl border-b border-gray-100 shadow-sm pt-[env(safe-area-inset-top)]">
-      {/* Email Consent Banner */}
-      {user && profile && profile.emailConsent === undefined && (
-        <div className="bg-blue-600 text-white px-4 py-2 text-[10px] md:text-sm font-bold flex items-center justify-center gap-4 animate-in slide-in-from-top duration-500">
-          <span>هل ترغب في استلام تحديثات صفقاتك عبر البريد الإلكتروني؟</span>
-          <div className="flex gap-2">
-            <button onClick={() => updateEmailConsent(true)} className="bg-white text-blue-600 px-3 py-1 rounded-lg text-[10px] font-black">نعم، أرغب</button>
-            <button onClick={() => updateEmailConsent(false)} className="bg-blue-500 text-white px-3 py-1 rounded-lg text-[10px] font-black border border-blue-400">ليس الآن</button>
-          </div>
+    <div className="sticky top-0 z-50 w-full">
+      {/* Announcement Bar */}
+      {announcement && announcement.isActive && (
+        <div className={`px-4 py-2 text-center text-xs md:text-sm font-black relative overflow-hidden transition-all ${
+          announcement.type === 'urgent' ? 'bg-red-600 text-white' : 
+          announcement.type === 'promo' ? 'bg-purple-600 text-white' : 
+          'bg-blue-900 text-white'
+        }`}>
+          {announcement.link ? (
+            <a href={announcement.link} className="flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
+              <span>{announcement.text}</span>
+              <Sparkles className="w-4 h-4 animate-pulse shrink-0" />
+            </a>
+          ) : (
+            <div className="flex items-center justify-center gap-2">
+              <span>{announcement.text}</span>
+              <Bell className="w-4 h-4 shrink-0" />
+            </div>
+          )}
         </div>
       )}
+
+      <nav className="w-full bg-white/80 backdrop-blur-xl border-b border-gray-100 shadow-sm pt-[env(safe-area-inset-top)]">
+        {/* Email Consent Banner */}
+        {user && profile && profile.emailConsent === undefined && (
+          <div className="bg-blue-600 text-white px-4 py-2 text-[10px] md:text-sm font-bold flex items-center justify-center gap-4 animate-in slide-in-from-top duration-500">
+            <span>هل ترغب في استلام تحديثات صفقاتك عبر البريد الإلكتروني؟</span>
+            <div className="flex gap-2">
+              <button onClick={() => updateEmailConsent(true)} className="bg-white text-blue-600 px-3 py-1 rounded-lg text-[10px] font-black">نعم، أرغب</button>
+              <button onClick={() => updateEmailConsent(false)} className="bg-blue-500 text-white px-3 py-1 rounded-lg text-[10px] font-black border border-blue-400">ليس الآن</button>
+            </div>
+          </div>
+        )}
       
       <div className="max-w-7xl mx-auto px-4 h-16 md:h-20 flex items-center justify-between gap-2">
         <Link to="/" className="flex items-center gap-1.5 md:gap-2 group shrink-0">
@@ -100,10 +133,7 @@ export const Navbar: React.FC = () => {
             <div className="flex items-center gap-3">
               <div className="relative">
                 <button 
-                  onClick={() => {
-                    setShowNotifications(!showNotifications);
-                    if (!showNotifications) handleMarkAllAsRead();
-                  }}
+                  onClick={() => setShowNotifications(!showNotifications)}
                   className="p-2.5 text-gray-400 hover:bg-gray-50 rounded-xl transition-all relative"
                 >
                   <Bell className="w-6 h-6" />
@@ -125,7 +155,19 @@ export const Navbar: React.FC = () => {
                       <div className="p-6 pb-4 border-b border-gray-50">
                         <div className="flex items-center justify-between mb-4">
                           <h4 className="font-black text-gray-900 text-lg">مركز التنبيهات</h4>
-                          <button onClick={() => setShowNotifications(false)} className="w-8 h-8 flex items-center justify-center bg-gray-50 rounded-full text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+                          <div className="flex items-center gap-2">
+                            {unreadCount > 0 && (
+                              <button 
+                                onClick={handleMarkAllAsRead}
+                                className="text-[10px] font-black text-blue-600 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-all border border-blue-100"
+                              >
+                                قراءة الكل
+                              </button>
+                            )}
+                            <button onClick={() => setShowNotifications(false)} className="w-8 h-8 flex items-center justify-center bg-gray-50 rounded-full text-gray-400 hover:text-gray-600">
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                         
                         {/* Priority Filters */}
@@ -168,8 +210,11 @@ export const Navbar: React.FC = () => {
                                 setShowNotifications(false);
                                 if (!n.isRead) await markNotificationAsRead(n.id);
                               }}
-                              className={`group flex gap-4 p-4 rounded-2xl transition-all border border-transparent mb-1 ${n.isRead ? 'hover:bg-gray-50 opacity-75' : 'bg-blue-50/30 hover:bg-blue-50/60 border-blue-100/50'}`}
+                              className={`group flex gap-4 p-4 rounded-2xl transition-all border border-transparent mb-1 relative ${n.isRead ? 'hover:bg-gray-50 opacity-75' : 'bg-blue-50/30 hover:bg-blue-50/60 border-blue-100/50'}`}
                             >
+                              {!n.isRead && (
+                                <div className="absolute top-4 left-4 w-2 h-2 bg-blue-600 rounded-full animate-pulse" />
+                              )}
                               <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-inner shrink-0 ${getPriorityConfig(n.priority).color} bg-opacity-10`}>
                                 <div className={`${getPriorityConfig(n.priority).color.replace('bg-', 'text-')}`}>
                                   {getIcon(n.type, n.priority)}
@@ -253,6 +298,7 @@ export const Navbar: React.FC = () => {
           )}
         </div>
       </div>
-    </nav>
+      </nav>
+    </div>
   );
 };

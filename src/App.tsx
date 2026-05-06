@@ -19,6 +19,7 @@ import { NotificationProvider } from './components/providers/NotificationProvide
 import { Toaster } from 'sonner';
 import { Navbar } from './components/layout/Navbar';
 import { Footer } from './components/layout/Footer';
+import ScrollToTop from './components/layout/ScrollToTop';
 import { SupportButton } from './components/ui/SupportButton';
 import { BottomNav } from './components/layout/BottomNav';
 import { InstallPWAHint } from './components/layout/InstallPWAHint';
@@ -77,6 +78,8 @@ class ErrorBoundary extends Component<any, any> {
   }
 }
 
+import { FloatingScrollToTop } from './components/ui/FloatingScrollToTop';
+
 export default function App() {
   const { user, profile, loading, error, clearError } = useAuth();
   const isAdmin = user?.email === 'khyratfarmdates@gmail.com' || profile?.isAdmin;
@@ -103,6 +106,8 @@ export default function App() {
 
   return (
     <Router>
+      <ScrollToTop />
+      <FloatingScrollToTop />
       <ErrorBoundary>
         <NotificationProvider>
           <Toaster position="top-center" richColors />

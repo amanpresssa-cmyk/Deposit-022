@@ -10,7 +10,7 @@ import {
   ConfirmationResult,
   updateProfile
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, updateDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { UserProfile } from '../types';
 import { sendNotification } from '../lib/notificationService';
@@ -58,35 +58,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false);
     }, 4000);
 
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      clearTimeout(timeout);
-      try {
-        setUser(user);
-        if (user) {
-          console.log("Current user authenticated:", user.uid, user.email);
-          const userRef = doc(db, 'users', user.uid);
-          let userSnap;
-          try {
-            userSnap = await getDoc(userRef);
-          } catch (getErr: any) {
-            // It's possible the user document isn't accessible yet or rules are being updated
-            console.warn("Retrying profile fetch in 1s due to error:", getErr.message);
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            userSnap = await getDoc(userRef);
-          }
+    let unsubscribeProfile: (() => void) | null = null;
 
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+      clearTimeout(timeout);
+      
+      // Cleanup previous profile listener if any
+      if (unsubscribeProfile) {
+        unsubscribeProfile();
+        unsubscribeProfile = null;
+      }
+
+      setUser(user);
+      
+      if (user) {
+        console.log("Current user authenticated:", user.uid, user.email);
+        const userRef = doc(db, 'users', user.uid);
+        
+        // Use onSnapshot for real-time profile updates
+        unsubscribeProfile = onSnapshot(userRef, async (userSnap) => {
           if (!userSnap.exists()) {
             console.log("Profile not found, creating new profile for:", user.uid);
-            // Check for pending referral
             const pendingRefCode = sessionStorage.getItem('pendingReferral');
-            let referredBy = '';
             
-            if (pendingRefCode) {
-              // Find user who owns this referral code
-              // Note: Ideally we'd query by referralCode, but let's keep it simple for now
-              // If we can't find them, we just ignore it
-            }
-
             const newProfile: UserProfile = {
               uid: user.uid,
               displayName: user.displayName || 'مستخدم جديد',
@@ -97,12 +91,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               reviewsCount: 0,
               isVerified: false,
               isSeller: false,
-              isAdmin: user.email === 'khyratfarmdates@gmail.com', // Auto-admin for this email
+              isAdmin: user.email === 'khyratfarmdates@gmail.com',
               trustLevel: 10,
               verificationStatus: 'none',
               referralCode: generateReferralCode(user.uid),
-              referredBy: '', // Will update this if code is valid
-              freeFeeTransactions: pendingRefCode ? 1 : 0, // Invitee gets first one free
+              referredBy: '',
+              freeFeeTransactions: pendingRefCode ? 1 : 0,
               createdAt: serverTimestamp(),
             };
 
@@ -116,7 +110,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   const inviter = snap.docs[0].data();
                   newProfile.referredBy = inviter.uid;
                   
-                  // Create referral record
                   const { addDoc } = await import('firebase/firestore');
                   await addDoc(collection(db, 'referrals'), {
                     inviterId: inviter.uid,
@@ -138,31 +131,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             // Ensure admin flag is set if email matches
             if (user.email === 'khyratfarmdates@gmail.com' && !data.isAdmin) {
               await updateDoc(userRef, { isAdmin: true });
-              data.isAdmin = true;
             }
             // Add referral code if missing for old users
             if (!data.referralCode) {
               const code = generateReferralCode(user.uid);
               await updateDoc(userRef, { referralCode: code });
-              data.referralCode = code;
             }
             setProfile(data);
           }
-        } else {
-          setProfile(null);
-        }
-      } catch (err: any) {
-        console.error('Error in onAuthStateChanged:', err);
-        // If it's a permission error, it might be because the user is signed in but doesn't have a profile yet
-        // or the rules are too strict for the initial fetch.
-        setError(`حدث خطأ أثناء تحميل بيانات الحساب: ${err.message || 'خطأ غير معروف'}`);
-      } finally {
+          setLoading(false);
+        }, (err) => {
+          console.error("Profile snapshot error:", err);
+          setLoading(false);
+        });
+      } else {
+        setProfile(null);
         setLoading(false);
       }
     });
 
     return () => {
-      unsubscribe();
+      unsubscribeAuth();
+      if (unsubscribeProfile) {
+        unsubscribeProfile();
+      }
       clearTimeout(timeout);
     };
   }, []);
@@ -179,8 +171,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }).catch(console.error);
 
     const handleVisibilityChange = () => {
+      const isVisible = document.visibilityState === 'visible';
       updateDoc(userRef, { 
-        isOnline: document.visibilityState === 'visible',
+        isOnline: isVisible,
         lastSeen: serverTimestamp()
       }).catch(console.error);
     };
@@ -192,7 +185,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (document.visibilityState === 'visible') {
         updateDoc(userRef, { lastSeen: serverTimestamp() }).catch(console.error);
       }
-    }, 60000); // Every minute
+    }, 30000); // Every 30 seconds for better presence awareness
     
     return () => {
       window.removeEventListener('visibilitychange', handleVisibilityChange);

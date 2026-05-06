@@ -142,30 +142,30 @@ export const IdentityVerification: React.FC<Props> = ({ onClose }) => {
       
       if (jsonResult.valid) {
         setAiStatus('success');
-        setAiFeedback(`تم التحقق: ${jsonResult.reason || 'وثيقة صالحة'}`);
+        setAiFeedback(`تم التحقق ذكياً: ${jsonResult.reason || 'وثيقة صالحة'}`);
         setFormData({ ...formData, idPhotoUrl: base64 }); 
       } else {
-        setAiStatus('error');
-        setAiFeedback(jsonResult.reason || 'عذراً، الصورة غير واضحة. يرجى إعادة التصوير بوضوح.');
+        setAiStatus('idle'); // Change to idle to allow retry or manual
+        setAiFeedback(`تنبيه: ${jsonResult.reason || 'الصورة غير واضحة'}. يمكنك المتابعة للمراجعة اليدوية.`);
+        setFormData({ ...formData, idPhotoUrl: base64 }); // Still set the URL for manual review
       }
     } catch (err) {
       console.error('AI Verification Error Details:', err);
-      setAiStatus('error');
+      setAiStatus('idle'); // Set to idle instead of error to not block
       
-      let errorMessage = 'حدث خطأ أثناء فحص الصورة. تأكد من وضوح الصورة وحاول مجدداً.';
+      let errorMessage = 'نظام الفحص الذكي غير متاح حالياً. سيتم مراجعة طلبك يدوياً.';
       if (err instanceof Error) {
         if (err.message.includes('API_KEY_MISSING')) {
-          errorMessage = 'نظام التحقق غير مفعل حالياً (نقص في الإعدادات).';
-        } else if (err.message.includes('404')) {
-          errorMessage = 'فشل الوصول إلى نموذج الذكاء الاصطناعي (404). يرجى المحاولة لاحقاً.';
-        } else if (err.message.includes('429')) {
-          errorMessage = 'تم تجاوز عدد المحاولات المسموح بها. يرجى المحاولة بعد قليل.';
+          errorMessage = 'نظام التحقق الذكي قيد الصيانة. يمكنك المتابعة وسيقوم فريقنا بالمراجعة اليدوية.';
         } else {
-          errorMessage = err.message; // Show specific error if available
+          errorMessage = `تنبيه: ${err.message}. يمكنك المتابعة للمراجعة اليدوية.`;
         }
       }
       
       setAiFeedback(errorMessage);
+      // Still allow the file to be set
+      const base64 = await fileToBase64(file);
+      setFormData({ ...formData, idPhotoUrl: base64 });
     } finally {
       setAiAnalyzing(false);
     }
@@ -173,7 +173,7 @@ export const IdentityVerification: React.FC<Props> = ({ onClose }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.agreedToTerms || aiStatus !== 'success') return;
+    if (!formData.agreedToTerms || !formData.idPhotoUrl) return;
     
     setLoading(true);
     clearError();
@@ -378,7 +378,7 @@ export const IdentityVerification: React.FC<Props> = ({ onClose }) => {
 
                        <button 
                           type="submit"
-                          disabled={loading || aiStatus !== 'success' || !formData.agreedToTerms}
+                          disabled={loading || !formData.idPhotoUrl || !formData.agreedToTerms}
                           className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold text-lg hover:bg-blue-700 shadow-xl shadow-blue-100 transition-all disabled:opacity-50"
                        >
                           {loading ? 'جاري إرسال الطلب...' : aiAnalyzing ? 'جاري فحص الصورة...' : 'إرسال طلب التوثيق'}

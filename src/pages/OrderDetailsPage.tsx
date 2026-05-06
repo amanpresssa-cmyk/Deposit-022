@@ -47,6 +47,26 @@ export const OrderDetailsPage: React.FC = () => {
       setOrderLogs(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
+    // Auto-mark notifications for this order as read
+    const markAsRead = async () => {
+      if (!user) return;
+      const q = query(
+        collection(db, 'notifications'),
+        where('userId', '==', user.uid),
+        where('orderId', '==', id),
+        where('isRead', '==', false)
+      );
+      try {
+        const snap = await getDocs(q);
+        snap.forEach(async (d) => {
+          await updateDoc(doc(db, 'notifications', d.id), { isRead: true });
+        });
+      } catch (err) {
+        console.warn('Error marking notifications as read:', err);
+      }
+    };
+    markAsRead();
+
     return () => {
       unsubscribe();
       unsubscribeLogs();
@@ -678,11 +698,11 @@ const PaymentModal: React.FC<{
           <p className="font-bold text-sm text-gray-400 text-right">اختر وسيلة الدفع</p>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {[
-              { id: 'mada', name: 'MADA', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/80/Mada_Logo.svg/512px-Mada_Logo.svg.png' },
-              { id: 'visa', name: 'VISA', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d6/Visa_2021.svg/512px-Visa_2021.svg.png' },
-              { id: 'mastercard', name: 'Mastercard', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Mastercard-logo.svg/512px-Mastercard-logo.svg.png' },
-              { id: 'apple', name: 'Apple Pay', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b0/Apple_Pay_logo.svg/512px-Apple_Pay_logo.svg.png' },
-              { id: 'google', name: 'Google Pay', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f2/Google_Pay_Logo.svg/512px-Google_Pay_Logo.svg.png' },
+              { id: 'mada', name: 'MADA', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/80/Mada_Logo.svg/200px-Mada_Logo.svg.png' },
+              { id: 'visa', name: 'VISA', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d6/Visa_2021.svg/200px-Visa_2021.svg.png' },
+              { id: 'mastercard', name: 'Mastercard', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Mastercard-logo.svg/200px-Mastercard-logo.svg.png' },
+              { id: 'apple', name: 'Apple Pay', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b0/Apple_Pay_logo.svg/200px-Apple_Pay_logo.svg.png' },
+              { id: 'google', name: 'Google Pay', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f2/Google_Pay_Logo.svg/200px-Google_Pay_Logo.svg.png' },
             ].map(m => (
               <button
                 key={m.id}
@@ -691,7 +711,7 @@ const PaymentModal: React.FC<{
                   paymentMethod === m.id ? 'border-blue-600 bg-blue-50' : 'border-gray-50 bg-gray-50/50'
                 }`}
               >
-                <img src={m.img} alt={m.name} className="max-h-8 max-w-full object-contain" />
+                <img src={m.img} alt={m.name} className="max-h-8 max-w-full object-contain" referrerPolicy="no-referrer" />
               </button>
             ))}
           </div>

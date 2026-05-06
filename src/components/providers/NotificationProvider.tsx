@@ -4,6 +4,8 @@ import { db } from '../../lib/firebase';
 import { useAuth } from '../../hooks/useAuth';
 import { toast } from 'sonner';
 import { Bell, AlertTriangle, CreditCard, MessageSquare, Clock } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { markNotificationAsRead } from '../../lib/notificationService';
 
 interface NotificationContextType {
   notifications: any[];
@@ -19,6 +21,7 @@ export const useNotifications = () => useContext(NotificationContext);
 
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isFirstLoad, setIsFirstLoad] = useState(true);
@@ -74,15 +77,33 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       }
     };
 
+    const handleClick = async () => {
+      if (notif.id) await markNotificationAsRead(notif.id);
+      if (notif.orderId) {
+        navigate(`/order/${notif.orderId}`);
+      } else if (notif.type === 'message') {
+        navigate('/messages');
+      }
+    };
+
     toast(notif.title, {
-      description: notif.message,
+      description: (
+        <div onClick={handleClick} className="cursor-pointer group">
+          {notif.message}
+          <div className="text-[10px] text-blue-600 font-bold mt-1 group-hover:underline">اضغط للتفاصيل</div>
+        </div>
+      ),
       icon: getIcon(),
-      duration: 5000,
+      duration: 6000,
       position: 'top-center',
+      action: notif.orderId ? {
+        label: 'فتح',
+        onClick: handleClick
+      } : undefined,
     });
     
-    // Play sound if urgent
-    if (notif.priority === 'urgent') {
+    // Play sound if urgent or message
+    if (notif.priority === 'urgent' || notif.type === 'message') {
        try {
          const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
          audio.volume = 0.5;

@@ -63,11 +63,11 @@ export const SellerCard: React.FC<SellerCardProps> = ({ seller }) => {
           ))}
         </div>
 
-        <div className="flex items-center gap-2 mb-6 opacity-30 grayscale saturate-0 group-hover:opacity-100 group-hover:grayscale-0 group-hover:saturate-100 transition-all">
-           <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/80/Mada_Logo.svg/512px-Mada_Logo.svg.png" alt="Mada" className="h-2 object-contain" />
-           <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/d6/Visa_2021.svg/512px-Visa_2021.svg.png" alt="Visa" className="h-1.5 object-contain" />
-           <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Mastercard-logo.svg/512px-Mastercard-logo.svg.png" alt="Mastercard" className="h-3 object-contain" />
-           <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b0/Apple_Pay_logo.svg/512px-Apple_Pay_logo.svg.png" alt="Apple Pay" className="h-2.5 object-contain" />
+        <div className="flex items-center gap-2 mb-6">
+           <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/80/Mada_Logo.svg/200px-Mada_Logo.svg.png" alt="Mada" className="h-4 object-contain" />
+           <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/d6/Visa_2021.svg/200px-Visa_2021.svg.png" alt="Visa" className="h-3 object-contain" />
+           <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Mastercard-logo.svg/200px-Mastercard-logo.svg.png" alt="Mastercard" className="h-5 object-contain" />
+           <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b0/Apple_Pay_logo.svg/200px-Apple_Pay_logo.svg.png" alt="Apple Pay" className="h-4 object-contain" />
         </div>
 
         <div className="flex items-center justify-between pt-4 border-t border-gray-50">

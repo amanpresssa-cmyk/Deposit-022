@@ -29,6 +29,7 @@ export interface UserProfile {
   trustLevel?: number;
   confidenceScore?: number;
   verificationStatus?: 'none' | 'pending' | 'verified' | 'rejected';
+  verificationRejectionReason?: string;
   idNumber?: string;
   idPhotoUrl?: string;
   agreedToTerms?: boolean;
@@ -70,6 +71,7 @@ export interface Order {
   status: OrderStatus;
   category: string;
   visibility: 'public' | 'private';
+  typingStatus?: Record<string, boolean>;
   buyerRatingCompleted?: boolean;
   sellerRatingCompleted?: boolean;
   createdAt: any;

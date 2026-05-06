@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../hooks/useAuth';
 import { Message, Order, UserProfile } from '../../types';
@@ -20,15 +20,34 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ orderId }) => {
   const [sending, setSending] = useState(false);
   const [otherUser, setOtherUser] = useState<UserProfile | null>(null);
   const [order, setOrder] = useState<Order | null>(null);
+  const [isTyping, setIsTyping] = useState(false);
+  const [otherUserTyping, setOtherUserTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const fetchOrderAndOtherUser = async () => {
       try {
-        const orderSnap = await getDoc(doc(db, 'orders', orderId));
+        const orderRef = doc(db, 'orders', orderId);
+        
+        // Listen to order for typing status
+        const unsubOrder = onSnapshot(orderRef, (snap) => {
+          if (snap.exists()) {
+            const orderData = { id: snap.id, ...snap.data() } as Order;
+            setOrder(orderData);
+            
+            const otherUserId = orderData.buyerId === user?.uid ? orderData.sellerId : orderData.buyerId;
+            if (orderData.typingStatus && orderData.typingStatus[otherUserId]) {
+              setOtherUserTyping(true);
+            } else {
+              setOtherUserTyping(false);
+            }
+          }
+        });
+
+        const orderSnap = await getDoc(orderRef);
         if (orderSnap.exists()) {
           const orderData = orderSnap.data() as Order;
-          setOrder(orderData);
           const otherUserId = orderData.buyerId === user?.uid ? orderData.sellerId : orderData.buyerId;
           
           // Listen to other user's profile for real-time presence
@@ -37,16 +56,19 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ orderId }) => {
               setOtherUser({ uid: snap.id, ...snap.data() } as UserProfile);
             }
           });
-          return unsubProfile;
+          return () => {
+            unsubOrder();
+            unsubProfile();
+          };
         }
       } catch (error) {
         console.error("Error fetching other user:", error);
       }
     };
 
-    let unsubProfile: (() => void) | undefined;
-    fetchOrderAndOtherUser().then(unsub => {
-      unsubProfile = unsub;
+    let cleanup: (() => void) | undefined;
+    fetchOrderAndOtherUser().then(cb => {
+      cleanup = cb;
     });
 
     const q = query(
@@ -63,7 +85,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ orderId }) => {
 
     return () => {
       unsubscribe();
-      if (unsubProfile) unsubProfile();
+      if (cleanup) cleanup();
     };
   }, [orderId, user?.uid]);
 
@@ -71,12 +93,40 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ orderId }) => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  const handleTyping = () => {
+    if (!user || !order) return;
+    
+    if (!isTyping) {
+      setIsTyping(true);
+      updateDoc(doc(db, 'orders', orderId), {
+        [`typingStatus.${user.uid}`]: true
+      }).catch(console.error);
+    }
+
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    
+    typingTimeoutRef.current = setTimeout(() => {
+      setIsTyping(false);
+      updateDoc(doc(db, 'orders', orderId), {
+        [`typingStatus.${user.uid}`]: false
+      }).catch(console.error);
+    }, 3000);
+  };
+
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !newMessage.trim() || !otherUser) return;
 
     const text = newMessage.trim();
     setSending(true);
+
+    // Clear typing status immediately
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    setIsTyping(false);
+    updateDoc(doc(db, 'orders', orderId), {
+      [`typingStatus.${user.uid}`]: false
+    }).catch(console.error);
+
     try {
       await addDoc(collection(db, `orders/${orderId}/messages`), {
         orderId,
@@ -109,9 +159,19 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ orderId }) => {
     }
   };
 
+  const isTrulyOnline = (u: UserProfile | null) => {
+    if (!u) return false;
+    if (!u.lastSeen) return false;
+    
+    // If heartbeat was within last 2 minutes, consider online
+    const lastSeenDate = u.lastSeen.toDate ? u.lastSeen.toDate() : new Date(u.lastSeen);
+    const diff = (new Date().getTime() - lastSeenDate.getTime()) / 1000;
+    return u.isOnline && diff < 120;
+  };
+
   const formatLastSeen = (timestamp: any) => {
     if (!timestamp) return 'غير متاح';
-    const date = timestamp.toDate();
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
     return formatDistanceToNow(date, { addSuffix: true, locale: ar });
   };
 
@@ -119,28 +179,34 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ orderId }) => {
     <div className="flex flex-col h-[500px] bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
       <div className="p-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-white rounded-xl border border-gray-100 flex items-center justify-center overflow-hidden">
+          <div className="w-10 h-10 bg-white rounded-xl border border-gray-100 flex items-center justify-center overflow-hidden relative">
             {otherUser?.photoURL ? (
               <img src={otherUser.photoURL} alt="" className="w-full h-full object-cover" />
             ) : (
               <UserIcon className="w-5 h-5 text-gray-400" />
             )}
+            {isTrulyOnline(otherUser) && (
+              <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full" />
+            )}
           </div>
           <div>
             <h3 className="font-bold text-gray-900 text-sm">{otherUser?.displayName || 'جاري التحميل...'}</h3>
-            <div className="flex items-center gap-1.5">
-              {otherUser?.isOnline ? (
-                <>
-                  <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                  <span className="text-[10px] font-bold text-green-600">متصل الآن</span>
-                </>
+            <div className="flex items-center gap-1.5 h-4">
+              {otherUserTyping ? (
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] font-black text-blue-600 animate-pulse">جاري الكتابة</span>
+                  <div className="flex gap-0.5">
+                    <div className="w-1 h-1 bg-blue-600 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                    <div className="w-1 h-1 bg-blue-600 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                    <div className="w-1 h-1 bg-blue-600 rounded-full animate-bounce" />
+                  </div>
+                </div>
+              ) : isTrulyOnline(otherUser) ? (
+                <span className="text-[10px] font-bold text-green-600">متصل الآن</span>
               ) : (
-                <>
-                  <Clock className="w-3 h-3 text-gray-400" />
-                  <span className="text-[10px] font-medium text-gray-500">
-                    آخر ظهور: {formatLastSeen(otherUser?.lastSeen)}
-                  </span>
-                </>
+                <span className="text-[10px] font-medium text-gray-500">
+                  آخر ظهور: {formatLastSeen(otherUser?.lastSeen)}
+                </span>
               )}
             </div>
           </div>
@@ -178,7 +244,10 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ orderId }) => {
           className="flex-1 px-4 py-2 rounded-xl border border-gray-200 focus:border-blue-500 outline-none text-sm transition-all"
           placeholder="اكتب رسالتك هنا..."
           value={newMessage}
-          onChange={(e) => setNewMessage(e.target.value)}
+          onChange={(e) => {
+            setNewMessage(e.target.value);
+            handleTyping();
+          }}
         />
         <button
           type="submit"

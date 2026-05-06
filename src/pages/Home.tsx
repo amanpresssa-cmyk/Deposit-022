@@ -183,7 +183,7 @@ export const Home: React.FC = () => {
           className="mt-16 border-t border-gray-50 pt-8"
         >
           <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-6">وسائل دفع آمنة ومعتمدة</p>
-          <div className="flex flex-wrap justify-center items-center gap-6 md:gap-10 opacity-40 hover:opacity-100 transition-opacity grayscale hover:grayscale-0">
+          <div className="flex flex-wrap justify-center items-center gap-6 md:gap-10">
             <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/80/Mada_Logo.svg/512px-Mada_Logo.svg.png" alt="Mada" className="h-4 md:h-6 object-contain" />
             <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/d6/Visa_2021.svg/512px-Visa_2021.svg.png" alt="Visa" className="h-3 md:h-5 object-contain" />
             <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Mastercard-logo.svg/512px-Mastercard-logo.svg.png" alt="Mastercard" className="h-6 md:h-8 object-contain" />

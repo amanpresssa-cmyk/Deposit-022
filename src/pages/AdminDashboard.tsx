@@ -5,7 +5,7 @@ import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { UserProfile } from '../types';
-import { ShieldCheck, UserCheck, UserX, Clock, Search, AlertCircle, CheckCircle2, XCircle, TrendingUp, Wallet, PieChart, Activity, LayoutGrid, Image as ImageIcon, Upload, Star } from 'lucide-react';
+import { ShieldCheck, UserCheck, UserX, Clock, Search, AlertCircle, CheckCircle2, XCircle, TrendingUp, Wallet, PieChart, Activity, LayoutGrid, Image as ImageIcon, Upload, Star, MessageSquare, MessageCircle } from 'lucide-react';
 import { motion } from 'motion/react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
@@ -26,6 +26,14 @@ export const AdminDashboard: React.FC = () => {
   const [footerSettings, setFooterSettings] = useState({
     description: ''
   });
+  const [announcementSettings, setAnnouncementSettings] = useState({
+    text: '',
+    type: 'info' as 'info' | 'urgent' | 'promo',
+    isActive: false,
+    link: ''
+  });
+  const [rejectingUserId, setRejectingUserId] = useState<string | null>(null);
+  const [rejectionReason, setRejectionReason] = useState('');
   const [supportTickets, setSupportTickets] = useState<any[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -99,9 +107,15 @@ export const AdminDashboard: React.FC = () => {
           setFooterSettings(doc.data() as any);
         }
       });
+      const unsubAnnouncement = onSnapshot(doc(db, 'app_settings', 'announcement'), (doc) => {
+        if (doc.exists()) {
+          setAnnouncementSettings(doc.data() as any);
+        }
+      });
       return () => {
         unsubHome();
         unsubFooter();
+        unsubAnnouncement();
       };
     }
   }, [tab]);
@@ -122,7 +136,7 @@ export const AdminDashboard: React.FC = () => {
     return () => unsubscribe();
   }, [profile]);
 
-  const handleVerify = async (uid: string, approve: boolean) => {
+  const handleVerify = async (uid: string, approve: boolean, reason?: string) => {
     try {
       const userRef = doc(db, 'users', uid);
       if (approve) {
@@ -136,9 +150,17 @@ export const AdminDashboard: React.FC = () => {
       } else {
         await updateDoc(userRef, {
           verificationStatus: 'rejected',
-          isVerified: false
+          isVerified: false,
+          verificationRejectionReason: reason || null
         });
-        await sendNotification(uid, 'تنبيه: تحديث طلب التوثيق', 'نعتذر، تم رفض طلب التوثيق الخاص بك. يرجى مراجعة البيانات والمحاولة مرة أخرى.', 'system', 'normal');
+        
+        const rejectionMsg = reason 
+          ? `نعتذر، تم رفض طلب التوثيق الخاص بك للأسباب التالية: ${reason}. يرجى معالجة هذه النقاط والمحاولة مرة أخرى.`
+          : 'نعتذر، تم رفض طلب التوثيق الخاص بك. يرجى مراجعة البيانات والمحاولة مرة أخرى.';
+
+        await sendNotification(uid, 'تنبيه: تحديث طلب التوثيق', rejectionMsg, 'system', 'urgent');
+        setRejectingUserId(null);
+        setRejectionReason('');
       }
     } catch (error) {
       console.error("Error updating user verification:", error);
@@ -225,6 +247,21 @@ export const AdminDashboard: React.FC = () => {
     } catch (error) {
       console.error("Error saving footer settings:", error);
       alert('حدث خطأ أثناء فظ إعدادات التذييل');
+    }
+  };
+
+  const saveAnnouncementSettings = async () => {
+    try {
+      const docRef = doc(db, 'app_settings', 'announcement');
+      const { setDoc } = await import('firebase/firestore');
+      await setDoc(docRef, {
+        ...announcementSettings,
+        updatedAt: serverTimestamp()
+      });
+      alert('تم حفظ إعدادات الإعلان بنجاح');
+    } catch (error) {
+      console.error("Error saving announcement settings:", error);
+      alert('حدث خطأ أثناء الحفظ');
     }
   };
 
@@ -596,6 +633,71 @@ export const AdminDashboard: React.FC = () => {
                </div>
             </div>
 
+            <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm p-8 md:p-12 mb-8">
+               <div className="flex items-center gap-3 mb-8 text-right">
+                  <ShieldCheck className="w-6 h-6 text-blue-600" />
+                  <h2 className="text-xl font-black text-gray-900">شريط الإعلان العلوي (Announcement Bar)</h2>
+               </div>
+               <div className="space-y-6 text-right">
+                  <div className="flex items-center justify-between bg-gray-50 p-6 rounded-3xl border border-gray-100">
+                     <div>
+                        <h4 className="font-black text-gray-900 text-sm">تفعيل الإعلان</h4>
+                        <p className="text-[10px] text-gray-400">سيظهر شريط الإعلان في أعلى كافة صفحات المنصة.</p>
+                     </div>
+                     <button 
+                       onClick={() => setAnnouncementSettings({...announcementSettings, isActive: !announcementSettings.isActive})}
+                       className={`w-12 h-6 rounded-full transition-all relative ${announcementSettings.isActive ? 'bg-green-500' : 'bg-gray-200'}`}
+                     >
+                       <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${announcementSettings.isActive ? 'left-7' : 'left-1'}`} />
+                     </button>
+                  </div>
+                  
+                  <div className="space-y-2">
+                     <label className="text-sm font-black text-gray-700 block px-1">نص الإعلان</label>
+                     <input 
+                       type="text" 
+                       value={announcementSettings.text}
+                       onChange={(e) => setAnnouncementSettings({...announcementSettings, text: e.target.value})}
+                       className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 focus:ring-2 focus:ring-blue-100 outline-none transition-all font-medium text-right"
+                       placeholder="مثال: خصم 50% على رسوم الوساطة لأول عملية!"
+                     />
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-4">
+                     <div className="space-y-2">
+                        <label className="text-sm font-black text-gray-700 block px-1">نوع الشريط</label>
+                        <select 
+                          value={announcementSettings.type}
+                          onChange={(e) => setAnnouncementSettings({...announcementSettings, type: e.target.value as any})}
+                          className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 focus:ring-2 focus:ring-blue-100 outline-none transition-all font-medium text-right"
+                        >
+                           <option value="info">أزرق (معلومات)</option>
+                           <option value="urgent">أحمر (عاجل)</option>
+                           <option value="promo">بنفسجي (خصم/عرض)</option>
+                        </select>
+                     </div>
+                     <div className="space-y-2">
+                        <label className="text-sm font-black text-gray-700 block px-1">رابط (اختياري)</label>
+                        <input 
+                          type="text" 
+                          value={announcementSettings.link}
+                          onChange={(e) => setAnnouncementSettings({...announcementSettings, link: e.target.value})}
+                          className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 focus:ring-2 focus:ring-blue-100 outline-none transition-all font-medium text-left"
+                          placeholder="https://..."
+                          dir="ltr"
+                        />
+                     </div>
+                  </div>
+
+                  <button 
+                     onClick={saveAnnouncementSettings}
+                     className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black hover:bg-blue-700 transition-all shadow-xl shadow-blue-100"
+                  >
+                     حفظ إعدادات الإعلان
+                  </button>
+               </div>
+            </div>
+
             <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm p-12 text-center text-gray-400 font-bold">
                قريباً: إعدادات النظام المتقدمة، تعديل العمولات، والرسائل الجماعية.
            </div>
@@ -737,24 +839,57 @@ export const AdminDashboard: React.FC = () => {
                               {format(user.createdAt?.toDate?.() || new Date(), 'dd MMM yyyy', { locale: ar })}
                             </td>
                             <td className="px-8 py-6">
-                              <div className="flex gap-2">
+                              <div className="flex flex-col gap-3">
                                   {user.verificationStatus === 'pending' && (
-                                    <>
-                                        <button 
-                                          onClick={() => handleVerify(user.uid, true)}
-                                          className="p-2 bg-green-50 text-green-600 rounded-xl hover:bg-green-100 transition-all border border-green-200"
-                                          title="قبول التوثيق"
+                                    <div className="flex flex-col gap-2">
+                                      <div className="flex gap-2">
+                                          <button 
+                                            onClick={() => handleVerify(user.uid, true)}
+                                            className="p-2 bg-green-50 text-green-600 rounded-xl hover:bg-green-100 transition-all border border-green-200"
+                                            title="قبول التوثيق"
+                                          >
+                                            <UserCheck className="w-5 h-5" />
+                                          </button>
+                                          <button 
+                                            onClick={() => setRejectingUserId(user.uid)}
+                                            className="p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-all border border-red-200"
+                                            title="رفض التوثيق"
+                                          >
+                                            <UserX className="w-5 h-5" />
+                                          </button>
+                                      </div>
+                                      
+                                      {rejectingUserId === user.uid && (
+                                        <motion.div 
+                                          initial={{ opacity: 0, height: 0 }}
+                                          animate={{ opacity: 1, height: 'auto' }}
+                                          className="flex flex-col gap-2 mt-2 p-3 bg-red-50 rounded-2xl border border-red-100"
                                         >
-                                          <UserCheck className="w-5 h-5" />
-                                        </button>
-                                        <button 
-                                          onClick={() => handleVerify(user.uid, false)}
-                                          className="p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-all border border-red-200"
-                                          title="رفض التوثيق"
-                                        >
-                                          <UserX className="w-5 h-5" />
-                                        </button>
-                                    </>
+                                          <p className="text-[10px] font-black text-red-700">سبب الرفض والتوصيات:</p>
+                                          <textarea 
+                                            className="w-full text-xs p-2 bg-white border border-red-200 rounded-lg outline-none focus:ring-2 focus:ring-red-100 font-medium"
+                                            placeholder="مثال: الصورة غير واضحة، يرجى إعادة الرفع بإضاءة أفضل..."
+                                            value={rejectionReason}
+                                            onChange={(e) => setRejectionReason(e.target.value)}
+                                            rows={2}
+                                          />
+                                          <div className="flex gap-2">
+                                            <button 
+                                              onClick={() => handleVerify(user.uid, false, rejectionReason)}
+                                              className="flex-1 py-2 bg-red-600 text-white rounded-lg text-[10px] font-black"
+                                            >
+                                              تأكيد الرفض
+                                            </button>
+                                            <button 
+                                              onClick={() => setRejectingUserId(null)}
+                                              className="px-3 py-2 bg-white text-gray-400 rounded-lg text-[10px] font-black"
+                                            >
+                                              إلغاء
+                                            </button>
+                                          </div>
+                                        </motion.div>
+                                      )}
+                                    </div>
                                   )}
                                   {user.verificationStatus === 'verified' && (
                                     <button 
