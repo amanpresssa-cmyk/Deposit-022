@@ -90,7 +90,8 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ orderId }) => {
         otherUser.uid,
         `رسالة جديدة من ${user.displayName || 'مستخدم'}`,
         text,
-        'message',
+        'order_update',
+        'normal',
         orderId,
         user.uid
       );

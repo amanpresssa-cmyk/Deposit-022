@@ -117,13 +117,13 @@ export const AdminDashboard: React.FC = () => {
           rating: 4,
           trustLevel: 80 // Jump to high trust upon manual verification
         });
-        await sendNotification(uid, 'تهانينا! تم توثيق حسابك', 'تم مراجعة بياناتك بنجاح وأصبح حسابك الآن موثقاً في منصة عربون.', 'system');
+        await sendNotification(uid, 'تهانينا! تم توثيق حسابك', 'تم مراجعة بياناتك بنجاح وأصبح حسابك الآن موثقاً في منصة عربون.', 'system', 'normal');
       } else {
         await updateDoc(userRef, {
           verificationStatus: 'rejected',
           isVerified: false
         });
-        await sendNotification(uid, 'تنبيه: تحديث طلب التوثيق', 'نعتذر، تم رفض طلب التوثيق الخاص بك. يرجى مراجعة البيانات والمحاولة مرة أخرى.', 'system');
+        await sendNotification(uid, 'تنبيه: تحديث طلب التوثيق', 'نعتذر، تم رفض طلب التوثيق الخاص بك. يرجى مراجعة البيانات والمحاولة مرة أخرى.', 'system', 'normal');
       }
     } catch (error) {
       console.error("Error updating user verification:", error);

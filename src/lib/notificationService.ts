@@ -1,13 +1,15 @@
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from './firebase';
 
-export type NotificationType = 'order_update' | 'payment' | 'dispute' | 'system' | 'emergency' | 'message';
+export type NotificationType = 'order_update' | 'payment' | 'dispute' | 'system' | 'settlement';
+export type NotificationPriority = 'normal' | 'settlement' | 'urgent';
 
 export const sendNotification = async (
   userId: string,
   title: string,
   message: string,
   type: NotificationType = 'order_update',
+  priority: NotificationPriority = 'normal',
   orderId?: string,
   targetUserId?: string
 ) => {
@@ -18,6 +20,7 @@ export const sendNotification = async (
       title,
       message,
       type,
+      priority,
       orderId: orderId || null,
       targetUserId: targetUserId || null,
       isRead: false,

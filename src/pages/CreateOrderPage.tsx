@@ -12,12 +12,13 @@ export const CreateOrderPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [loading, setLoading] = useState(false);
+  const [myRole, setMyRole] = useState<'buyer' | 'seller'>('buyer');
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     amount: '',
-    sellerEmail: '',
-    sellerPhone: '',
+    targetEmail: '',
+    targetPhone: '',
     category: 'عام'
   });
 
@@ -34,8 +35,8 @@ export const CreateOrderPage: React.FC = () => {
     if (email || phone || title || amount || category || desc) {
       setFormData(prev => ({
         ...prev,
-        sellerEmail: email || prev.sellerEmail,
-        sellerPhone: phone || prev.sellerPhone,
+        targetEmail: email || prev.targetEmail,
+        targetPhone: phone || prev.targetPhone,
         title: title || prev.title,
         amount: amount || prev.amount,
         category: category || prev.category,
@@ -50,39 +51,42 @@ export const CreateOrderPage: React.FC = () => {
     e.preventDefault();
     if (!user) return;
 
-    if (!formData.sellerEmail && !formData.sellerPhone) {
-      alert('يجب إدخال البريد الإلكتروني أو رقم الجوال للطرف الآخر');
+    if (!formData.targetEmail && !formData.targetPhone) {
+      alert('يجب إدخال البريد الإلكتروني أو رقم الجوال للطرف الآخر للتمكن من دعوته');
       return;
     }
 
     setLoading(true);
     try {
-      // Find seller by email or phone to link if they already exist
-      let sellerRef = null;
+      // Find target user
+      let targetRef = null;
       
-      if (formData.sellerEmail) {
-        const sellerEmailQuery = query(collection(db, 'users'), where('email', '==', formData.sellerEmail.trim()));
-        const sellerSnap = await getDocs(sellerEmailQuery);
-        if (!sellerSnap.empty) sellerRef = sellerSnap.docs[0];
+      if (formData.targetEmail) {
+        const emailQuery = query(collection(db, 'users'), where('email', '==', formData.targetEmail.trim()));
+        const snap = await getDocs(emailQuery);
+        if (!snap.empty) targetRef = snap.docs[0];
       }
       
-      if (!sellerRef && formData.sellerPhone) {
-        let phone = formData.sellerPhone.trim();
+      if (!targetRef && formData.targetPhone) {
+        let phone = formData.targetPhone.trim();
         if (!phone.startsWith('+')) {
           phone = `+966${phone.replace(/^0/, '')}`;
         }
-        const sellerPhoneQuery = query(collection(db, 'users'), where('phoneNumber', '==', phone));
-        const sellerSnap = await getDocs(sellerPhoneQuery);
-        if (!sellerSnap.empty) sellerRef = sellerSnap.docs[0];
+        const phoneQuery = query(collection(db, 'users'), where('phoneNumber', '==', phone));
+        const snap = await getDocs(phoneQuery);
+        if (!snap.empty) targetRef = snap.docs[0];
       }
       
-      const targetSellerId = sellerRef ? sellerRef.id : 'unknown';
+      const targetUserId = targetRef ? targetRef.id : 'unknown';
 
       const orderData = {
-        buyerId: user.uid,
-        sellerId: targetSellerId,
-        sellerEmail: formData.sellerEmail.trim() || null,
-        sellerPhone: formData.sellerPhone.trim() || null,
+        buyerId: myRole === 'buyer' ? user.uid : targetUserId,
+        sellerId: myRole === 'seller' ? user.uid : targetUserId,
+        sellerEmail: myRole === 'seller' ? user.email : (formData.targetEmail.trim() || null),
+        sellerPhone: myRole === 'seller' ? user.phoneNumber : (formData.targetPhone.trim() || null),
+        buyerEmail: myRole === 'buyer' ? user.email : (formData.targetEmail.trim() || null),
+        buyerPhone: myRole === 'buyer' ? user.phoneNumber : (formData.targetPhone.trim() || null),
+        creatorId: user.uid,
         title: formData.title,
         description: formData.description,
         amount: parseFloat(formData.amount),
@@ -96,9 +100,9 @@ export const CreateOrderPage: React.FC = () => {
       const docRef = await addDoc(collection(db, 'orders'), orderData);
       
       // Smart Logic: Send SMS invitation if phone is provided
-      if (formData.sellerPhone) {
+      if (formData.targetPhone) {
         await sendOrderSMS(
-          formData.sellerPhone.trim(), 
+          formData.targetPhone.trim(), 
           docRef.id, 
           formData.title, 
           parseFloat(formData.amount)
@@ -138,6 +142,32 @@ export const CreateOrderPage: React.FC = () => {
           <div className="space-y-6">
             <h3 className="font-bold text-gray-900 border-b pb-2">تفاصيل الصفقة</h3>
             
+            <div className="space-y-4">
+              <label className="text-sm font-bold text-gray-700 block">من أنت في هذه الصفقة؟</label>
+              <div className="grid grid-cols-2 gap-4">
+                 <button
+                   type="button"
+                   onClick={() => setMyRole('buyer')}
+                   className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-2 ${
+                     myRole === 'buyer' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-100 bg-gray-50 text-gray-400'
+                   }`}
+                 >
+                   <CreditCard className="w-6 h-6" />
+                   <span className="font-bold">أنا المشتري (من سيدفع)</span>
+                 </button>
+                 <button
+                   type="button"
+                   onClick={() => setMyRole('seller')}
+                   className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-2 ${
+                     myRole === 'seller' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-100 bg-gray-50 text-gray-400'
+                   }`}
+                 >
+                   <Shield className="w-6 h-6" />
+                   <span className="font-bold">أنا البائع/المعقب (من سينفذ)</span>
+                 </button>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <label className="text-sm font-bold text-gray-700 block">عنوان الصفقة</label>
               <input
@@ -190,7 +220,7 @@ export const CreateOrderPage: React.FC = () => {
 
           <div className="space-y-6 pt-6 border-t">
             <div className="flex items-center justify-between border-b pb-2">
-              <h3 className="font-bold text-gray-900">بيانات الطرف الآخر (البائع/المعقب)</h3>
+              <h3 className="font-bold text-gray-900">بيانات الطرف الآخر ({myRole === 'buyer' ? 'البائع/المعقب' : 'المشتري/العميل'})</h3>
               <div className="flex gap-2">
                 <span className="bg-blue-50 text-blue-600 text-[10px] px-2 py-1 rounded-lg font-black flex items-center gap-1">
                   <Smartphone className="w-3 h-3" />
@@ -201,27 +231,27 @@ export const CreateOrderPage: React.FC = () => {
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700 block">رقم الجوال (يفضل لإسراع العملية)</label>
+                <label className="text-sm font-bold text-gray-700 block">رقم جوال الطرف الآخر</label>
                 <div className="relative">
                   <input
                     type="tel"
                     className="w-full px-4 py-3.5 rounded-xl border border-gray-200 focus:border-blue-500 outline-none pr-12"
                     placeholder="05XXXXXXXX"
-                    value={formData.sellerPhone}
-                    onChange={(e) => setFormData({...formData, sellerPhone: e.target.value})}
+                    value={formData.targetPhone}
+                    onChange={(e) => setFormData({...formData, targetPhone: e.target.value})}
                   />
                   <Smartphone className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700 block">البريد الإلكتروني (اختياري)</label>
+                <label className="text-sm font-bold text-gray-700 block">البريد الإلكتروني للطرف الآخر</label>
                 <div className="relative">
                   <input
                     type="email"
                     className="w-full px-4 py-3.5 rounded-xl border border-gray-200 focus:border-blue-500 outline-none pr-12"
                     placeholder="name@example.com"
-                    value={formData.sellerEmail}
-                    onChange={(e) => setFormData({...formData, sellerEmail: e.target.value})}
+                    value={formData.targetEmail}
+                    onChange={(e) => setFormData({...formData, targetEmail: e.target.value})}
                   />
                   <Mail className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
                 </div>

@@ -16,6 +16,17 @@ export const Navbar: React.FC = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [lastNotification, setLastNotification] = useState<any>(null);
   const [showToast, setShowToast] = useState(false);
+  const [activeFilter, setActiveFilter] = useState<'all' | 'urgent' | 'settlement' | 'normal'>('all');
+
+  const playNotificationSound = (priority: string) => {
+    try {
+      const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+      audio.volume = priority === 'urgent' ? 1.0 : 0.6; // Louder for urgent
+      audio.play();
+    } catch (e) {
+      console.warn("Audio play blocked by browser", e);
+    }
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -23,20 +34,21 @@ export const Navbar: React.FC = () => {
       collection(db, 'notifications'),
       where('userId', '==', user.uid),
       orderBy('createdAt', 'desc'),
-      limit(10)
+      limit(20)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const items = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as any));
       
-      // Real-time Toast Logic
+      // Real-time Toast & Sound Logic
       if (items.length > 0) {
         const newest = items[0];
+        // Only trigger for new, unread notifications
         if (lastNotification && newest.id !== lastNotification.id && !newest.isRead) {
           setLastNotification(newest);
           setShowToast(true);
-          // Play a subtle sound if possible or just show toast
-          setTimeout(() => setShowToast(false), 5000);
+          playNotificationSound(newest.priority);
+          setTimeout(() => setShowToast(false), 8000);
         } else if (!lastNotification) {
           setLastNotification(newest);
         }
@@ -51,6 +63,30 @@ export const Navbar: React.FC = () => {
     return () => unsubscribe();
   }, [user, lastNotification]);
 
+  const filteredNotifications = notifications.filter(n => {
+    if (activeFilter === 'all') return true;
+    return n.priority === activeFilter;
+  });
+
+  const getPriorityConfig = (priority: string) => {
+    switch (priority) {
+      case 'urgent': return { color: 'bg-red-500', label: 'عاجل جداً', icon: <AlertTriangle className="w-3 h-3" /> };
+      case 'settlement': return { color: 'bg-amber-500', label: 'تسوية مالية', icon: <CreditCard className="w-3 h-3" /> };
+      default: return { color: 'bg-blue-500', label: 'عادي', icon: <Bell className="w-3 h-3" /> };
+    }
+  };
+
+  const getIcon = (type: string, priority: string) => {
+    if (priority === 'urgent') return <AlertTriangle className="w-4 h-4 text-red-600" />;
+    switch (type) {
+      case 'payment': return <CreditCard className="w-4 h-4 text-green-500" />;
+      case 'settlement': return <Clock className="w-4 h-4 text-amber-500" />;
+      case 'dispute': return <AlertTriangle className="w-4 h-4 text-red-500" />;
+      case 'message': return <MessageSquare className="w-4 h-4 text-purple-500" />;
+      default: return <Bell className="w-4 h-4 text-blue-500" />;
+    }
+  };
+
   const markAllAsRead = async () => {
     const unread = notifications.filter(n => !n.isRead);
     for (const n of unread) {
@@ -58,18 +94,24 @@ export const Navbar: React.FC = () => {
     }
   };
 
-  const getIcon = (type: string) => {
-    switch (type) {
-      case 'payment': return <CreditCard className="w-4 h-4 text-green-500" />;
-      case 'dispute': return <AlertTriangle className="w-4 h-4 text-red-500" />;
-      case 'message': return <MessageSquare className="w-4 h-4 text-purple-500" />;
-      case 'emergency': return <AlertTriangle className="w-4 h-4 text-orange-500" />;
-      default: return <Bell className="w-4 h-4 text-blue-500" />;
-    }
+  const updateEmailConsent = async (consent: boolean) => {
+    if (!user) return;
+    await updateDoc(doc(db, 'users', user.uid), { emailConsent: consent });
   };
 
   return (
     <nav className="sticky top-0 z-40 w-full bg-white/80 backdrop-blur-xl border-b border-gray-100 shadow-sm pt-[env(safe-area-inset-top)]">
+      {/* Email Consent Banner */}
+      {user && profile && profile.emailConsent === undefined && (
+        <div className="bg-blue-600 text-white px-4 py-2 text-[10px] md:text-sm font-bold flex items-center justify-center gap-4 animate-in slide-in-from-top duration-500">
+          <span>هل ترغب في استلام تحديثات صفقاتك عبر البريد الإلكتروني؟</span>
+          <div className="flex gap-2">
+            <button onClick={() => updateEmailConsent(true)} className="bg-white text-blue-600 px-3 py-1 rounded-lg text-[10px] font-black">نعم، أرغب</button>
+            <button onClick={() => updateEmailConsent(false)} className="bg-blue-500 text-white px-3 py-1 rounded-lg text-[10px] font-black border border-blue-400">ليس الآن</button>
+          </div>
+        </div>
+      )}
+      
       <div className="max-w-7xl mx-auto px-4 h-16 md:h-20 flex items-center justify-between gap-2">
         <Link to="/" className="flex items-center gap-1.5 md:gap-2 group shrink-0">
           <img 
@@ -99,17 +141,22 @@ export const Navbar: React.FC = () => {
                 initial={{ opacity: 0, y: -20, x: 20 }}
                 animate={{ opacity: 1, y: 0, x: 0 }}
                 exit={{ opacity: 0, y: -20, scale: 0.9 }}
-                className="fixed top-20 right-4 left-4 md:left-auto md:top-24 md:right-4 md:w-72 z-50 bg-white rounded-2xl shadow-2xl border border-blue-100 p-4 flex gap-3 cursor-pointer overflow-hidden"
+                className={`fixed top-20 right-4 left-4 md:left-auto md:top-24 md:right-4 md:w-80 z-50 bg-white rounded-2xl shadow-2xl border ${lastNotification.priority === 'urgent' ? 'border-red-200' : 'border-blue-100'} p-4 flex gap-3 cursor-pointer overflow-hidden`}
                 onClick={() => {
                   setShowToast(false);
                   setShowNotifications(true);
                 }}
               >
-                <div className="absolute top-0 right-0 w-1 h-full bg-blue-600"></div>
-                <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
-                  {getIcon(lastNotification.type)}
+                <div className={`absolute top-0 right-0 w-1.5 h-full ${getPriorityConfig(lastNotification.priority).color}`}></div>
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${lastNotification.priority === 'urgent' ? 'bg-red-50' : 'bg-blue-50'}`}>
+                  {getIcon(lastNotification.type, lastNotification.priority)}
                 </div>
                 <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full text-white ${getPriorityConfig(lastNotification.priority).color}`}>
+                      {getPriorityConfig(lastNotification.priority).label}
+                    </span>
+                  </div>
                   <p className="text-xs font-black text-gray-900 truncate">{lastNotification.title}</p>
                   <p className="text-[10px] text-gray-500 line-clamp-1 mt-0.5">{lastNotification.message}</p>
                 </div>
@@ -144,37 +191,80 @@ export const Navbar: React.FC = () => {
                       initial={{ opacity: 0, y: 15, scale: 0.95 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 15, scale: 0.95 }}
-                      className="absolute left-0 mt-4 w-[calc(100vw-2rem)] md:w-80 bg-white rounded-3xl border border-gray-100 shadow-2xl p-4 overflow-hidden z-50 origin-top-left"
+                      className="absolute left-0 mt-4 w-[calc(100vw-2rem)] md:w-96 bg-white rounded-3xl border border-gray-100 shadow-2xl p-0 overflow-hidden z-50 origin-top-left"
                     >
-                      <div className="flex items-center justify-between mb-4 px-2">
-                        <h4 className="font-black text-gray-900">الإشعارات</h4>
-                        <button onClick={() => setShowNotifications(false)} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+                      <div className="p-6 pb-4 border-b border-gray-50">
+                        <div className="flex items-center justify-between mb-4">
+                          <h4 className="font-black text-gray-900 text-lg">مركز التنبيهات</h4>
+                          <button onClick={() => setShowNotifications(false)} className="w-8 h-8 flex items-center justify-center bg-gray-50 rounded-full text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+                        </div>
+                        
+                        {/* Priority Filters */}
+                        <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar pb-2">
+                           {[
+                             { id: 'all', label: 'الكل', bg: 'bg-blue-600', shadow: 'shadow-blue-100' },
+                             { id: 'urgent', label: 'عاجلة', bg: 'bg-red-500', shadow: 'shadow-red-100' },
+                             { id: 'settlement', label: 'تسوية', bg: 'bg-amber-500', shadow: 'shadow-amber-100' },
+                             { id: 'normal', label: 'عادية', bg: 'bg-slate-500', shadow: 'shadow-slate-100' }
+                           ].map(filter => (
+                             <button
+                               key={filter.id}
+                               onClick={() => setActiveFilter(filter.id as any)}
+                               className={`px-4 py-1.5 rounded-full text-[10px] font-black transition-all whitespace-nowrap border ${
+                                 activeFilter === filter.id 
+                                 ? `${filter.bg} text-white border-transparent shadow-lg ${filter.shadow}` 
+                                 : 'bg-white text-gray-500 border-gray-100 hover:bg-gray-50'
+                               }`}
+                             >
+                               {filter.label}
+                             </button>
+                           ))}
+                        </div>
                       </div>
-                      <div className="space-y-1 max-h-[400px] overflow-y-auto custom-scrollbar">
-                        {notifications.length === 0 ? (
-                          <div className="py-12 text-center text-gray-300 font-bold">لا يوجد تنبيهات حالية</div>
+
+                      <div className="space-y-1 max-h-[450px] overflow-y-auto custom-scrollbar p-2">
+                        {filteredNotifications.length === 0 ? (
+                          <div className="py-20 text-center flex flex-col items-center gap-3">
+                            <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center text-gray-200">
+                              <Bell className="w-8 h-8" />
+                            </div>
+                            <p className="text-gray-400 font-bold text-sm">لا يوجد تنبيهات في هذا القسم</p>
+                          </div>
                         ) : (
-                          notifications.map((n) => (
+                          filteredNotifications.map((n) => (
                             <Link
                               key={n.id}
                               to={n.orderId ? `/order/${n.orderId}` : '#'}
                               onClick={() => setShowNotifications(false)}
-                              className={`flex gap-3 p-3 rounded-2xl transition-all border border-transparent ${n.isRead ? 'hover:bg-gray-50' : 'bg-blue-50/50 hover:bg-blue-50 border-blue-100'}`}
+                              className={`group flex gap-4 p-4 rounded-2xl transition-all border border-transparent mb-1 ${n.isRead ? 'hover:bg-gray-50 opacity-75' : 'bg-blue-50/30 hover:bg-blue-50/60 border-blue-100/50'}`}
                             >
-                              <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm shrink-0">
-                                {getIcon(n.type)}
+                              <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-inner shrink-0 ${getPriorityConfig(n.priority).color} bg-opacity-10`}>
+                                <div className={`${getPriorityConfig(n.priority).color.replace('bg-', 'text-')}`}>
+                                  {getIcon(n.type, n.priority)}
+                                </div>
                               </div>
-                              <div className="text-right overflow-hidden">
-                                <p className="text-xs font-black text-gray-900 leading-tight truncate">{n.title}</p>
-                                <p className="text-[10px] text-gray-500 mt-0.5 line-clamp-2 leading-relaxed">{n.message}</p>
-                                <p className="text-[8px] text-gray-400 mt-1 font-bold">
-                                  {format(n.createdAt?.toDate?.() || new Date(), 'HH:mm - dd MMM', { locale: ar })}
-                                </p>
+                              <div className="text-right overflow-hidden flex-1">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${getPriorityConfig(n.priority).color} text-white`}>
+                                    {getPriorityConfig(n.priority).label}
+                                  </span>
+                                  <span className="text-[9px] text-gray-400 font-bold">
+                                    {format(n.createdAt?.toDate?.() || new Date(), 'HH:mm', { locale: ar })}
+                                  </span>
+                                </div>
+                                <p className="text-xs font-black text-gray-900 leading-tight group-hover:text-blue-600 transition-colors uppercase">{n.title}</p>
+                                <p className="text-[10px] text-gray-500 mt-1 line-clamp-2 leading-relaxed font-bold">{n.message}</p>
                               </div>
                             </Link>
                           ))
                         )}
                       </div>
+                      
+                      {filteredNotifications.length > 0 && (
+                        <div className="p-4 bg-gray-50 text-center">
+                          <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">تنبيه: يتم حذف الإشعارات تلقائياً بعد 30 يوماً</p>
+                        </div>
+                      )}
                     </motion.div>
                   )}
                 </AnimatePresence>

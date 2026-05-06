@@ -25,6 +25,7 @@
         "referralCode": { "type": "string" },
         "referredBy": { "type": "string" },
         "freeFeeTransactions": { "type": "number" },
+        "emailConsent": { "type": "boolean" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["uid", "email", "createdAt"]
@@ -110,7 +111,8 @@
         "userId": { "type": "string" },
         "title": { "type": "string" },
         "message": { "type": "string" },
-        "type": { "type": "string", "enum": ["order_update", "payment", "dispute", "system"] },
+        "type": { "type": "string", "enum": ["order_update", "payment", "dispute", "system", "settlement"] },
+        "priority": { "type": "string", "enum": ["normal", "settlement", "urgent"] },
         "orderId": { "type": "string" },
         "isRead": { "type": "boolean" },
         "createdAt": { "type": "string", "format": "date-time" }

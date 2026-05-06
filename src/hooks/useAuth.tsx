@@ -63,10 +63,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         setUser(user);
         if (user) {
+          console.log("Current user authenticated:", user.uid, user.email);
           const userRef = doc(db, 'users', user.uid);
-          const userSnap = await getDoc(userRef);
+          let userSnap;
+          try {
+            userSnap = await getDoc(userRef);
+          } catch (getErr: any) {
+            // It's possible the user document isn't accessible yet or rules are being updated
+            console.warn("Retrying profile fetch in 1s due to error:", getErr.message);
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            userSnap = await getDoc(userRef);
+          }
 
           if (!userSnap.exists()) {
+            console.log("Profile not found, creating new profile for:", user.uid);
             // Check for pending referral
             const pendingRefCode = sessionStorage.getItem('pendingReferral');
             let referredBy = '';
@@ -142,8 +152,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setProfile(null);
         }
       } catch (err: any) {
-        console.error('Error fetching/creating profile:', err);
-        setError('حدث خطأ أثناء تحميل بيانات الحساب');
+        console.error('Error in onAuthStateChanged:', err);
+        // If it's a permission error, it might be because the user is signed in but doesn't have a profile yet
+        // or the rules are too strict for the initial fetch.
+        setError(`حدث خطأ أثناء تحميل بيانات الحساب: ${err.message || 'خطأ غير معروف'}`);
       } finally {
         setLoading(false);
       }

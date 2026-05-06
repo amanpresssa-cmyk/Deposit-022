@@ -38,8 +38,21 @@ export interface UserProfile {
   referralCode?: string;
   referredBy?: string;
   freeFeeTransactions?: number;
+  emailConsent?: boolean;
   isOnline?: boolean;
   lastSeen?: any;
+  createdAt: any;
+}
+
+export interface Notification {
+  id: string;
+  userId: string;
+  title: string;
+  message: string;
+  type: 'order_update' | 'payment' | 'dispute' | 'system' | 'settlement';
+  priority: 'normal' | 'settlement' | 'urgent';
+  orderId?: string;
+  isRead: boolean;
   createdAt: any;
 }
 

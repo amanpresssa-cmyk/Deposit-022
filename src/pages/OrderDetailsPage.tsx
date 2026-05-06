@@ -77,9 +77,18 @@ export const OrderDetailsPage: React.FC = () => {
         const isBoth = ['cancelled', 'disputed'].includes(newStatus);
         const sellerId = order.sellerId === 'unknown' ? null : order.sellerId;
 
+        const priorityMap: Record<string, 'urgent' | 'settlement' | 'normal'> = {
+          'disputed': 'urgent',
+          'escrowed': 'settlement',
+          'completed': 'settlement',
+          'delivered': 'normal',
+          'cancelled': 'urgent'
+        };
+        const priority = priorityMap[newStatus] || 'normal';
+
         if (isBoth) {
-          if (order.buyerId) await sendNotification(order.buyerId, titles[newStatus], messages[newStatus], 'order_update', order.id);
-          if (sellerId) await sendNotification(sellerId, titles[newStatus], messages[newStatus], 'order_update', order.id);
+          if (order.buyerId) await sendNotification(order.buyerId, titles[newStatus], messages[newStatus], 'order_update', priority, order.id);
+          if (sellerId) await sendNotification(sellerId, titles[newStatus], messages[newStatus], 'order_update', priority, order.id);
         } else {
           const recipientId = isToSeller ? sellerId : order.buyerId;
           if (recipientId) {
@@ -88,6 +97,7 @@ export const OrderDetailsPage: React.FC = () => {
               titles[newStatus], 
               messages[newStatus], 
               newStatus === 'escrowed' ? 'payment' : 'order_update',
+              priority,
               order.id
             );
           }
@@ -154,7 +164,8 @@ export const OrderDetailsPage: React.FC = () => {
                 referralData.inviterId,
                 'تم تفعيل مكافأة الدعوة! 🎁',
                 'قام صديقك بإتمام أول عملية له. لقد حصلت على عملية وساطة قادمة بدون رسوم منصة!',
-                'system'
+                'settlement',
+                'settlement'
               );
             }
           }
@@ -418,13 +429,18 @@ export const OrderDetailsPage: React.FC = () => {
                     </button>
                  )}
                  {order.status === 'pending' && (
+                   <>
                     <button
                       onClick={() => updateStatus('cancelled')}
                       disabled={actionLoading}
                       className="bg-white text-gray-600 border border-gray-200 px-6 py-3 rounded-xl font-bold hover:bg-gray-50 transition-all"
                     >
-                      إلغاء الطلب
+                      إلغاء الطلب نهائياً
                     </button>
+                    <p className="mt-2 text-[10px] text-gray-400 font-bold border-r-2 border-gray-100 pr-2 pb-1 leading-relaxed">
+                      * ملاحظة هامة: الإلغاء متاح فقط في مرحلة "بانتظار الموافقة" وقبل دفع المبلغ. بمجرد قيام المشتري بالتعميد، يتم حجز الأموال لضمان حقوق الطرفين.
+                    </p>
+                   </>
                  )}
                  {user?.email === 'khyratfarmdates@gmail.com' && (
                    <div className="w-full mt-6 p-6 bg-red-50 border border-red-100 rounded-3xl">
