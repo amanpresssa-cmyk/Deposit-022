@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Shield, CreditCard, MessageCircle, Star, X, ChevronLeft, ChevronRight, CheckCircle2 } from 'lucide-react';
+import { Shield, CreditCard, MessageCircle, Star, X, ChevronLeft, ChevronRight, CheckCircle2, Rocket } from 'lucide-react';
 
 interface TourStep {
   title: string;
@@ -23,34 +23,40 @@ export const ProductTour: React.FC = () => {
 
   const steps: TourStep[] = [
     {
-      title: 'مرحباً بك في عربون',
-      description: 'منصتك الموثوقة للتوسط المالي وحفظ الحقوق. نحن هنا لنضمن لك تجربة تجارية آمنة بينك وبين الطرف الآخر.',
-      icon: <Shield className="w-12 h-12" />,
-      color: 'bg-blue-600'
+      title: 'عربون: عهدٌ جديد من الأمان',
+      description: 'في عالم مليء بالمخاطر الرقمية، نأتي إليك كدرع حصين. منصة عربون ليست مجرد وسيط، بل هي حارس حقوقك وموثق صفقاتك.',
+      icon: <Shield className="w-16 h-16" />,
+      color: 'bg-gradient-to-br from-blue-600 to-indigo-800'
     },
     {
-      title: 'كيف نحمي أموالك؟',
-      description: 'عند الاتفاق، يتم احتجاز المبلغ في "خزنة عربون". لا يستلم البائع المبلغ إلا بعد تأكيد استلامك للخدمة أو المنتج.',
-      icon: <CreditCard className="w-12 h-12" />,
-      color: 'bg-green-600'
+      title: 'الخزنة الرقمية للحقوق',
+      description: 'وداعاً للقلق. عند بدء الصفقة، تُحفظ الأموال في "خزنة عربون الذكية". لا تتحرك هللة واحدة للبائع إلا بعد أن تضغط أنت زر الاستلام والرضا.',
+      icon: <CreditCard className="w-16 h-16" />,
+      color: 'bg-gradient-to-br from-emerald-500 to-teal-700'
     },
     {
-      title: 'تواصل مباشر وآمن',
-      description: 'نوفر لك غرف محادثة خاصة لكل صفقة، حيث يمكنك الاتفاق على التفاصيل وإرفاق المستندات لضمان التزام الطرفين.',
-      icon: <MessageCircle className="w-12 h-12" />,
-      color: 'bg-purple-600'
+      title: 'توثيق الهوية الوطني',
+      description: 'نحن نبني مجتمعاً من النخبة. كل بائع في منصتنا يمر عبر بوابة التحقق من الهوية الوطنية (نفاذ)، لنضمن أنك تتعامل مع أشخاص حقيقيين ومرخصين.',
+      icon: <CheckCircle2 className="w-16 h-16" />,
+      color: 'bg-gradient-to-br from-slate-700 to-slate-900'
     },
     {
-      title: 'التقييم والموثوقية',
-      description: 'بعد كل عملية ناجحة، يمكنك تقييم الطرف الآخر. هذا يساعد في بناء مجتمع تجاري صادق وموثوق.',
-      icon: <Star className="w-12 h-12" />,
-      color: 'bg-orange-500'
+      title: 'غرف العمليات الخاصة',
+      description: 'لكل صفقة عالمها الخاص. محادثات مشفرة، توثيق للمستندات، وسجلات دقيقة لكل اتفاق. في حال النزاع، نحن القاضي الذي يمتلك الأدلة القاطعة.',
+      icon: <MessageCircle className="w-16 h-16" />,
+      color: 'bg-gradient-to-br from-violet-600 to-purple-800'
     },
     {
-      title: 'ابدأ صفقتك الأولى',
-      description: 'أنت الآن جاهز! يمكنك البحث عن خدمات أو إنشاء طلب ضمان جديد فوراً. حقك محفوظ مع عربون.',
-      icon: <CheckCircle2 className="w-12 h-12" />,
-      color: 'bg-blue-600'
+      title: 'برنامج مكافآت الأمان',
+      description: 'الأمان أجمل عندما يتشارك. ادعُ أصدقاءك وانضموا معاً لعضوية عربون، وسنكافئك أنت ومن تدعوه بعمليات وساطة مجانية بدون أي رسوم منصة.',
+      icon: <Star className="w-16 h-16" />,
+      color: 'bg-gradient-to-br from-amber-400 to-orange-600'
+    },
+    {
+      title: 'المشهد الأخير: البداية',
+      description: 'الآن، الكرة في ملعبك. ابحث عن بائعين موثقين، أو أنشئ طلب ضمان جديد. حقك محفوظ، ومالك في أمان.. أهلاً بك في عربون.',
+      icon: <Rocket className="w-16 h-16 text-white" />,
+      color: 'bg-gradient-to-br from-blue-600 to-blue-900'
     }
   ];
 

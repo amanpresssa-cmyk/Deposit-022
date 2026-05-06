@@ -35,7 +35,7 @@ export const SupportButton: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      text: 'مرحباً بك في منصة عربون! أنا مساعدك الذكي. كيف يمكنني خدمتك اليوم؟',
+      text: 'مرحباً بك في عالم التجارة الآمنة.. أنا مرشدك في منصة عربون. أستطيع أن أروي لك كيف نحمي "خزنتك" المالية، أو أدلك على طريق التوثيق الاحترافي. كيف أبدأ رحلتي معك اليوم؟',
       sender: 'bot',
       timestamp: new Date()
     }
@@ -176,13 +176,13 @@ export const SupportButton: React.FC = () => {
   if (isHidden) return null;
 
   return (
-    <div className="fixed bottom-28 md:bottom-8 left-6 md:left-8 z-[60] md:z-40 flex flex-col items-start gap-4 pointer-events-none">
+    <div className="fixed bottom-28 md:bottom-8 right-6 md:right-8 z-[60] md:z-40 flex flex-col items-end gap-3 pointer-events-none">
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.8, x: -20 }}
+            initial={{ opacity: 0, scale: 0.8, x: 20 }}
             animate={{ opacity: 1, scale: 1, x: 0 }}
-            exit={{ opacity: 0, scale: 0.8, x: -20 }}
+            exit={{ opacity: 0, scale: 0.8, x: 20 }}
             className="fixed inset-0 md:relative md:inset-auto z-[60] md:z-auto w-full h-[100dvh] md:h-auto md:w-96 md:max-h-[600px] bg-white md:rounded-[2.5rem] border-0 md:border border-gray-100 md:shadow-2xl flex flex-col overflow-hidden pointer-events-auto rtl"
             dir="rtl"
           >
@@ -290,7 +290,7 @@ export const SupportButton: React.FC = () => {
         )}
       </AnimatePresence>
 
-      <div className="relative pointer-events-auto flex items-center gap-1.5 translate-y-1">
+      <div className="relative pointer-events-auto flex flex-row-reverse items-center gap-1.5 translate-y-1">
         <motion.button
           onClick={() => setIsOpen(!isOpen)}
             animate={{ 
