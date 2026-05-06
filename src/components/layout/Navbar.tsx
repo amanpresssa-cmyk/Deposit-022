@@ -69,15 +69,15 @@ export const Navbar: React.FC = () => {
   };
 
   return (
-    <nav className="sticky top-0 z-40 w-full bg-white/80 backdrop-blur-xl border-b border-gray-100 shadow-sm overflow-hidden">
-      <div className="max-w-7xl mx-auto px-4 h-16 md:h-20 flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-2 group">
+    <nav className="sticky top-0 z-40 w-full bg-white/80 backdrop-blur-xl border-b border-gray-100 shadow-sm pt-[env(safe-area-inset-top)]">
+      <div className="max-w-7xl mx-auto px-4 h-16 md:h-20 flex items-center justify-between gap-2">
+        <Link to="/" className="flex items-center gap-1.5 md:gap-2 group shrink-0">
           <img 
             src="https://i.imgur.com/OYaLVgI.png" 
             alt="عربون" 
-            className="h-8 md:h-10 w-auto object-contain flex-shrink-0" 
+            className="h-7 md:h-10 w-auto object-contain flex-shrink-0" 
           />
-          <span className="text-[10px] font-black text-blue-600 tracking-widest uppercase border-r border-gray-100 pr-2">وساطة مالية</span>
+          <span className="text-[9px] md:text-[10px] font-black text-blue-600 tracking-widest uppercase border-r border-gray-100 pr-2 hidden sm:block">وساطة مالية</span>
         </Link>
 
         {/* Desktop Menu */}

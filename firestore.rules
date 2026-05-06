@@ -71,18 +71,18 @@ service cloud.firestore {
     }
 
     match /orders/{orderId} {
-      allow get: if isSignedIn() && (
+      allow get: if (existing().visibility == 'public') || (isSignedIn() && (
+        isAdmin() ||
         isOwner(existing().buyerId) || 
         isOwner(existing().sellerId) || 
-        ('sellerEmail' in existing() && 'email' in request.auth.token && existing().sellerEmail == request.auth.token.email) ||
-        existing().visibility == 'public'
-      );
-      allow list: if isSignedIn() && (
+        ('sellerEmail' in existing() && 'email' in request.auth.token && existing().sellerEmail == request.auth.token.email)
+      ));
+      allow list: if (resource.data.visibility == 'public') || (isSignedIn() && (
+        isAdmin() ||
         resource.data.buyerId == request.auth.uid || 
         resource.data.sellerId == request.auth.uid || 
-        ('sellerEmail' in resource.data && 'email' in request.auth.token && resource.data.sellerEmail == request.auth.token.email) ||
-        resource.data.visibility == 'public'
-      );
+        ('sellerEmail' in resource.data && 'email' in request.auth.token && resource.data.sellerEmail == request.auth.token.email)
+      ));
       
       allow create: if isSignedIn() 
         && isValidOrder(incoming())

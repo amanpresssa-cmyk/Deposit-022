@@ -76,20 +76,20 @@ export const TestimonialSlider: React.FC = () => {
   const current = testimonials[index];
 
   return (
-    <div className="bg-white rounded-[2rem] p-6 md:p-12 border border-blue-50 shadow-xl shadow-blue-100/30 relative overflow-hidden flex flex-col justify-center">
-      <Quote className="absolute top-4 right-4 md:top-8 md:right-8 w-12 h-12 md:w-24 md:h-24 text-blue-50 opacity-40 -rotate-12" />
+    <div className="bg-white rounded-[2rem] p-6 mb-4 md:p-12 border border-blue-50 shadow-xl shadow-blue-100/30 relative overflow-hidden flex flex-col justify-center min-h-[300px] md:min-h-[400px]">
+      <Quote className="absolute top-4 right-4 md:top-8 md:right-8 w-10 h-10 md:w-24 md:h-24 text-blue-50 opacity-40 -rotate-12" />
       
       <AnimatePresence mode="wait">
         <motion.div
           key={current.id}
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -20 }}
-          transition={{ duration: 0.6, ease: "circOut" }}
-          className="relative z-10 text-center"
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+          className="relative z-10 text-center flex flex-col h-full items-center justify-center py-4"
         >
           {current.isHidden && (
-            <div className="flex items-center justify-center gap-1 text-orange-500 mb-2 md:mb-4 bg-orange-50 w-fit mx-auto px-2 py-0.5 rounded-full text-[8px] md:text-[10px] font-black uppercase tracking-wider">
+            <div className="flex items-center justify-center gap-1 text-orange-500 mb-3 bg-orange-50 w-fit mx-auto px-2.5 py-1 rounded-full text-[8px] md:text-[10px] font-black uppercase tracking-wider">
               <EyeOff className="w-2.5 h-2.5 md:w-3 md:h-3" />
               مخفي: تقييم منخفض
             </div>
@@ -101,11 +101,11 @@ export const TestimonialSlider: React.FC = () => {
             ))}
           </div>
 
-          <p className="text-sm md:text-xl font-bold text-gray-800 leading-relaxed mb-6 md:mb-8 px-2 md:px-8 max-w-2xl mx-auto">
+          <p className="text-sm md:text-xl font-bold text-gray-800 leading-relaxed mb-6 md:mb-8 px-2 md:px-8 max-w-2xl mx-auto break-words overflow-visible">
             {current.comment}
           </p>
 
-          <div className="flex flex-col items-center">
+          <div className="flex flex-col items-center mt-auto">
             <div className="bg-gray-100 w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center mb-2 md:mb-3 border-2 border-white shadow-sm">
               <User className="w-5 h-5 md:w-6 md:h-6 text-gray-400" />
             </div>
