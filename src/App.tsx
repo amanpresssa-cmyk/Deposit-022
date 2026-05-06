@@ -10,6 +10,8 @@ import { SellerProfilePage } from './pages/SellerProfilePage';
 import { SettingsPage } from './pages/SettingsPage';
 import { UserProfilePage } from './pages/UserProfilePage';
 import { AdminDashboard } from './pages/AdminDashboard';
+import { NotificationProvider } from './components/providers/NotificationProvider';
+import { Toaster } from 'sonner';
 import { Navbar } from './components/layout/Navbar';
 import { Footer } from './components/layout/Footer';
 import { SupportButton } from './components/ui/SupportButton';
@@ -97,7 +99,9 @@ export default function App() {
   return (
     <Router>
       <ErrorBoundary>
-        {isAdmin ? (
+        <NotificationProvider>
+          <Toaster position="top-center" richColors />
+          {isAdmin ? (
           <div className="min-h-screen bg-gray-50" dir="rtl">
             <AdminDashboard />
           </div>
@@ -164,6 +168,7 @@ export default function App() {
             <SupportButton />
           </div>
         )}
+        </NotificationProvider>
       </ErrorBoundary>
     </Router>
   );

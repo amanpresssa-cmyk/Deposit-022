@@ -8,60 +8,20 @@ import { db } from '../../lib/firebase';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 
+import { useNotifications } from '../providers/NotificationProvider';
+import { markAllNotificationsAsRead, markNotificationAsRead } from '../../lib/notificationService';
+
 export const Navbar: React.FC = () => {
   const { user, profile, login, logout } = useAuth();
+  const { notifications, unreadCount } = useNotifications();
   const navigate = useNavigate();
   const [showNotifications, setShowNotifications] = useState(false);
-  const [notifications, setNotifications] = useState<any[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [lastNotification, setLastNotification] = useState<any>(null);
-  const [showToast, setShowToast] = useState(false);
   const [activeFilter, setActiveFilter] = useState<'all' | 'urgent' | 'settlement' | 'normal'>('all');
 
-  const playNotificationSound = (priority: string) => {
-    try {
-      const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-      audio.volume = priority === 'urgent' ? 1.0 : 0.6; // Louder for urgent
-      audio.play();
-    } catch (e) {
-      console.warn("Audio play blocked by browser", e);
-    }
-  };
-
-  useEffect(() => {
+  const handleMarkAllAsRead = async () => {
     if (!user) return;
-    const q = query(
-      collection(db, 'notifications'),
-      where('userId', '==', user.uid),
-      orderBy('createdAt', 'desc'),
-      limit(20)
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const items = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as any));
-      
-      // Real-time Toast & Sound Logic
-      if (items.length > 0) {
-        const newest = items[0];
-        // Only trigger for new, unread notifications
-        if (lastNotification && newest.id !== lastNotification.id && !newest.isRead) {
-          setLastNotification(newest);
-          setShowToast(true);
-          playNotificationSound(newest.priority);
-          setTimeout(() => setShowToast(false), 8000);
-        } else if (!lastNotification) {
-          setLastNotification(newest);
-        }
-      }
-
-      setNotifications(items);
-      setUnreadCount(items.filter((n: any) => !n.isRead).length);
-    }, (error) => {
-      console.warn('Notifications snapshot error:', error);
-    });
-
-    return () => unsubscribe();
-  }, [user, lastNotification]);
+    await markAllNotificationsAsRead(user.uid);
+  };
 
   const filteredNotifications = notifications.filter(n => {
     if (activeFilter === 'all') return true;
@@ -134,46 +94,15 @@ export const Navbar: React.FC = () => {
           <Link to="/how-it-works" className="text-sm font-bold text-gray-600 hover:text-blue-600 transition-colors">كيف يعمل؟</Link>
         </div>
 
-        <div className="flex items-center gap-2 md:gap-4">
-          <AnimatePresence>
-            {showToast && lastNotification && (
-              <motion.div
-                initial={{ opacity: 0, y: -20, x: 20 }}
-                animate={{ opacity: 1, y: 0, x: 0 }}
-                exit={{ opacity: 0, y: -20, scale: 0.9 }}
-                className={`fixed top-20 right-4 left-4 md:left-auto md:top-24 md:right-4 md:w-80 z-50 bg-white rounded-2xl shadow-2xl border ${lastNotification.priority === 'urgent' ? 'border-red-200' : 'border-blue-100'} p-4 flex gap-3 cursor-pointer overflow-hidden`}
-                onClick={() => {
-                  setShowToast(false);
-                  setShowNotifications(true);
-                }}
-              >
-                <div className={`absolute top-0 right-0 w-1.5 h-full ${getPriorityConfig(lastNotification.priority).color}`}></div>
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${lastNotification.priority === 'urgent' ? 'bg-red-50' : 'bg-blue-50'}`}>
-                  {getIcon(lastNotification.type, lastNotification.priority)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full text-white ${getPriorityConfig(lastNotification.priority).color}`}>
-                      {getPriorityConfig(lastNotification.priority).label}
-                    </span>
-                  </div>
-                  <p className="text-xs font-black text-gray-900 truncate">{lastNotification.title}</p>
-                  <p className="text-[10px] text-gray-500 line-clamp-1 mt-0.5">{lastNotification.message}</p>
-                </div>
-                <button onClick={(e) => { e.stopPropagation(); setShowToast(false); }} className="text-gray-400 hover:text-gray-600">
-                  <X className="w-3 h-3" />
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {user ? (
+              <div className="flex items-center gap-2 md:gap-4">
+                {/* Sonner toasts will handle the real-time feedback */}
+                {user ? (
             <div className="flex items-center gap-3">
               <div className="relative">
                 <button 
                   onClick={() => {
                     setShowNotifications(!showNotifications);
-                    if (!showNotifications) markAllAsRead();
+                    if (!showNotifications) handleMarkAllAsRead();
                   }}
                   className="p-2.5 text-gray-400 hover:bg-gray-50 rounded-xl transition-all relative"
                 >
@@ -235,7 +164,10 @@ export const Navbar: React.FC = () => {
                             <Link
                               key={n.id}
                               to={n.orderId ? `/order/${n.orderId}` : '#'}
-                              onClick={() => setShowNotifications(false)}
+                              onClick={async () => {
+                                setShowNotifications(false);
+                                if (!n.isRead) await markNotificationAsRead(n.id);
+                              }}
                               className={`group flex gap-4 p-4 rounded-2xl transition-all border border-transparent mb-1 ${n.isRead ? 'hover:bg-gray-50 opacity-75' : 'bg-blue-50/30 hover:bg-blue-50/60 border-blue-100/50'}`}
                             >
                               <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-inner shrink-0 ${getPriorityConfig(n.priority).color} bg-opacity-10`}>

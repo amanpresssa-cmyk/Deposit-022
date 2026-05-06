@@ -1,4 +1,4 @@
-import { collection, addDoc, serverTimestamp, doc, updateDoc, query, where, orderBy, limit, getDocs, getDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, updateDoc, query, where, orderBy, limit, getDocs, getDoc, writeBatch } from 'firebase/firestore';
 import { db } from './firebase';
 
 export type NotificationType = 'order_update' | 'payment' | 'dispute' | 'system' | 'settlement';
@@ -56,6 +56,34 @@ export const updateSellerPerformance = async (sellerId: string) => {
     console.log(`[Performance Sync] Seller ${sellerId} updated. Featured: ${isHighPerformer}`);
   } catch (error) {
     console.error('Failed to update seller performance:', error);
+  }
+};
+
+export const markNotificationAsRead = async (notificationId: string) => {
+  try {
+    await updateDoc(doc(db, 'notifications', notificationId), { isRead: true });
+  } catch (error) {
+    console.error('Failed to mark notification as read:', error);
+  }
+};
+
+export const markAllNotificationsAsRead = async (userId: string) => {
+  try {
+    const q = query(
+      collection(db, 'notifications'),
+      where('userId', '==', userId),
+      where('isRead', '==', false)
+    );
+    const snap = await getDocs(q);
+    const batch = writeBatch(db);
+    
+    snap.docs.forEach(d => {
+      batch.update(d.ref, { isRead: true });
+    });
+    
+    await batch.commit();
+  } catch (error) {
+    console.error('Failed to mark all as read:', error);
   }
 };
 
