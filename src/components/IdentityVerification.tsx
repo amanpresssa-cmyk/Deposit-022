@@ -14,6 +14,7 @@ export const IdentityVerification: React.FC<Props> = ({ onClose }) => {
   const [step, setStep] = useState<'info' | 'details' | 'success'>('info');
   const [formData, setFormData] = useState({
     idNumber: '',
+    birthDate: '',
     phoneNumber: profile?.phoneNumber || '',
     idPhotoUrl: '',
     agreedToTerms: false
@@ -61,26 +62,33 @@ export const IdentityVerification: React.FC<Props> = ({ onClose }) => {
 
     try {
       const ai = getAI();
+      
       const base64 = await fileToBase64(file);
       const base64Data = base64.split(',')[1];
+      const mimeType = file.type || 'image/jpeg';
 
-      const prompt = `أنت خبير في التحقق من الهويات الرسمية. 
-افحص الصورة المرفقة بعناية للتحقق مما إذا كانت تمثل هوية وطنية سعودية، أو إقامة، أو جواز سفر.
-يجب أن تكون الصورة واضحة والبيانات مقروءة وتحتوي على صورة شخصية.
-أجب بتنسيق JSON حصراً:
+      const prompt = `أنت خبير في التحقق من الهويات والوثائق الرسمية. 
+مهمتك هي فحص الصورة المرفقة والتأكد مما إذا كانت تمثل (هوية وطنية سعودية، أو إقامة، أو جواز سفر).
+الهدف هو التأكد من أن الوثيقة حقيقية وأن البيانات مقروءة.
+
+كن مرناً جداً في القبول:
+- اقبل الصورة حتى لو كانت الخلفية غير احترافية.
+- اقبل الصورة حتى لو كانت الوثيقة محمولة باليد.
+- اقبل الصورة طالما أن الاسم أو رقم الهوية أو الصورة الشخصية واضحة بدرجة كافية.
+
+أجب حصراً بتنسيق JSON:
 {
   "valid": true/false,
-  "reason": "سبب الرفض بالتفصيل بالعربية إذا كانت غير صالحة، أو 'وثيقة صالحة' إذا كانت صالحة",
-  "documentType": "national_id" | "iqama" | "passport" | "unknown"
-}
-كن مرناً في قبول الوثائق الحقيقية المصورة بكاميرا الجوال، حتى لو كانت الخلفية غير احترافية أو كانت الوثيقة محمولة باليد، طالما أن البيانات واضحة.`;
+  "reason": "اشرح السبب باختصار بالعربية (مثلاً: وثيقة صالحة، أو الصورة مشوشة جداً)",
+  "documentType": "نوع الوثيقة"
+}`;
 
       const response = await ai.models.generateContent({
-        model: "gemini-3.1-pro-preview",
+        model: "gemini-3-flash-preview",
         contents: {
           parts: [
             { text: prompt },
-            { inlineData: { mimeType: file.type, data: base64Data } }
+            { inlineData: { mimeType, data: base64Data } }
           ]
         },
         config: {
@@ -97,21 +105,36 @@ export const IdentityVerification: React.FC<Props> = ({ onClose }) => {
         }
       });
 
-      const result = JSON.parse(response.text || '{}');
+      const text = response.text;
       
-      if (result.valid) {
+      if (!text) {
+        throw new Error('EMPTY_RESPONSE');
+      }
+
+      const jsonResult = JSON.parse(text);
+      
+      if (jsonResult.valid) {
         setAiStatus('success');
-        setAiFeedback(`تم التحقق: ${result.reason || 'وثيقة صالحة'}`);
-        // In a real app, you'd upload this to Firebase Storage first
+        setAiFeedback(`تم التحقق: ${jsonResult.reason || 'وثيقة صالحة'}`);
         setFormData({ ...formData, idPhotoUrl: base64 }); 
       } else {
         setAiStatus('error');
-        setAiFeedback(result.reason || 'عذراً، الصورة لا تبدو كبطاقة هوية رسمية واضحة. يرجى إعادة التصوير بوضوح.');
+        setAiFeedback(jsonResult.reason || 'عذراً، الصورة غير واضحة. يرجى إعادة التصوير بوضوح.');
       }
     } catch (err) {
-      console.error('AI Verification Error:', err);
+      console.error('AI Verification Error Details:', err);
       setAiStatus('error');
-      setAiFeedback('حدث خطأ أثناء فحص الصورة. تأكد من وضوح الصورة وحاول مجدداً.');
+      
+      let errorMessage = 'حدث خطأ أثناء فحص الصورة. تأكد من وضوح الصورة وحاول مجدداً.';
+      if (err instanceof Error) {
+        if (err.message.includes('API_KEY_MISSING')) {
+          errorMessage = 'نظام التحقق غير مفعل حالياً (نقص في الإعدادات).';
+        } else if (err.message.includes('404') || err.message.includes('not found')) {
+          errorMessage = 'فشل الوصول إلى نموذج الذكاء الاصطناعي. يرجى المحاولة لاحقاً.';
+        }
+      }
+      
+      setAiFeedback(errorMessage);
     } finally {
       setAiAnalyzing(false);
     }
@@ -127,6 +150,7 @@ export const IdentityVerification: React.FC<Props> = ({ onClose }) => {
     try {
       await submitVerification({
         idNumber: formData.idNumber,
+        birthDate: formData.birthDate,
         phoneNumber: formData.phoneNumber,
         idPhotoUrl: formData.idPhotoUrl,
         agreedToTerms: formData.agreedToTerms
@@ -224,18 +248,31 @@ export const IdentityVerification: React.FC<Props> = ({ onClose }) => {
                        onSubmit={handleSubmit}
                        className="space-y-5"
                     >
-                       <div className="space-y-2">
-                          <label className="text-sm font-bold text-gray-700 block mr-1">رقم الهوية الوطنية / الإقامة</label>
-                          <input
-                             type="text"
-                             required
-                             maxLength={10}
-                             className="w-full px-4 py-3.5 rounded-2xl border-2 border-gray-100 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all text-lg font-bold tracking-widest text-right"
-                             placeholder="1XXXXXXXXX"
-                             value={formData.idNumber}
-                             onChange={(e) => setFormData({...formData, idNumber: e.target.value})}
-                          />
-                       </div>
+                        <div className="grid grid-cols-2 gap-4">
+                           <div className="space-y-2">
+                              <label className="text-sm font-bold text-gray-700 block mr-1">رقم الهوية / الإقامة</label>
+                              <input
+                                 type="text"
+                                 required
+                                 maxLength={10}
+                                 className="w-full px-4 py-3.5 rounded-2xl border-2 border-gray-100 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all text-lg font-bold tracking-widest text-right"
+                                 placeholder="1XXXXXXXXX"
+                                 value={formData.idNumber}
+                                 onChange={(e) => setFormData({...formData, idNumber: e.target.value})}
+                              />
+                           </div>
+
+                           <div className="space-y-2">
+                              <label className="text-sm font-bold text-gray-700 block mr-1">تاريخ الميلاد</label>
+                              <input
+                                 type="date"
+                                 required
+                                 className="w-full px-4 py-3.5 rounded-2xl border-2 border-gray-100 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all text-base font-bold text-right"
+                                 value={formData.birthDate || ''}
+                                 onChange={(e) => setFormData({...formData, birthDate: e.target.value})}
+                              />
+                           </div>
+                        </div>
 
                        <div className="space-y-2">
                           <label className="text-sm font-bold text-gray-700 block mr-1">رقم الجوال</label>
@@ -278,7 +315,7 @@ export const IdentityVerification: React.FC<Props> = ({ onClose }) => {
                                <Camera className="w-10 h-10 text-gray-400 mx-auto mb-2 group-hover:text-blue-500 transition-colors" />
                              )}
                              <p className={`text-sm font-bold ${aiStatus === 'error' ? 'text-red-600' : 'text-gray-600'}`}>
-                               {aiStatus === 'idle' ? 'اضغط لرفع صورة الهوية' : aiFeedback}
+                               {aiStatus === 'idle' ? 'اضغط لتصوير أو رفع صورة الهوية' : aiFeedback}
                              </p>
                              <p className="text-xs text-gray-400 mt-1">نظامنا الذكي سيفحص جودة الهوية فوراً</p>
                              <input 
@@ -286,6 +323,7 @@ export const IdentityVerification: React.FC<Props> = ({ onClose }) => {
                                 type="file" 
                                 className="hidden" 
                                 accept="image/*" 
+                                capture="environment"
                                 onChange={handleFileChange}
                                 disabled={aiAnalyzing}
                              />

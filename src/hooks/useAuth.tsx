@@ -25,7 +25,7 @@ interface AuthContextType {
   sendOTP: (phoneNumber: string, recaptchaContainerId: string) => Promise<ConfirmationResult | null>;
   verifyOTP: (confirmationResult: ConfirmationResult, code: string) => Promise<void>;
   updateUserPhone: (phoneNumber: string) => Promise<void>;
-  submitVerification: (data: { idNumber: string, phoneNumber: string, idPhotoUrl: string, agreedToTerms: boolean }) => Promise<void>;
+  submitVerification: (data: { idNumber: string, birthDate: string, phoneNumber: string, idPhotoUrl: string, agreedToTerms: boolean }) => Promise<void>;
   clearError: () => void;
   setProfile: React.Dispatch<React.SetStateAction<UserProfile | null>>;
 }
@@ -195,7 +195,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const submitVerification = async (data: { idNumber: string, phoneNumber: string, idPhotoUrl: string, agreedToTerms: boolean }) => {
+  const submitVerification = async (data: { idNumber: string, birthDate: string, phoneNumber: string, idPhotoUrl: string, agreedToTerms: boolean }) => {
     if (!user) return;
     try {
       const userRef = doc(db, 'users', user.uid);
