@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { ShieldCheck, Upload, AlertCircle, X, CheckCircle2, FileText, Smartphone, Camera, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import { getGemini } from "../lib/gemini";
 
 interface Props {
@@ -64,28 +64,49 @@ export const IdentityVerification: React.FC<Props> = ({ onClose }) => {
       const base64 = await fileToBase64(file);
       const base64Data = base64.split(',')[1];
 
+      const prompt = `أنت خبير في التحقق من الهويات الرسمية. 
+افحص الصورة المرفقة بعناية للتحقق مما إذا كانت تمثل هوية وطنية سعودية، أو إقامة، أو جواز سفر.
+يجب أن تكون الصورة واضحة والبيانات مقروءة وتحتوي على صورة شخصية.
+أجب بتنسيق JSON حصراً:
+{
+  "valid": true/false,
+  "reason": "سبب الرفض بالتفصيل بالعربية إذا كانت غير صالحة، أو 'وثيقة صالحة' إذا كانت صالحة",
+  "documentType": "national_id" | "iqama" | "passport" | "unknown"
+}
+كن مرناً في قبول الوثائق الحقيقية المصورة بكاميرا الجوال، حتى لو كانت الخلفية غير احترافية أو كانت الوثيقة محمولة باليد، طالما أن البيانات واضحة.`;
+
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: [
-          {
-            parts: [
-              { text: "تحقق مما إذا كانت هذه الصورة تمثل وثيقة هوية رسمية حقيقية ومقروءة. الأنواع المقبولة هي: الهوية الوطنية السعودية، الإقامة، وجواز السفر. تأكد من أن المستند يحمل بيانات رسمية وصورة شخصية واضحة. إذا كانت الوثيقة واضحة وصحيحة، أجب بـ 'valid'. إذا كانت غير واضحة، منتهية بشكل صارخ، أو ليست وثيقة هوية، أجب بـ 'invalid' مع ذكر السبب بالتفصيل بالعربية. كن مرناً في قبول الوثائق الواضحة التي قد تختلف تصاميمها قليلاً (مثل الإصدارات القديمة والجديدة من الهوية أو الإقامة)." },
-              { inlineData: { mimeType: file.type, data: base64Data } }
-            ]
+        model: "gemini-3.1-pro-preview",
+        contents: {
+          parts: [
+            { text: prompt },
+            { inlineData: { mimeType: file.type, data: base64Data } }
+          ]
+        },
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              valid: { type: Type.BOOLEAN },
+              reason: { type: Type.STRING },
+              documentType: { type: Type.STRING }
+            },
+            required: ["valid", "reason", "documentType"]
           }
-        ]
+        }
       });
 
-      const responseText = response.text?.toLowerCase() || '';
+      const result = JSON.parse(response.text || '{}');
       
-      if (responseText.includes('valid')) {
+      if (result.valid) {
         setAiStatus('success');
-        setAiFeedback('تم التحقق بنجاح من جودة ونوع المستند.');
+        setAiFeedback(`تم التحقق: ${result.reason || 'وثيقة صالحة'}`);
         // In a real app, you'd upload this to Firebase Storage first
         setFormData({ ...formData, idPhotoUrl: base64 }); 
       } else {
         setAiStatus('error');
-        setAiFeedback(responseText.split(': ')[1] || 'عذراً، الصورة لا تبدو كبطاقة هوية رسمية واضحة. يرجى إعادة التصوير بوضوح.');
+        setAiFeedback(result.reason || 'عذراً، الصورة لا تبدو كبطاقة هوية رسمية واضحة. يرجى إعادة التصوير بوضوح.');
       }
     } catch (err) {
       console.error('AI Verification Error:', err);
