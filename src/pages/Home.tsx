@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { collection, query, where, limit, getDocs, doc, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { UserProfile } from '../types';
+import { PaymentIcon } from '../components/ui/PaymentIcon';
 import { SellerCard } from '../components/SellerCard';
 import { TestimonialSlider } from '../components/TestimonialSlider';
 import { GeneralFeedbackForm } from '../components/GeneralFeedbackForm';
@@ -184,11 +185,11 @@ export const Home: React.FC = () => {
         >
           <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-6">وسائل دفع آمنة ومعتمدة</p>
           <div className="flex flex-wrap justify-center items-center gap-6 md:gap-10">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/80/Mada_Logo.svg/512px-Mada_Logo.svg.png" alt="Mada" className="h-4 md:h-6 object-contain" />
-            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/d6/Visa_2021.svg/512px-Visa_2021.svg.png" alt="Visa" className="h-3 md:h-5 object-contain" />
-            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Mastercard-logo.svg/512px-Mastercard-logo.svg.png" alt="Mastercard" className="h-6 md:h-8 object-contain" />
-            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b0/Apple_Pay_logo.svg/512px-Apple_Pay_logo.svg.png" alt="Apple Pay" className="h-5 md:h-7 object-contain" />
-            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/f/f2/Google_Pay_Logo.svg/512px-Google_Pay_Logo.svg.png" alt="Google Pay" className="h-4 md:h-6 object-contain" />
+            <PaymentIcon type="mada" className="h-4 md:h-6" />
+            <PaymentIcon type="visa" className="h-3 md:h-5" />
+            <PaymentIcon type="mastercard" className="h-6 md:h-8" />
+            <PaymentIcon type="applepay" className="h-5 md:h-7" />
+            <PaymentIcon type="googlepay" className="h-4 md:h-6" />
           </div>
         </motion.div>
       </section>

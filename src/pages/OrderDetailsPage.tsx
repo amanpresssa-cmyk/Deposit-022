@@ -9,6 +9,7 @@ import { Shield, Clock, CheckCircle2, ChevronRight, AlertTriangle, CreditCard, P
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { ChatRoom } from '../components/chat/ChatRoom';
+import { PaymentIcon } from '../components/ui/PaymentIcon';
 import { OrderRating } from '../components/OrderRating';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { sendNotification, recordTransaction, recordOrderEvent, updateSellerPerformance } from '../lib/notificationService';
@@ -23,7 +24,7 @@ export const OrderDetailsPage: React.FC = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [ratingSuccess, setRatingSuccess] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<'mada' | 'visa' | 'apple'>('mada');
+  const [paymentMethod, setPaymentMethod] = useState<'mada' | 'visa' | 'mastercard' | 'applepay' | 'googlepay'>('mada');
   const [completionComment, setCompletionComment] = useState('');
   const [orderLogs, setOrderLogs] = useState<any[]>([]);
 
@@ -698,20 +699,20 @@ const PaymentModal: React.FC<{
           <p className="font-bold text-sm text-gray-400 text-right">اختر وسيلة الدفع</p>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {[
-              { id: 'mada', name: 'MADA', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/80/Mada_Logo.svg/200px-Mada_Logo.svg.png' },
-              { id: 'visa', name: 'VISA', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d6/Visa_2021.svg/200px-Visa_2021.svg.png' },
-              { id: 'mastercard', name: 'Mastercard', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Mastercard-logo.svg/200px-Mastercard-logo.svg.png' },
-              { id: 'apple', name: 'Apple Pay', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b0/Apple_Pay_logo.svg/200px-Apple_Pay_logo.svg.png' },
-              { id: 'google', name: 'Google Pay', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f2/Google_Pay_Logo.svg/200px-Google_Pay_Logo.svg.png' },
+              { id: 'mada' as const, name: 'MADA' },
+              { id: 'visa' as const, name: 'VISA' },
+              { id: 'mastercard' as const, name: 'Mastercard' },
+              { id: 'applepay' as const, name: 'Apple Pay' },
+              { id: 'googlepay' as const, name: 'Google Pay' },
             ].map(m => (
               <button
                 key={m.id}
-                onClick={() => setPaymentMethod(m.id)}
+                onClick={() => setPaymentMethod(m.id as any)}
                 className={`p-4 rounded-2xl border-2 transition-all flex items-center justify-center h-16 ${
-                  paymentMethod === m.id ? 'border-blue-600 bg-blue-50' : 'border-gray-50 bg-gray-50/50'
+                  paymentMethod === (m.id as any) ? 'border-blue-600 bg-blue-50' : 'border-gray-50 bg-gray-50/50'
                 }`}
               >
-                <img src={m.img} alt={m.name} className="max-h-8 max-w-full object-contain" referrerPolicy="no-referrer" />
+                <PaymentIcon type={m.id} className="max-h-8" />
               </button>
             ))}
           </div>

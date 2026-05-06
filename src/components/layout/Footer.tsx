@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Twitter, Instagram, Mail, MapPin, Phone, Facebook, Clock } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { PaymentIcon } from '../ui/PaymentIcon';
 import { db } from '../../lib/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 
@@ -94,11 +95,11 @@ export const Footer: React.FC = () => {
             © 2024 منصة عربون للوساطة الذكية. توثيق رسمي برقم هوية.
           </p>
           <div className="flex items-center gap-6">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/80/Mada_Logo.svg/200px-Mada_Logo.svg.png" alt="Mada" className="h-4 object-contain brightness-0 invert opacity-50 hover:opacity-100 transition-opacity" />
-            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/d6/Visa_2021.svg/200px-Visa_2021.svg.png" alt="Visa" className="h-3 object-contain brightness-0 invert opacity-50 hover:opacity-100 transition-opacity" />
-            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Mastercard-logo.svg/200px-Mastercard-logo.svg.png" alt="Mastercard" className="h-5 object-contain brightness-0 invert opacity-50 hover:opacity-100 transition-opacity" />
-            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b0/Apple_Pay_logo.svg/200px-Apple_Pay_logo.svg.png" alt="Apple Pay" className="h-4 object-contain brightness-0 invert opacity-50 hover:opacity-100 transition-opacity" />
-            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/f/f2/Google_Pay_Logo.svg/200px-Google_Pay_Logo.svg.png" alt="Google Pay" className="h-3 object-contain brightness-0 invert opacity-50 hover:opacity-100 transition-opacity" />
+            <PaymentIcon type="mada" className="h-4 opacity-50 hover:opacity-100 transition-opacity" white />
+            <PaymentIcon type="visa" className="h-3 opacity-50 hover:opacity-100 transition-opacity" white />
+            <PaymentIcon type="mastercard" className="h-5 opacity-50 hover:opacity-100 transition-opacity" white />
+            <PaymentIcon type="applepay" className="h-4 opacity-50 hover:opacity-100 transition-opacity" white />
+            <PaymentIcon type="googlepay" className="h-3 opacity-50 hover:opacity-100 transition-opacity" white />
           </div>
         </div>
       </div>
