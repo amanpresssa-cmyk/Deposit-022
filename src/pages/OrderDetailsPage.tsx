@@ -15,7 +15,7 @@ import { sendNotification, recordTransaction } from '../lib/notificationService'
 
 export const OrderDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const { user } = useAuth();
+  const { user, login, profile } = useAuth();
   const navigate = useNavigate();
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
@@ -96,19 +96,71 @@ export const OrderDetailsPage: React.FC = () => {
 
       // --- Financial Transaction Records ---
       if (newStatus === 'escrowed') {
+        const hasFreeFee = (profile?.freeFeeTransactions || 0) > 0;
+        const fee = hasFreeFee ? 0 : order.amount * 0.05;
+
         await recordTransaction({
           orderId: order.id,
           buyerId: order.buyerId,
           sellerId: order.sellerId,
           amount: order.amount,
-          fee: order.amount * 0.05,
+          fee: fee,
           netAmount: order.amount,
           status: 'escrowed',
           specialty: order.category
         });
+
+        // Consume free fee transaction benefit
+        if (hasFreeFee && user) {
+          const userRef = doc(db, 'users', user.uid);
+          await updateDoc(userRef, {
+            freeFeeTransactions: (profile?.freeFeeTransactions || 1) - 1
+          });
+        }
       } else if (newStatus === 'completed') {
-        // Mark transaction as completed for admin analytics
-        // This usually involves updating the existing transaction or recording a payout
+        // Referral Reward System Logic
+        try {
+          const { collection, query, where, getDocs, updateDoc: firestoreUpdateDoc, addDoc, getDoc, doc: firestoreDoc } = await import('firebase/firestore');
+          
+          // Check if this buyer was referred and has a pending referral
+          const refQ = query(
+            collection(db, 'referrals'), 
+            where('inviteeId', '==', order.buyerId), 
+            where('status', '==', 'pending')
+          );
+          const refSnap = await getDocs(refQ);
+          
+          if (!refSnap.empty) {
+            const referralDoc = refSnap.docs[0];
+            const referralData = referralDoc.data();
+            
+            // Mark referral as completed
+            await firestoreUpdateDoc(firestoreDoc(db, 'referrals', referralDoc.id), {
+              status: 'completed',
+              completedAt: serverTimestamp()
+            });
+            
+            // Reward the Inviter
+            const inviterRef = firestoreDoc(db, 'users', referralData.inviterId);
+            const inviterSnap = await getDoc(inviterRef);
+            if (inviterSnap.exists()) {
+              const inviterData = inviterSnap.data();
+              await firestoreUpdateDoc(inviterRef, {
+                freeFeeTransactions: (inviterData.freeFeeTransactions || 0) + 1
+              });
+              
+              // Notify Inviter
+              await sendNotification(
+                referralData.inviterId,
+                'تم تفعيل مكافأة الدعوة! 🎁',
+                'قام صديقك بإتمام أول عملية له. لقد حصلت على عملية وساطة قادمة بدون رسوم منصة!',
+                'system'
+              );
+            }
+          }
+        } catch (err) {
+          console.error("Error processing referral reward:", err);
+        }
       }
 
     } catch (error) {
@@ -121,9 +173,63 @@ export const OrderDetailsPage: React.FC = () => {
   if (loading) return <div className="flex justify-center py-20"><div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>;
   if (!order) return null;
 
+  if (!user) {
+    return (
+      <div className="max-w-2xl mx-auto py-12 px-4 space-y-8 text-center bg-white rounded-[3rem] border border-gray-100 shadow-xl overflow-hidden relative">
+        <div className="absolute top-0 left-0 w-full h-2 bg-blue-600"></div>
+        <div className="space-y-6">
+          <div className="w-20 h-20 bg-blue-50 rounded-3xl flex items-center justify-center mx-auto shadow-sm">
+            <Shield className="w-10 h-10 text-blue-600" />
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-3xl font-black text-gray-900 leading-tight">طلب ضمان مالي جديد</h1>
+            <p className="text-gray-500 font-medium">لديك دعوة لإتمام عملية وساطة مالية عبر منصة عربون</p>
+          </div>
+          
+          <div className="bg-gray-50 p-8 rounded-3xl border border-gray-100 text-right space-y-4">
+            <div className="flex justify-between items-center border-b border-gray-200 pb-4">
+               <span className="text-gray-400 font-bold ml-4">عنوان الصفقة</span>
+               <span className="text-gray-900 font-black">{order.title}</span>
+            </div>
+            <div className="flex justify-between items-center border-b border-gray-200 pb-4">
+               <span className="text-gray-400 font-bold ml-4">القيمة</span>
+               <span className="text-[#2563eb] font-black text-xl">{order.amount} ر.س</span>
+            </div>
+            <div className="pt-2">
+               <p className="text-xs text-gray-400 font-bold mb-2 uppercase tracking-widest">الوصف</p>
+               <p className="text-sm text-gray-600 leading-relaxed line-clamp-3">{order.description}</p>
+            </div>
+          </div>
+
+          <div className="space-y-4 pt-4">
+            <p className="text-sm text-gray-400 font-medium">للإطلاع على التفاصيل الكاملة والموافقة على الطلب يرجى تسجيل الدخول</p>
+            <div className="flex flex-col gap-3">
+              <button 
+                onClick={login} 
+                className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold text-lg hover:bg-blue-700 shadow-xl shadow-blue-100 transition-all"
+              >
+                تسجيل الدخول / إنشاء حساب
+              </button>
+              <button 
+                onClick={() => navigate('/')}
+                className="w-full py-3 text-gray-400 font-bold hover:text-gray-600 transition-colors"
+              >
+                العودة للرئيسية
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="pt-8 border-t border-gray-50 flex items-center justify-center gap-2">
+           <p className="text-[10px] text-gray-400 font-medium italic">منصة عربون - الوساطة المالية الأكثر أماناً في المملكة</p>
+        </div>
+      </div>
+    );
+  }
+
   const isBuyer = order.buyerId === user?.uid;
   const isSeller = order.sellerId === user?.uid;
   const isSellerByEmail = order.sellerEmail === user?.email;
+  const isSellerByPhone = order.sellerPhone && user?.phoneNumber?.includes(order.sellerPhone.replace(/^0/, ''));
 
   const claimOrder = async () => {
     if (!user || !order) return;
@@ -172,6 +278,7 @@ export const OrderDetailsPage: React.FC = () => {
             loading={actionLoading}
             paymentMethod={paymentMethod}
             setPaymentMethod={setPaymentMethod}
+            profile={profile}
             onClose={() => setShowPaymentModal(false)}
             onConfirm={handleConfirmPayment}
           />
@@ -258,7 +365,7 @@ export const OrderDetailsPage: React.FC = () => {
              {/* Action Bar */}
              <div className="p-8 bg-gray-50/50 border-t border-gray-100">
                <div className="flex flex-wrap gap-4">
-                 {order.sellerId === 'unknown' && isSellerByEmail && (
+                 {order.sellerId === 'unknown' && (isSellerByEmail || isSellerByPhone) && (
                     <button
                       onClick={claimOrder}
                       disabled={actionLoading}
@@ -426,7 +533,8 @@ const PaymentModal: React.FC<{
   loading: boolean;
   paymentMethod: string;
   setPaymentMethod: (m: any) => void;
-}> = ({ amount, onConfirm, onClose, loading, paymentMethod, setPaymentMethod }) => (
+  profile: any;
+}> = ({ amount, onConfirm, onClose, loading, paymentMethod, setPaymentMethod, profile }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
     <motion.div 
       initial={{ scale: 0.9, opacity: 0 }}
@@ -470,11 +578,21 @@ const PaymentModal: React.FC<{
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-gray-500">رسوم التعميد (5%)</span>
-            <span className="font-bold">{(amount * 0.05).toFixed(2)} ر.س</span>
+            <span className={`font-bold ${((profile?.freeFeeTransactions || 0) > 0) ? 'line-through text-gray-400' : ''}`}>
+              {(amount * 0.05).toFixed(2)} ر.س
+            </span>
           </div>
+          {(profile?.freeFeeTransactions || 0) > 0 && (
+            <div className="flex justify-between text-sm text-green-600 font-bold">
+              <span>خصم مكافأة الدعوة</span>
+              <span>-{(amount * 0.05).toFixed(2)} ر.س</span>
+            </div>
+          )}
           <div className="pt-2 border-t border-gray-200 flex justify-between">
             <span className="font-black text-gray-900">المجموع المطلوب</span>
-            <span className="font-black text-blue-600">{(amount * 1.05).toFixed(2)} ر.س</span>
+            <span className="font-black text-blue-600">
+              {((profile?.freeFeeTransactions || 0) > 0 ? amount : (amount * 1.05)).toFixed(2)} ر.س
+            </span>
           </div>
         </div>
 

@@ -90,9 +90,18 @@ export default function App() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-[#3b82f6] border-t-transparent rounded-full animate-spin" />
-          <p className="text-gray-400 font-bold animate-pulse">جاري تحميل منصة عربون...</p>
+        <div className="flex flex-col items-center gap-6 p-8 text-center">
+          <div className="w-16 h-16 border-4 border-[#3b82f6] border-t-transparent rounded-full animate-spin shadow-lg shadow-blue-100" />
+          <div className="space-y-2">
+            <h3 className="text-xl font-black text-gray-900">جاري تحميل منصة عربون...</h3>
+            <p className="text-gray-400 font-medium">نتحقق من أمان اتصالك وجلسة العمل</p>
+          </div>
+          <button 
+            onClick={() => window.location.reload()}
+            className="mt-4 text-blue-600 font-bold hover:underline text-sm"
+          >
+            إذا استغرق التحميل وقتاً طويلاً، اضغط هنا للتحديث
+          </button>
         </div>
       </div>
     );
@@ -134,7 +143,7 @@ export default function App() {
               />
               <Route
                 path="/order/:id"
-                element={user ? <OrderDetailsPage /> : <Navigate to="/" />}
+                element={<OrderDetailsPage />}
               />
               <Route
                 path="/seller/:sellerId"

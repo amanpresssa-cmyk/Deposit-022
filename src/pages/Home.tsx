@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { ShieldCheck, ArrowLeftRight, CheckCircle, Search, Clock, MessageSquare, Star, LayoutGrid, Users, Briefcase } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
-import { collection, query, where, limit, getDocs, doc, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, limit, getDocs, doc, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { UserProfile } from '../types';
 import { SellerCard } from '../components/SellerCard';
@@ -30,19 +30,33 @@ export const Home: React.FC = () => {
   React.useEffect(() => {
     const fetchSellers = async () => {
       try {
+        // Use a simpler query to avoid composite index requirements
+        // We'll filter and sort in memory for maximum reliability
         const q = query(
           collection(db, 'users'), 
           where('isSeller', '==', true),
-          limit(10)
+          limit(100)
         );
+        
         const snap = await getDocs(q);
-        const sellers = snap.docs
+        let sellers = snap.docs
           .map(d => ({ uid: d.id, ...d.data() } as UserProfile))
-          .filter(u => u.isBlocked !== true)
-          .slice(0, 3);
-        setFeaturedSellers(sellers);
+          .filter(u => u.isBlocked !== true);
+        
+        // Custom sort logic:
+        // 1. Featured sellers first
+        // 2. Then by rating (desc)
+        // 3. Then by review count (desc)
+        sellers.sort((a, b) => {
+          if (a.isFeatured !== b.isFeatured) return a.isFeatured ? -1 : 1;
+          if ((b.rating || 0) !== (a.rating || 0)) return (b.rating || 0) - (a.rating || 0);
+          return (b.reviewsCount || 0) - (a.reviewsCount || 0);
+        });
+
+        // Take top 12
+        setFeaturedSellers(sellers.slice(0, 12));
       } catch (e) {
-        console.error(e);
+        console.error("Error fetching featured sellers:", e);
       }
     };
     fetchSellers();
@@ -212,35 +226,37 @@ export const Home: React.FC = () => {
       </section>
 
       {/* Trust & Stats Section - COMPACT */}
-      <section className="px-4">
-        <div className="bg-gray-900 rounded-[2rem] p-6 text-white relative overflow-hidden">
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="space-y-4 md:max-w-[60%]">
-              <h2 className="text-lg md:text-2xl font-black leading-tight">انضم كبائع موثوق</h2>
-              <p className="text-xs text-slate-400 font-medium leading-relaxed">
-                ابدأ رحلتك التجارية الآن واستقبل دفعاتك بأمان تام تحت مظلة "عربون".
-              </p>
-              <button onClick={() => navigate('/dashboard')} className="w-full md:w-auto bg-blue-500 text-white px-6 py-3 rounded-xl font-black text-sm hover:bg-blue-600 transition-all">
-                 سجل مجاناً
-              </button>
+      {!user && (
+        <section className="px-4">
+          <div className="bg-gray-900 rounded-[2rem] p-6 text-white relative overflow-hidden">
+            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div className="space-y-4 md:max-w-[60%]">
+                <h2 className="text-lg md:text-2xl font-black leading-tight">انضم كبائع موثوق</h2>
+                <p className="text-xs text-slate-400 font-medium leading-relaxed">
+                  ابدأ رحلتك التجارية الآن واستقبل دفعاتك بأمان تام تحت مظلة "عربون".
+                </p>
+                <button onClick={() => navigate('/dashboard')} className="w-full md:w-auto bg-blue-500 text-white px-6 py-3 rounded-xl font-black text-sm hover:bg-blue-600 transition-all">
+                   سجل مجاناً
+                </button>
+              </div>
+              
+              <div className="flex gap-3">
+                {[
+                  { label: 'عملية', val: '50K+', icon: ShieldCheck },
+                  { label: 'ثقة', val: '4.9/5', icon: Star },
+                ].map((stat, i) => (
+                  <div key={i} className="flex-1 bg-white/5 border border-white/10 p-4 rounded-2xl backdrop-blur-md">
+                    <stat.icon className="w-4 h-4 text-blue-400 mb-2" />
+                    <div className="text-lg font-black">{stat.val}</div>
+                    <div className="text-slate-500 font-bold text-[8px] uppercase tracking-widest">{stat.label}</div>
+                  </div>
+                ))}
+              </div>
             </div>
-            
-            <div className="flex gap-3">
-              {[
-                { label: 'عملية', val: '50K+', icon: ShieldCheck },
-                { label: 'ثقة', val: '4.9/5', icon: Star },
-              ].map((stat, i) => (
-                <div key={i} className="flex-1 bg-white/5 border border-white/10 p-4 rounded-2xl backdrop-blur-md">
-                  <stat.icon className="w-4 h-4 text-blue-400 mb-2" />
-                  <div className="text-lg font-black">{stat.val}</div>
-                  <div className="text-slate-500 font-bold text-[8px] uppercase tracking-widest">{stat.label}</div>
-                </div>
-              ))}
-            </div>
+            <div className="absolute top-0 right-0 w-40 h-40 bg-blue-600/20 rounded-full blur-[60px] -mr-20 -mt-10" />
           </div>
-          <div className="absolute top-0 right-0 w-40 h-40 bg-blue-600/20 rounded-full blur-[60px] -mr-20 -mt-10" />
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* How it Works - Horizontal Scroll / Mobile Grid */}
       <section className="px-4 space-y-6">
@@ -293,26 +309,28 @@ export const Home: React.FC = () => {
       </section>
 
       {/* App Download / CTA Final */}
-      <section className="px-4">
-        <div className="bg-blue-600 rounded-[2rem] p-6 md:p-12 text-white relative overflow-hidden">
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="space-y-2 md:space-y-4 md:max-w-[70%]">
-              <h2 className="text-xl md:text-3xl font-black leading-tight text-right">جاهز لتجربة بيع وشراء؟</h2>
-              <p className="text-xs md:text-sm text-blue-100 font-medium leading-relaxed text-right">
-                التحق بأكثر من 10 آلاف بائع ومشترٍ يثقون بعربون يومياً.
-              </p>
+      {!user && (
+        <section className="px-4">
+          <div className="bg-blue-600 rounded-[2rem] p-6 md:p-12 text-white relative overflow-hidden">
+            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div className="space-y-2 md:space-y-4 md:max-w-[70%]">
+                <h2 className="text-xl md:text-3xl font-black leading-tight text-right">جاهز لتجربة بيع وشراء؟</h2>
+                <p className="text-xs md:text-sm text-blue-100 font-medium leading-relaxed text-right">
+                  التحق بأكثر من 10 آلاف بائع ومشترٍ يثقون بعربون يومياً.
+                </p>
+              </div>
+              <button 
+                onClick={login}
+                className="w-full md:w-auto bg-white text-blue-600 px-6 py-3 rounded-xl font-black text-sm hover:bg-gray-50 transition-all shadow-lg text-center"
+              >
+                أنشئ حسابك
+              </button>
             </div>
-            <button 
-              onClick={login}
-              className="w-full md:w-auto bg-white text-blue-600 px-6 py-3 rounded-xl font-black text-sm hover:bg-gray-50 transition-all shadow-lg text-center"
-            >
-              أنشئ حسابك
-            </button>
+            
+            <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full blur-[60px] -mr-20 -mt-10" />
           </div>
-          
-          <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full blur-[60px] -mr-20 -mt-10" />
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Feedback Form */}
       <section className="px-4 pt-12">

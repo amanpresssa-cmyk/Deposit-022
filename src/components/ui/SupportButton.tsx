@@ -30,6 +30,7 @@ const SYSTEM_PROMPT = `أنت "مساعد عربون الذكي" (الروبوت
 
 export const SupportButton: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [isHidden, setIsHidden] = useState(false);
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -43,6 +44,39 @@ export const SupportButton: React.FC = () => {
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Handle auto-reappear after 5 minutes
+  useEffect(() => {
+    const checkHiddenStatus = () => {
+      const hiddenUntil = localStorage.getItem('support_bot_hidden_until');
+      if (hiddenUntil) {
+        const expiration = parseInt(hiddenUntil);
+        if (Date.now() < expiration) {
+          setIsHidden(true);
+          const remaining = expiration - Date.now();
+          const timer = setTimeout(() => setIsHidden(false), remaining);
+          return timer;
+        } else {
+          setIsHidden(false);
+          localStorage.removeItem('support_bot_hidden_until');
+        }
+      }
+      return null;
+    };
+
+    const timer = checkHiddenStatus();
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, []);
+
+  const hideBot = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const expiration = Date.now() + 5 * 60 * 1000;
+    localStorage.setItem('support_bot_hidden_until', expiration.toString());
+    setIsHidden(true);
+    setIsOpen(false);
+  };
 
   // Initialize Gemini lazily to prevent crashes if API key is missing on startup
   const getAI = () => {
@@ -139,14 +173,16 @@ export const SupportButton: React.FC = () => {
     }
   };
 
+  if (isHidden) return null;
+
   return (
-    <div className="fixed bottom-28 md:bottom-8 right-6 md:right-8 z-[60] md:z-40 flex flex-col items-end gap-4 pointer-events-none">
+    <div className="fixed bottom-28 md:bottom-8 left-6 md:left-8 z-[60] md:z-40 flex flex-col items-start gap-4 pointer-events-none">
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.8, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.8, y: 20 }}
+            initial={{ opacity: 0, scale: 0.8, x: -20 }}
+            animate={{ opacity: 1, scale: 1, x: 0 }}
+            exit={{ opacity: 0, scale: 0.8, x: -20 }}
             className="fixed inset-0 md:relative md:inset-auto z-[60] md:z-auto w-full h-[100dvh] md:h-auto md:w-96 md:max-h-[600px] bg-white md:rounded-[2.5rem] border-0 md:border border-gray-100 md:shadow-2xl flex flex-col overflow-hidden pointer-events-auto rtl"
             dir="rtl"
           >
@@ -254,23 +290,38 @@ export const SupportButton: React.FC = () => {
         )}
       </AnimatePresence>
 
-      <motion.button
-        onClick={() => setIsOpen(!isOpen)}
-          animate={{ 
-            y: isOpen ? 0 : [0, -10, 0],
-          }}
-          transition={{ 
-            repeat: isOpen ? 0 : Infinity,
-            duration: 2,
-            ease: "easeInOut"
-          }}
-          className={`w-14 h-14 md:w-16 md:h-16 bg-blue-600 text-white rounded-[1.5rem] flex items-center justify-center shadow-2xl shadow-blue-200 hover:scale-110 active:scale-95 transition-all pointer-events-auto relative ${isOpen ? 'opacity-0 pointer-events-none md:opacity-100 md:pointer-events-auto' : 'opacity-100'}`}
-        >
-          <MessageCircle className="w-7 h-7 md:w-8 md:h-8" />
-          {!isOpen && (
-            <span className="absolute -top-1 -right-1 w-4 h-4 md:w-5 md:h-5 bg-red-500 border-4 border-white rounded-full"></span>
-          )}
+      <div className="relative pointer-events-auto flex items-center gap-1.5 translate-y-1">
+        <motion.button
+          onClick={() => setIsOpen(!isOpen)}
+            animate={{ 
+              y: isOpen ? 0 : [0, -8, 0],
+            }}
+            transition={{ 
+              repeat: isOpen ? 0 : Infinity,
+              duration: 2.5,
+              ease: "easeInOut"
+            }}
+            className={`w-14 h-14 md:w-16 md:h-16 bg-blue-600 text-white rounded-[1.5rem] flex items-center justify-center shadow-2xl shadow-blue-200 hover:scale-110 active:scale-95 transition-all relative ${isOpen ? 'opacity-0 pointer-events-none md:opacity-100 md:pointer-events-auto' : 'opacity-100'}`}
+          >
+            <MessageCircle className="w-7 h-7 md:w-8 md:h-8" />
+            {!isOpen && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 md:w-5 md:h-5 bg-red-500 border-4 border-white rounded-full"></span>
+            )}
         </motion.button>
+
+        {!isOpen && (
+          <button 
+            onClick={hideBot}
+            className="w-8 h-8 md:w-9 md:h-9 bg-gray-100/80 backdrop-blur-sm text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl flex items-center justify-center transition-all border border-gray-100 group relative shadow-sm"
+            title="إخفاء لمدة 5 دقائق"
+          >
+            <X className="w-4 h-4 md:w-5 md:h-5" />
+            <span className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap transition-opacity pointer-events-none">
+              إخفاء 5 دقايق
+            </span>
+          </button>
+        )}
+      </div>
     </div>
   );
 };

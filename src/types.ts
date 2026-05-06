@@ -33,6 +33,11 @@ export interface UserProfile {
   idPhotoUrl?: string;
   agreedToTerms?: boolean;
   isBlocked?: boolean;
+  isFeatured?: boolean;
+  avgResponseTime?: string;
+  referralCode?: string;
+  referredBy?: string;
+  freeFeeTransactions?: number;
   isOnline?: boolean;
   lastSeen?: any;
   createdAt: any;

@@ -249,26 +249,26 @@ export const Dashboard: React.FC = () => {
                   <motion.div 
                     initial={{ opacity: 0, y: -20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-[2.5rem] p-10 text-white relative overflow-hidden shadow-xl shadow-blue-100"
+                    className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl md:rounded-[2.5rem] p-5 md:p-10 text-white relative overflow-hidden shadow-xl shadow-blue-100"
                   >
                     <div className="relative z-10">
-                      <div className="flex items-center gap-6 mb-8">
-                        <div className="bg-white/20 p-5 rounded-[2rem] backdrop-blur-md border border-white/10">
-                          <ShieldCheck className="w-10 h-10 text-white" />
+                      <div className="flex flex-col md:flex-row items-center md:items-start gap-3 md:gap-6 mb-5 md:mb-8 text-center md:text-right">
+                        <div className="bg-white/20 p-3 md:p-5 rounded-xl md:rounded-[2rem] backdrop-blur-md border border-white/10 shrink-0">
+                          <ShieldCheck className="w-6 h-6 md:w-10 md:h-10 text-white" />
                         </div>
                         <div>
-                          <h2 className="text-3xl font-black mb-2">وثّق هويتك لزيادة أمانك</h2>
-                          <p className="text-blue-100 opacity-90 max-w-md font-medium">
+                          <h2 className="text-lg md:text-3xl font-black mb-1 md:mb-2">وثّق هويتك لزيادة أمانك</h2>
+                          <p className="text-blue-100 text-[11px] md:text-base opacity-90 max-w-md font-medium leading-relaxed">
                             التوثيق بالهوية الوطنية يمنحك الأولوية في معالجة الطلبات ويزيد من مستوى الثقة في حسابك.
                           </p>
                         </div>
                       </div>
                       <button 
                         onClick={() => setShowIdentityVerify(true)}
-                        className="bg-white text-blue-600 px-10 py-5 rounded-2xl font-bold text-lg hover:bg-blue-50 transition-all flex items-center gap-2 whitespace-nowrap shadow-xl"
+                        className="w-full md:w-auto bg-white text-blue-600 px-6 py-3.5 md:px-10 md:py-5 rounded-xl md:rounded-2xl font-bold text-sm md:text-lg hover:bg-blue-50 transition-all flex items-center justify-center gap-2 whitespace-nowrap shadow-xl"
                       >
                         بدء عملية التوثيق الشامل
-                        <ChevronRight className="w-6 h-6" />
+                        <ChevronRight className="w-4 h-4 md:w-6 md:h-6" />
                       </button>
                     </div>
                     <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-32 -mt-32 blur-3xl"></div>

@@ -32,17 +32,31 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Helper to generate a simple referral code
+const generateReferralCode = (uid: string) => {
+  return uid.slice(0, 6).toUpperCase() + Math.floor(Math.random() * 1000);
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Capture referral code from URL if present
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get('ref');
+    if (ref) {
+      sessionStorage.setItem('pendingReferral', ref);
+    }
+  }, []);
+
   useEffect(() => {
     // Safety timeout to prevent white screen hanging
     const timeout = setTimeout(() => {
       setLoading(false);
-    }, 10000);
+    }, 4000);
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       clearTimeout(timeout);
@@ -53,6 +67,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const userSnap = await getDoc(userRef);
 
           if (!userSnap.exists()) {
+            // Check for pending referral
+            const pendingRefCode = sessionStorage.getItem('pendingReferral');
+            let referredBy = '';
+            
+            if (pendingRefCode) {
+              // Find user who owns this referral code
+              // Note: Ideally we'd query by referralCode, but let's keep it simple for now
+              // If we can't find them, we just ignore it
+            }
+
             const newProfile: UserProfile = {
               uid: user.uid,
               displayName: user.displayName || 'مستخدم جديد',
@@ -66,8 +90,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               isAdmin: user.email === 'khyratfarmdates@gmail.com', // Auto-admin for this email
               trustLevel: 10,
               verificationStatus: 'none',
+              referralCode: generateReferralCode(user.uid),
+              referredBy: '', // Will update this if code is valid
+              freeFeeTransactions: pendingRefCode ? 1 : 0, // Invitee gets first one free
               createdAt: serverTimestamp(),
             };
+
+            // Process referral if exists
+            if (pendingRefCode) {
+              try {
+                const { collection, query, where, getDocs } = await import('firebase/firestore');
+                const q = query(collection(db, 'users'), where('referralCode', '==', pendingRefCode));
+                const snap = await getDocs(q);
+                if (!snap.empty) {
+                  const inviter = snap.docs[0].data();
+                  newProfile.referredBy = inviter.uid;
+                  
+                  // Create referral record
+                  const { addDoc } = await import('firebase/firestore');
+                  await addDoc(collection(db, 'referrals'), {
+                    inviterId: inviter.uid,
+                    inviteeId: user.uid,
+                    status: 'pending',
+                    createdAt: serverTimestamp()
+                  });
+                }
+              } catch (e) {
+                console.error("Error processing referral:", e);
+              }
+              sessionStorage.removeItem('pendingReferral');
+            }
+
             await setDoc(userRef, newProfile);
             setProfile(newProfile);
           } else {
@@ -76,6 +129,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (user.email === 'khyratfarmdates@gmail.com' && !data.isAdmin) {
               await updateDoc(userRef, { isAdmin: true });
               data.isAdmin = true;
+            }
+            // Add referral code if missing for old users
+            if (!data.referralCode) {
+              const code = generateReferralCode(user.uid);
+              await updateDoc(userRef, { referralCode: code });
+              data.referralCode = code;
             }
             setProfile(data);
           }

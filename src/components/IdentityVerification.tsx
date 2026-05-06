@@ -164,41 +164,41 @@ export const IdentityVerification: React.FC<Props> = ({ onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-white sm:bg-black/60 sm:backdrop-blur-sm z-50 flex items-center justify-center sm:p-4">
       <motion.div 
-        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        initial={{ opacity: 0, scale: 1, y: 0 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-white rounded-[3rem] w-full max-w-2xl overflow-hidden relative shadow-2xl"
+        className="bg-white sm:rounded-[3rem] w-full sm:max-w-2xl h-full sm:h-auto sm:max-h-[90vh] overflow-hidden relative sm:shadow-2xl flex flex-col md:block"
       >
         <button 
           onClick={onClose}
-          className="absolute left-8 top-8 p-2 hover:bg-gray-100 rounded-full transition-colors z-20"
+          className="absolute left-4 top-4 md:left-8 md:top-8 p-2 hover:bg-gray-100 rounded-full transition-colors z-30 bg-white/80 backdrop-blur-sm shadow-sm md:shadow-none"
         >
           <X className="w-6 h-6 text-gray-400" />
         </button>
 
-        <div className="grid md:grid-cols-5 h-full">
-           <div className="md:col-span-2 bg-blue-600 p-10 text-white flex flex-col justify-between">
+        <div className="grid md:grid-cols-5 h-full overflow-y-auto md:overflow-visible">
+           <div className="md:col-span-2 bg-blue-600 p-6 md:p-10 text-white flex flex-col justify-center md:justify-between shrink-0">
               <div>
-                <ShieldCheck className="w-16 h-16 mb-8 text-blue-200" />
-                <h2 className="text-3xl font-black mb-4">توثيق الهوية</h2>
-                <p className="text-blue-100 font-medium leading-relaxed">
+                <ShieldCheck className="w-10 h-10 md:w-16 md:h-16 mb-4 md:mb-8 text-blue-200 mx-auto md:mx-0" />
+                <h2 className="text-xl md:text-3xl font-black mb-2 md:mb-4 text-center md:text-right">توثيق الهوية</h2>
+                <p className="text-blue-100 text-xs md:text-base font-medium leading-relaxed text-center md:text-right">
                   نظام التوثيق المتطور يضمن مصداقية التعاملات بين كافة الأطراف داخل المنصة.
                 </p>
               </div>
-              <div className="space-y-4">
-                 <div className="flex items-center gap-3 text-sm font-bold bg-white/10 p-3 rounded-xl border border-white/10">
-                    <CheckCircle2 className="w-5 h-5 text-green-400" />
+              <div className="hidden md:block space-y-3 md:space-y-4 mt-6 md:mt-0">
+                 <div className="flex items-center gap-3 text-xs md:text-sm font-bold bg-white/10 p-3 rounded-xl border border-white/10">
+                    <CheckCircle2 className="w-4 h-4 md:w-5 md:h-5 text-green-400" />
                     ضمان الحقوق المالية
                  </div>
-                 <div className="flex items-center gap-3 text-sm font-bold bg-white/10 p-3 rounded-xl border border-white/10">
-                    <CheckCircle2 className="w-5 h-5 text-green-400" />
+                 <div className="flex items-center gap-3 text-xs md:text-sm font-bold bg-white/10 p-3 rounded-xl border border-white/10">
+                    <CheckCircle2 className="w-4 h-4 md:w-5 md:h-5 text-green-400" />
                     شارة "موثوق" للملف الشخصي
                  </div>
               </div>
            </div>
 
-           <div className="md:col-span-3 p-10 max-h-[85vh] overflow-y-auto">
+           <div className="md:col-span-3 p-6 md:p-10">
               <AnimatePresence mode="wait">
                  {step === 'info' && (
                     <motion.div 

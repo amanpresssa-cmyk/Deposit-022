@@ -5,7 +5,7 @@ import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { UserProfile } from '../types';
-import { ShieldCheck, UserCheck, UserX, Clock, Search, AlertCircle, CheckCircle2, XCircle, TrendingUp, Wallet, PieChart, Activity, LayoutGrid, Image as ImageIcon, Upload } from 'lucide-react';
+import { ShieldCheck, UserCheck, UserX, Clock, Search, AlertCircle, CheckCircle2, XCircle, TrendingUp, Wallet, PieChart, Activity, LayoutGrid, Image as ImageIcon, Upload, Star } from 'lucide-react';
 import { motion } from 'motion/react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
@@ -139,6 +139,30 @@ export const AdminDashboard: React.FC = () => {
       });
     } catch (error) {
       console.error("Error toggling block status:", error);
+    }
+  };
+
+  const handleToggleFeatured = async (uid: string, currentStatus: boolean | undefined) => {
+    try {
+      const userRef = doc(db, 'users', uid);
+      await updateDoc(userRef, {
+        isFeatured: !currentStatus,
+        updatedAt: serverTimestamp()
+      });
+    } catch (error) {
+      console.error("Error toggling featured status:", error);
+    }
+  };
+
+  const updateResponseTime = async (uid: string, time: string) => {
+    try {
+      const userRef = doc(db, 'users', uid);
+      await updateDoc(userRef, {
+        avgResponseTime: time,
+        updatedAt: serverTimestamp()
+      });
+    } catch (error) {
+      console.error("Error updating response time:", error);
     }
   };
 
@@ -458,6 +482,7 @@ export const AdminDashboard: React.FC = () => {
                   <thead>
                       <tr className="bg-gray-50/50 text-gray-400 text-sm font-bold uppercase tracking-wider">
                         <th className="px-8 py-5">المستخدم</th>
+                        <th className="px-8 py-5">التميز والسرعة</th>
                         <th className="px-8 py-5">رقم الهوية</th>
                         <th className="px-8 py-5">الحالة</th>
                         <th className="px-8 py-5">مستوى الثقة</th>
@@ -483,6 +508,26 @@ export const AdminDashboard: React.FC = () => {
                                     <p className="font-bold text-gray-900">{user.displayName}</p>
                                     <p className="text-xs text-gray-400 font-medium">{user.email}</p>
                                   </div>
+                              </div>
+                            </td>
+                            <td className="px-8 py-6">
+                              <div className="flex flex-col gap-2">
+                                <button 
+                                  onClick={() => handleToggleFeatured(user.uid, user.isFeatured)}
+                                  className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-black transition-all ${
+                                    user.isFeatured ? 'bg-yellow-50 text-yellow-600 border border-yellow-200' : 'bg-gray-50 text-gray-400 border border-gray-100'
+                                  }`}
+                                >
+                                  <Star className={`w-3.5 h-3.5 ${user.isFeatured ? 'fill-yellow-600' : ''}`} />
+                                  {user.isFeatured ? 'متميز' : 'تمييز'}
+                                </button>
+                                <input 
+                                  type="text"
+                                  placeholder="سرعة الرد (مثال: 5 د)"
+                                  className="text-[10px] px-2 py-1 bg-gray-50 border border-gray-100 rounded focus:border-blue-300 outline-none w-24 font-bold"
+                                  defaultValue={user.avgResponseTime || ''}
+                                  onBlur={(e) => updateResponseTime(user.uid, e.target.value)}
+                                />
                               </div>
                             </td>
                             <td className="px-8 py-6">

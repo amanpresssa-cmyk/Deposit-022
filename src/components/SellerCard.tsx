@@ -1,6 +1,6 @@
 import React from 'react';
 import { UserProfile } from '../types';
-import { Star, ShieldCheck, MapPin, ExternalLink, MessageCircle } from 'lucide-react';
+import { Star, ShieldCheck, MapPin, ExternalLink, MessageCircle, Clock } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
 
@@ -24,14 +24,27 @@ export const SellerCard: React.FC<SellerCardProps> = ({ seller }) => {
               referrerPolicy="no-referrer"
             />
             {seller.isVerified && (
-              <div className="absolute -bottom-1 -right-1 bg-blue-600 border-2 border-white rounded-full p-1">
+              <div className="absolute -bottom-1 -right-1 bg-blue-600 border-2 border-white rounded-full p-1 shadow-sm">
                 <ShieldCheck className="w-3 h-3 text-white" />
               </div>
             )}
+            {seller.isFeatured && (
+              <div className="absolute -top-1 -left-1 bg-yellow-400 border-2 border-white rounded-full p-1 shadow-sm" title="بائع متميز">
+                <Star className="w-3 h-3 text-white fill-white" />
+              </div>
+            )}
           </div>
-          <div className="flex bg-orange-50 px-3 py-1 rounded-full items-center gap-1">
-            <Star className="w-4 h-4 text-orange-500 fill-orange-500" />
-            <span className="text-orange-700 font-bold text-sm">{seller.rating.toFixed(1)}</span>
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex bg-orange-50 px-3 py-1 rounded-full items-center gap-1">
+              <Star className="w-4 h-4 text-orange-500 fill-orange-500" />
+              <span className="text-orange-700 font-bold text-sm">{seller.rating.toFixed(1)}</span>
+            </div>
+            {seller.avgResponseTime && (
+              <div className="bg-green-50 px-2 py-0.5 rounded-lg flex items-center gap-1 border border-green-100">
+                <Clock className="w-3 h-3 text-green-600" />
+                <span className="text-green-700 font-bold text-[10px]">{seller.avgResponseTime}</span>
+              </div>
+            )}
           </div>
         </div>
 

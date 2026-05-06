@@ -3,8 +3,9 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { collection, addDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Shield, ChevronRight, AlertCircle, Search } from 'lucide-react';
+import { Shield, ChevronRight, AlertCircle, Search, Smartphone, Mail } from 'lucide-react';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
+import { sendOrderSMS } from '../lib/smsService';
 
 export const CreateOrderPage: React.FC = () => {
   const { user } = useAuth();
@@ -20,6 +21,7 @@ export const CreateOrderPage: React.FC = () => {
     category: 'عام'
   });
 
+  // Smart Auto-fill from URL params (e.g., from seller's external landing page)
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const email = params.get('email');
@@ -27,15 +29,17 @@ export const CreateOrderPage: React.FC = () => {
     const title = params.get('title');
     const amount = params.get('amount');
     const category = params.get('category');
+    const desc = params.get('desc') || params.get('description');
     
-    if (email || phone || title || amount || category) {
+    if (email || phone || title || amount || category || desc) {
       setFormData(prev => ({
         ...prev,
         sellerEmail: email || prev.sellerEmail,
         sellerPhone: phone || prev.sellerPhone,
         title: title || prev.title,
         amount: amount || prev.amount,
-        category: category || prev.category
+        category: category || prev.category,
+        description: desc || prev.description
       }));
     }
   }, [location.search]);
@@ -46,9 +50,14 @@ export const CreateOrderPage: React.FC = () => {
     e.preventDefault();
     if (!user) return;
 
+    if (!formData.sellerEmail && !formData.sellerPhone) {
+      alert('يجب إدخال البريد الإلكتروني أو رقم الجوال للطرف الآخر');
+      return;
+    }
+
     setLoading(true);
     try {
-      // Find seller by email or phone
+      // Find seller by email or phone to link if they already exist
       let sellerRef = null;
       
       if (formData.sellerEmail) {
@@ -58,7 +67,10 @@ export const CreateOrderPage: React.FC = () => {
       }
       
       if (!sellerRef && formData.sellerPhone) {
-        const phone = formData.sellerPhone.startsWith('+') ? formData.sellerPhone : `+966${formData.sellerPhone.replace(/^0/, '')}`;
+        let phone = formData.sellerPhone.trim();
+        if (!phone.startsWith('+')) {
+          phone = `+966${phone.replace(/^0/, '')}`;
+        }
         const sellerPhoneQuery = query(collection(db, 'users'), where('phoneNumber', '==', phone));
         const sellerSnap = await getDocs(sellerPhoneQuery);
         if (!sellerSnap.empty) sellerRef = sellerSnap.docs[0];
@@ -82,6 +94,17 @@ export const CreateOrderPage: React.FC = () => {
       };
 
       const docRef = await addDoc(collection(db, 'orders'), orderData);
+      
+      // Smart Logic: Send SMS invitation if phone is provided
+      if (formData.sellerPhone) {
+        await sendOrderSMS(
+          formData.sellerPhone.trim(), 
+          docRef.id, 
+          formData.title, 
+          parseFloat(formData.amount)
+        );
+      }
+
       navigate(`/order/${docRef.id}`);
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'orders');
@@ -166,38 +189,55 @@ export const CreateOrderPage: React.FC = () => {
           </div>
 
           <div className="space-y-6 pt-6 border-t">
-            <h3 className="font-bold text-gray-900 border-b pb-2">بيانات الطرف الآخر (البائع/المعقب)</h3>
+            <div className="flex items-center justify-between border-b pb-2">
+              <h3 className="font-bold text-gray-900">بيانات الطرف الآخر (البائع/المعقب)</h3>
+              <div className="flex gap-2">
+                <span className="bg-blue-50 text-blue-600 text-[10px] px-2 py-1 rounded-lg font-black flex items-center gap-1">
+                  <Smartphone className="w-3 h-3" />
+                  دعوة SMS ذكية
+                </span>
+              </div>
+            </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700 block">البريد الإلكتروني</label>
-                <div className="relative">
-                  <input
-                    type="email"
-                    className="w-full px-4 py-3.5 rounded-xl border border-gray-200 focus:border-blue-500 outline-none"
-                    placeholder="name@example.com"
-                    value={formData.sellerEmail}
-                    onChange={(e) => setFormData({...formData, sellerEmail: e.target.value})}
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700 block">رقم الجوال (اختياري)</label>
+                <label className="text-sm font-bold text-gray-700 block">رقم الجوال (يفضل لإسراع العملية)</label>
                 <div className="relative">
                   <input
                     type="tel"
-                    className="w-full px-4 py-3.5 rounded-xl border border-gray-200 focus:border-blue-500 outline-none"
+                    className="w-full px-4 py-3.5 rounded-xl border border-gray-200 focus:border-blue-500 outline-none pr-12"
                     placeholder="05XXXXXXXX"
                     value={formData.sellerPhone}
                     onChange={(e) => setFormData({...formData, sellerPhone: e.target.value})}
                   />
+                  <Smartphone className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-gray-700 block">البريد الإلكتروني (اختياري)</label>
+                <div className="relative">
+                  <input
+                    type="email"
+                    className="w-full px-4 py-3.5 rounded-xl border border-gray-200 focus:border-blue-500 outline-none pr-12"
+                    placeholder="name@example.com"
+                    value={formData.sellerEmail}
+                    onChange={(e) => setFormData({...formData, sellerEmail: e.target.value})}
+                  />
+                  <Mail className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
                 </div>
               </div>
             </div>
-            <p className="text-xs text-blue-600 bg-blue-50 p-3 rounded-lg flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>إذا لم يكن للطرف الآخر حساب، سيتم إرسال دعوة له عبر البريد الإلكتروني أو الجوال للانضمام وإتمام الصفقة.</span>
-            </p>
+            <div className="bg-blue-50 p-4 rounded-2xl space-y-3">
+              <p className="text-sm text-blue-700 font-bold flex items-center gap-2">
+                <Shield className="w-4 h-4" />
+                كيف يعمل النظام الذكي؟
+              </p>
+              <ul className="text-xs text-blue-600 space-y-2 pr-2 border-r-2 border-blue-100">
+                <li>• سيتم إرسال رسالة نصية فورية للبائع تحتوي على رابط مباشر للصفقة.</li>
+                <li>• إذا لم يكن للبائع حساب، سيوجهه الرابط لإنشاء حساب وربطه بالصفقة تلقائياً.</li>
+                <li>• يتم ربط الصفقة برقم الجوال أو الإيميل المدخل لضمان عدم وصولها لغير المعني.</li>
+              </ul>
+            </div>
           </div>
 
           <div className="bg-orange-50 border border-orange-100 p-5 rounded-2xl flex gap-4 text-orange-800 text-sm">

@@ -20,6 +20,11 @@
         "verificationStatus": { "type": "string", "enum": ["none", "pending", "verified", "rejected"] },
         "idNumber": { "type": "string" },
         "idPhotoUrl": { "type": "string" },
+        "isFeatured": { "type": "boolean" },
+        "avgResponseTime": { "type": "string" },
+        "referralCode": { "type": "string" },
+        "referredBy": { "type": "string" },
+        "freeFeeTransactions": { "type": "number" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["uid", "email", "createdAt"]
@@ -128,6 +133,19 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["orderId", "amount", "status", "createdAt"]
+    },
+    "Referral": {
+      "title": "Referral",
+      "description": "Information about user invitations",
+      "type": "object",
+      "properties": {
+        "inviterId": { "type": "string" },
+        "inviteeId": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "completed"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "completedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["inviterId", "inviteeId", "status", "createdAt"]
     }
   },
   "firestore": {
@@ -162,6 +180,10 @@
     "transactions": {
       "schema": "Transaction",
       "description": "Financial audit log for escrow"
+    },
+    "referrals": {
+      "schema": "Referral",
+      "description": "User referral tracking"
     }
   }
 }
