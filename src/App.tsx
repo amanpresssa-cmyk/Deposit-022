@@ -71,21 +71,8 @@ class ErrorBoundary extends Component<any, any> {
 }
 
 export default function App() {
-  const { user, loading, error, clearError } = useAuth();
-
-  // Test connection as required by integration instructions
-  useEffect(() => {
-    async function testConnection() {
-      try {
-        await getDocFromServer(doc(db, 'test', 'connection'));
-      } catch (error) {
-        if (error instanceof Error && error.message.includes('the client is offline')) {
-          console.error("Please check your Firebase configuration.");
-        }
-      }
-    }
-    testConnection();
-  }, []);
+  const { user, profile, loading, error, clearError } = useAuth();
+  const isAdmin = user?.email === 'khyratfarmdates@gmail.com' || profile?.isAdmin;
 
   if (loading) {
     return (
@@ -110,70 +97,73 @@ export default function App() {
   return (
     <Router>
       <ErrorBoundary>
-        <div className="min-h-screen bg-[#f8fafc] font-sans antialiased rtl relative" dir="rtl">
-        <AnimatePresence>
-          {error && (
-            <motion.div
-              initial={{ opacity: 0, y: -50 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -50 }}
-              className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] w-full max-w-md px-4"
-            >
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl shadow-lg flex items-center justify-between">
-                <span className="text-sm font-medium">{error}</span>
-                <button 
-                  onClick={clearError}
-                  className="p-1 hover:bg-red-100 rounded-lg transition-colors"
+        {isAdmin ? (
+          <div className="min-h-screen bg-gray-50" dir="rtl">
+            <AdminDashboard />
+          </div>
+        ) : (
+          <div className="min-h-screen bg-[#f8fafc] font-sans antialiased rtl relative" dir="rtl">
+            <AnimatePresence>
+              {error && (
+                <motion.div
+                  initial={{ opacity: 0, y: -50 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -50 }}
+                  className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] w-full max-w-md px-4"
                 >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-        <Navbar />
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-16 md:pb-8">
-          <AnimatePresence mode="wait">
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/search" element={<SearchPage />} />
-              <Route
-                path="/dashboard"
-                element={user ? <Dashboard /> : <Navigate to="/" />}
-              />
-              <Route
-                path="/order/:id"
-                element={<OrderDetailsPage />}
-              />
-              <Route
-                path="/seller/:sellerId"
-                element={<SellerProfilePage />}
-              />
-              <Route
-                path="/admin"
-                element={<AdminDashboard />}
-              />
-              <Route
-                path="/settings"
-                element={user ? <SettingsPage /> : <Navigate to="/" />}
-              />
-              <Route
-                path="/profile"
-                element={user ? <UserProfilePage /> : <Navigate to="/" />}
-              />
-              <Route
-                path="/create-order"
-                element={user ? <CreateOrderPage /> : <Navigate to="/" />}
-              />
-            </Routes>
-          </AnimatePresence>
-        </main>
-        <Footer />
-        <BottomNav />
-        <InstallPWAHint />
-        <ProductTour />
-        <SupportButton />
-      </div>
+                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl shadow-lg flex items-center justify-between">
+                    <span className="text-sm font-medium">{error}</span>
+                    <button 
+                      onClick={clearError}
+                      className="p-1 hover:bg-red-100 rounded-lg transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+            <Navbar />
+            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-16 md:pb-8">
+              <AnimatePresence mode="wait">
+                <Routes>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/search" element={<SearchPage />} />
+                  <Route
+                    path="/dashboard"
+                    element={user ? <Dashboard /> : <Navigate to="/" />}
+                  />
+                  <Route
+                    path="/order/:id"
+                    element={<OrderDetailsPage />}
+                  />
+                  <Route
+                    path="/seller/:sellerId"
+                    element={<SellerProfilePage />}
+                  />
+                  <Route
+                    path="/settings"
+                    element={user ? <SettingsPage /> : <Navigate to="/" />}
+                  />
+                  <Route
+                    path="/profile"
+                    element={user ? <UserProfilePage /> : <Navigate to="/" />}
+                  />
+                  <Route
+                    path="/create-order"
+                    element={user ? <CreateOrderPage /> : <Navigate to="/" />}
+                  />
+                  <Route path="*" element={<Navigate to="/" />} />
+                </Routes>
+              </AnimatePresence>
+            </main>
+            <Footer />
+            <BottomNav />
+            <InstallPWAHint />
+            <ProductTour />
+            <SupportButton />
+          </div>
+        )}
       </ErrorBoundary>
     </Router>
   );

@@ -12,6 +12,7 @@ export const CreateOrderPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [myRole, setMyRole] = useState<'buyer' | 'seller'>('buyer');
   const [formData, setFormData] = useState({
     title: '',
@@ -50,9 +51,22 @@ export const CreateOrderPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    setError(null);
+
+    // Basic Validation
+    if (!formData.title.trim()) {
+      setError('يرجى إدخال عنوان للصفقة');
+      return;
+    }
+    
+    const amountNum = parseFloat(formData.amount);
+    if (isNaN(amountNum) || amountNum <= 0) {
+      setError('يرجى إدخال مبلغ صحيح أكبر من صفر');
+      return;
+    }
 
     if (!formData.targetEmail && !formData.targetPhone) {
-      alert('يجب إدخال البريد الإلكتروني أو رقم الجوال للطرف الآخر للتمكن من دعوته');
+      setError('يجب إدخال البريد الإلكتروني أو رقم الجوال للطرف الآخر للتمكن من دعوته');
       return;
     }
 
@@ -62,7 +76,7 @@ export const CreateOrderPage: React.FC = () => {
       let targetRef = null;
       
       if (formData.targetEmail) {
-        const emailQuery = query(collection(db, 'users'), where('email', '==', formData.targetEmail.trim()));
+        const emailQuery = query(collection(db, 'users'), where('email', '==', formData.targetEmail.trim().toLowerCase()));
         const snap = await getDocs(emailQuery);
         if (!snap.empty) targetRef = snap.docs[0];
       }
@@ -82,14 +96,14 @@ export const CreateOrderPage: React.FC = () => {
       const orderData = {
         buyerId: myRole === 'buyer' ? user.uid : targetUserId,
         sellerId: myRole === 'seller' ? user.uid : targetUserId,
-        sellerEmail: myRole === 'seller' ? user.email : (formData.targetEmail.trim() || null),
+        sellerEmail: myRole === 'seller' ? user.email : (formData.targetEmail.trim().toLowerCase() || null),
         sellerPhone: myRole === 'seller' ? user.phoneNumber : (formData.targetPhone.trim() || null),
-        buyerEmail: myRole === 'buyer' ? user.email : (formData.targetEmail.trim() || null),
+        buyerEmail: myRole === 'buyer' ? user.email : (formData.targetEmail.trim().toLowerCase() || null),
         buyerPhone: myRole === 'buyer' ? user.phoneNumber : (formData.targetPhone.trim() || null),
         creatorId: user.uid,
-        title: formData.title,
-        description: formData.description,
-        amount: parseFloat(formData.amount),
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        amount: amountNum,
         status: 'pending',
         visibility: 'public',
         category: formData.category,
@@ -101,17 +115,26 @@ export const CreateOrderPage: React.FC = () => {
       
       // Smart Logic: Send SMS invitation if phone is provided
       if (formData.targetPhone) {
-        await sendOrderSMS(
-          formData.targetPhone.trim(), 
-          docRef.id, 
-          formData.title, 
-          parseFloat(formData.amount)
-        );
+        try {
+          await sendOrderSMS(
+            formData.targetPhone.trim(), 
+            docRef.id, 
+            formData.title, 
+            amountNum
+          );
+        } catch (smsErr) {
+          console.error("SMS Invite failed:", smsErr);
+          // Don't block the user if SMS fails, the order is created anyway
+        }
       }
 
       navigate(`/order/${docRef.id}`);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'orders');
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || 'حدث خطأ أثناء إنشاء الصفقة، يرجى المحاولة لاحقاً');
+      if (err.message?.includes('permission')) {
+        setError('خطأ في الصلاحيات: تأكد من إكمال بيانات حسابك أولاً');
+      }
     } finally {
       setLoading(false);
     }
@@ -274,6 +297,13 @@ export const CreateOrderPage: React.FC = () => {
             <Shield className="w-6 h-6 shrink-0 text-orange-500" />
             <p className="leading-relaxed">عند استكمال الطلب، سيتم تجميد المبلغ في منصة عربون. بمجرد تنفيذ الخدمة أو استلام المنتج وتأكيدك لذلك، سيتم تحويل المبلغ للطرف الآخر فوراً.</p>
           </div>
+
+          {error && (
+            <div className="bg-red-50 border border-red-100 p-4 rounded-2xl flex gap-3 text-red-700 text-sm animate-shake">
+              <AlertCircle className="w-5 h-5 shrink-0" />
+              <p className="font-bold">{error}</p>
+            </div>
+          )}
 
           <button
             type="submit"

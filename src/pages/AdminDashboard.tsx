@@ -12,7 +12,7 @@ import { ar } from 'date-fns/locale';
 import { sendNotification } from '../lib/notificationService';
 
 export const AdminDashboard: React.FC = () => {
-  const { profile } = useAuth();
+  const { profile, logout } = useAuth();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'pending' | 'verified' | 'rejected'>('all');
@@ -198,18 +198,6 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  if (!profile?.isAdmin && profile?.email !== 'khyratfarmdates@gmail.com') {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh] text-center p-8">
-        <div className="bg-red-50 p-12 rounded-[3rem] border border-red-100 max-w-md">
-           <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-6" />
-           <h2 className="text-2xl font-black text-red-900 mb-4">الدخول غير مصرح</h2>
-           <p className="text-red-700 font-medium">ليس لديك صلاحيات الوصول لهذه الصفحة. يرجى العودة للرئيسية.</p>
-        </div>
-      </div>
-    );
-  }
-
   const filteredUsers = users.filter(u => {
     const matchesFilter = filter === 'all' || u.verificationStatus === filter;
     const matchesSearch = u.displayName.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -218,7 +206,36 @@ export const AdminDashboard: React.FC = () => {
   });
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-12 space-y-12">
+    <div className="min-h-screen bg-gray-50 rtl" dir="rtl">
+      <header className="bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-100">
+               <ShieldCheck className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-lg font-black text-gray-900 leading-none">مدير النظام</h2>
+              <p className="text-[10px] text-gray-400 font-bold mt-1 uppercase tracking-widest">Arboon Admin Console</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <div className="hidden md:block text-left">
+              <p className="text-xs font-bold text-gray-900 leading-none">{profile?.displayName}</p>
+              <p className="text-[10px] text-gray-400 font-medium mt-1">{profile?.email}</p>
+            </div>
+            <button 
+              onClick={() => logout()}
+              className="flex items-center gap-2 px-4 py-2 text-red-600 font-black text-xs hover:bg-red-50 rounded-xl transition-all border border-transparent hover:border-red-100"
+            >
+              <Activity className="w-4 h-4" />
+              تسجيل الخروج
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <div className="max-w-7xl mx-auto px-4 py-12 space-y-12">
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6">
         <div>
            <h1 className="text-4xl font-black text-gray-900 mb-2">مركز إدارة عربون</h1>
@@ -624,5 +641,6 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
     </div>
+  </div>
   );
 };

@@ -115,7 +115,7 @@ service cloud.firestore {
       
       allow create: if isSignedIn() 
         && isValidOrder(incoming())
-        && isOwner(incoming().buyerId)
+        && (isOwner(incoming().buyerId) || isOwner(incoming().sellerId) || isOwner(incoming().creatorId))
         && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isBlocked != true)
         && incoming().status == 'pending'
         && incoming().createdAt == request.time;
