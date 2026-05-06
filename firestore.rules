@@ -63,6 +63,8 @@ service cloud.firestore {
               incoming().diff(existing()).affectedKeys().hasOnly(['referralCode', 'updatedAt']) ||
               // Action: Become Seller
               incoming().diff(existing()).affectedKeys().hasOnly(['isSeller', 'bio', 'specialties', 'trustLevel', 'updatedAt']) ||
+              // Action: Performance Sync (Automation)
+              incoming().diff(existing()).affectedKeys().hasOnly(['avgResponseTime', 'isFeatured', 'updatedAt']) ||
               // Action: Submit Verification
               incoming().diff(existing()).affectedKeys().hasOnly(['idNumber', 'phoneNumber', 'idPhotoUrl', 'agreedToTerms', 'verificationStatus', 'trustLevel', 'updatedAt']) ||
               // Action: Rating update (from OrderRating component)

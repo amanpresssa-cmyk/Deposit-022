@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { collection, addDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Shield, ChevronRight, AlertCircle, Search, Smartphone, Mail } from 'lucide-react';
+import { Shield, ChevronRight, AlertCircle, Search, Smartphone, Mail, CreditCard } from 'lucide-react';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { sendOrderSMS } from '../lib/smsService';
 

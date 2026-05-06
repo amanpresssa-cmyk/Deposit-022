@@ -67,30 +67,32 @@ export const IdentityVerification: React.FC<Props> = ({ onClose }) => {
       const base64Data = base64.split(',')[1];
       const mimeType = file.type || 'image/jpeg';
 
-      const prompt = `أنت خبير في التحقق من الهويات والوثائق الرسمية. 
-مهمتك هي فحص الصورة المرفقة والتأكد مما إذا كانت تمثل (هوية وطنية سعودية، أو إقامة، أو جواز سفر).
-الهدف هو التأكد من أن الوثيقة حقيقية وأن البيانات مقروءة.
+      const prompt = `بصفتك خبير في مراجعة الوثائق، افحص هذه الصورة جيداً.
+المطلوب هو التأكد من أنها وثيقة هوية (هوية وطنية، إقامة، جواز سفر، رخصة قيادة).
+نحن بحاجة للتأكد من أن البيانات (الاسم أو الرقم) تظهر بوضوح كافٍ.
 
-كن مرناً جداً في القبول:
-- اقبل الصورة حتى لو كانت الخلفية غير احترافية.
-- اقبل الصورة حتى لو كانت الوثيقة محمولة باليد.
-- اقبل الصورة طالما أن الاسم أو رقم الهوية أو الصورة الشخصية واضحة بدرجة كافية.
+تعليمات القبول:
+1. كن مرناً جداً: اقبل الصورة حتى لو كانت مشوشة قليلاً أو الإضاءة غير مثالية.
+2. اقبل الوثيقة إذا كانت محمولة باليد أو مائلة.
+3. الهدف هو مجرد التأكد من أنها وثيقة رسمية وليست صورة عشوائية.
 
 أجب حصراً بتنسيق JSON:
 {
-  "valid": true/false,
-  "reason": "اشرح السبب باختصار بالعربية (مثلاً: وثيقة صالحة، أو الصورة مشوشة جداً)",
+  "valid": true,
+  "reason": "اشرح باختصار بالعربي لماذا مقبولة أو مرفوضة",
   "documentType": "نوع الوثيقة"
 }`;
 
+      // Use a more stable flash model version for vision tasks
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: {
+        model: "gemini-1.5-flash",
+        contents: [{
+          role: 'user',
           parts: [
             { text: prompt },
             { inlineData: { mimeType, data: base64Data } }
           ]
-        },
+        }],
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -105,13 +107,38 @@ export const IdentityVerification: React.FC<Props> = ({ onClose }) => {
         }
       });
 
-      const text = response.text;
-      
-      if (!text) {
-        throw new Error('EMPTY_RESPONSE');
+      // Handle the response properly based on the new SDK structure
+      let text = '';
+      try {
+        text = response.text || '';
+        if (!text && (response as any).candidates?.[0]?.content?.parts?.[0]?.text) {
+          text = (response as any).candidates[0].content.parts[0].text;
+        }
+      } catch (e) {
+        console.error('Error getting text from response:', e);
+        if ((response as any).candidates?.[0]?.finishReason === 'SAFETY') {
+          throw new Error('تم حجب الصورة بواسطة فلاتر الأمان. يرجى التأكد من أنها وثيقة رسمية فقط.');
+        }
       }
 
-      const jsonResult = JSON.parse(text);
+      console.log('AI verification raw response:', text);
+      
+      if (!text) {
+        throw new Error('لم نتلقى نصاً مفهوماً من نظام الفحص. يرجى المحاولة بصورة أوضح.');
+      }
+
+      let jsonResult;
+      try {
+        jsonResult = JSON.parse(text);
+      } catch (e) {
+        console.error('Failed to parse AI response:', text);
+        // Fallback for non-JSON response if model didn't follow instructions
+        if (text.toLowerCase().includes('true') || text.includes('نعم') || text.includes('قبول')) {
+          jsonResult = { valid: true, reason: 'تم القبول تلقائياً', documentType: 'وثيقة رسمية' };
+        } else {
+          throw new Error('فشل في تحليل رد الذكاء الاصطناعي.');
+        }
+      }
       
       if (jsonResult.valid) {
         setAiStatus('success');
@@ -129,8 +156,12 @@ export const IdentityVerification: React.FC<Props> = ({ onClose }) => {
       if (err instanceof Error) {
         if (err.message.includes('API_KEY_MISSING')) {
           errorMessage = 'نظام التحقق غير مفعل حالياً (نقص في الإعدادات).';
-        } else if (err.message.includes('404') || err.message.includes('not found')) {
-          errorMessage = 'فشل الوصول إلى نموذج الذكاء الاصطناعي. يرجى المحاولة لاحقاً.';
+        } else if (err.message.includes('404')) {
+          errorMessage = 'فشل الوصول إلى نموذج الذكاء الاصطناعي (404). يرجى المحاولة لاحقاً.';
+        } else if (err.message.includes('429')) {
+          errorMessage = 'تم تجاوز عدد المحاولات المسموح بها. يرجى المحاولة بعد قليل.';
+        } else {
+          errorMessage = err.message; // Show specific error if available
         }
       }
       

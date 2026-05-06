@@ -14,6 +14,7 @@ export const Home: React.FC = () => {
   const { login, user } = useAuth();
   const [featuredSellers, setFeaturedSellers] = React.useState<UserProfile[]>([]);
   const [homeCard, setHomeCard] = useState<any>(null);
+  const [loadingSellers, setLoadingSellers] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -30,33 +31,36 @@ export const Home: React.FC = () => {
   React.useEffect(() => {
     const fetchSellers = async () => {
       try {
-        // Use a simpler query to avoid composite index requirements
-        // We'll filter and sort in memory for maximum reliability
+        setLoadingSellers(true);
+        // Fetch real sellers with high potential (isVerified or High Rating)
         const q = query(
           collection(db, 'users'), 
           where('isSeller', '==', true),
-          limit(100)
+          limit(12)
         );
         
         const snap = await getDocs(q);
         let sellers = snap.docs
           .map(d => ({ uid: d.id, ...d.data() } as UserProfile))
-          .filter(u => u.isBlocked !== true);
+          .filter(u => u.isBlocked !== true && u.displayName);
         
         // Custom sort logic:
         // 1. Featured sellers first
-        // 2. Then by rating (desc)
-        // 3. Then by review count (desc)
+        // 2. Verified sellers next
+        // 3. Then by rating (desc)
+        // 4. Then by review count (desc)
         sellers.sort((a, b) => {
           if (a.isFeatured !== b.isFeatured) return a.isFeatured ? -1 : 1;
+          if (a.isVerified !== b.isVerified) return a.isVerified ? -1 : 1;
           if ((b.rating || 0) !== (a.rating || 0)) return (b.rating || 0) - (a.rating || 0);
           return (b.reviewsCount || 0) - (a.reviewsCount || 0);
         });
 
-        // Take top 12
-        setFeaturedSellers(sellers.slice(0, 12));
+        setFeaturedSellers(sellers);
       } catch (e) {
         console.error("Error fetching featured sellers:", e);
+      } finally {
+        setLoadingSellers(false);
       }
     };
     fetchSellers();
@@ -174,53 +178,44 @@ export const Home: React.FC = () => {
       {/* Featured Sellers - Mobile Grid/Scroll */}
       <section className="px-4 space-y-6">
         <div className="flex justify-between items-end">
-          <div>
+          <div className="text-right w-full">
             <h2 className="text-xl font-black text-gray-900 leading-none">بائعين متميزين</h2>
-            <p className="text-gray-400 mt-1 text-[10px] font-bold uppercase tracking-wider">نخبة المنصّة</p>
+            <p className="text-[10px] text-gray-400 font-bold mt-2 uppercase tracking-tight">نخبة المعقبين والوسطاء الموثوقين الذين أثبتوا كفاءتهم</p>
           </div>
-          <button 
-            onClick={() => navigate('/search')} 
-            className="text-blue-600 font-bold text-xs bg-blue-50 px-3 py-1.5 rounded-full hover:bg-blue-100 transition-colors"
-          >
-            عرض الكل
-          </button>
         </div>
         
-        <div className="flex md:grid md:grid-cols-3 gap-3 overflow-x-auto pb-4 snap-x no-scrollbar -mx-4 px-4">
-          {featuredSellers.length > 0 ? (
-            featuredSellers.map(seller => (
-              <div key={seller.uid} className="min-w-[140px] md:min-w-0 snap-center">
-                <SellerCard seller={seller} />
-              </div>
+        <div className="flex md:grid md:grid-cols-3 lg:grid-cols-4 gap-4 overflow-x-auto pb-6 snap-x no-scrollbar -mx-4 px-4 scroll-smooth">
+          {loadingSellers ? (
+            // Skeleton Loading
+            [1, 2, 3, 4].map(i => (
+              <div key={i} className="min-w-[280px] md:min-w-0 h-64 bg-gray-50 animate-pulse rounded-[2rem] border border-gray-100" />
             ))
-          ) : (
-            [
-              { title: 'معقب معتمد', cat: 'تعقيب', price: '200 ر.س', rating: '4.9' },
-              { title: 'فحص فني', cat: 'سيارات', price: '150 ر.س', rating: '4.8' },
-              { title: 'برمجة متجر', cat: 'برمجة', price: '800 ر.س', rating: '5.0' },
-            ].map((item, i) => (
-              <motion.div
-                key={i}
-                whileTap={{ scale: 0.98 }}
-                className="min-w-[140px] md:min-w-0 snap-center bg-white p-4 rounded-3xl border border-gray-100 shadow-sm space-y-3"
+          ) : featuredSellers.length > 0 ? (
+            featuredSellers.map(seller => (
+              <motion.div 
+                key={seller.uid} 
+                className="min-w-[280px] md:min-w-0 snap-center"
+                initial={{ opacity: 0, scale: 0.95 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                viewport={{ once: true }}
               >
-                <div className="flex justify-between items-center">
-                   <span className="text-[8px] font-black uppercase text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">{item.cat}</span>
-                   <div className="flex items-center gap-0.5 text-orange-500 font-bold text-[10px]">
-                     <Star className="w-2.5 h-2.5 fill-current" />
-                     <span>{item.rating}</span>
-                   </div>
-                </div>
-                <h3 className="font-bold text-xs text-gray-900 line-clamp-1">{item.title}</h3>
-                <p className="text-blue-600 font-black text-sm">{item.price}</p>
-                <button 
-                  onClick={() => navigate('/search')} 
-                  className="w-full py-2 bg-gray-50 text-gray-900 rounded-xl text-[9px] font-black uppercase transition-all"
-                >
-                  التفاصيل
-                </button>
+                <SellerCard seller={seller} />
               </motion.div>
             ))
+          ) : (
+            <div className="col-span-full py-16 text-center bg-white rounded-[2.5rem] border-2 border-dashed border-gray-100 w-full">
+               <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                 <Users className="w-10 h-10 text-blue-200" />
+               </div>
+               <h3 className="font-bold text-gray-900 text-lg">بانتظار الباعة المتميزين الجدد</h3>
+               <p className="text-gray-400 text-sm mt-2 max-w-xs mx-auto">كن أول من يوثق حسابه ويظهر في واجهة المنصة لزيادة مبيعاتك.</p>
+               <button 
+                 onClick={() => navigate('/dashboard')}
+                 className="mt-6 bg-blue-600 text-white px-8 py-3 rounded-2xl font-bold text-sm shadow-xl shadow-blue-100 hover:scale-105 transition-all"
+               >
+                 التوثيق كبائع متميز
+               </button>
+            </div>
           )}
         </div>
       </section>

@@ -3,7 +3,7 @@ import { doc, updateDoc, increment, collection, addDoc, serverTimestamp, getDoc 
 import { db } from '../lib/firebase';
 import { Star, MessageSquare, Send } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { sendAdminNotification, recordAuditLog } from '../lib/notificationService';
+import { sendAdminNotification, recordAuditLog, updateSellerPerformance } from '../lib/notificationService';
 
 interface OrderRatingProps {
   orderId: string;
@@ -82,6 +82,9 @@ export const OrderRating: React.FC<OrderRatingProps> = ({ orderId, reviewerId, r
       } else {
         await updateDoc(orderRef, { sellerRatingCompleted: true });
       }
+
+      // 7. Update Performance (Automated Featured Status & Response Speed)
+      await updateSellerPerformance(revieweeId);
 
       onSuccess();
     } catch (error) {

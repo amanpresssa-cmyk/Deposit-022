@@ -176,13 +176,13 @@ export const SupportButton: React.FC = () => {
   if (isHidden) return null;
 
   return (
-    <div className="fixed bottom-28 md:bottom-8 right-6 md:right-8 z-[60] md:z-40 flex flex-col items-end gap-3 pointer-events-none">
+    <div className="fixed bottom-28 md:bottom-8 left-6 md:left-8 z-[60] md:z-40 flex flex-col items-start gap-4 pointer-events-none">
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.8, x: 20 }}
+            initial={{ opacity: 0, scale: 0.8, x: -20 }}
             animate={{ opacity: 1, scale: 1, x: 0 }}
-            exit={{ opacity: 0, scale: 0.8, x: 20 }}
+            exit={{ opacity: 0, scale: 0.8, x: -20 }}
             className="fixed inset-0 md:relative md:inset-auto z-[60] md:z-auto w-full h-[100dvh] md:h-auto md:w-96 md:max-h-[600px] bg-white md:rounded-[2.5rem] border-0 md:border border-gray-100 md:shadow-2xl flex flex-col overflow-hidden pointer-events-auto rtl"
             dir="rtl"
           >
@@ -290,8 +290,9 @@ export const SupportButton: React.FC = () => {
         )}
       </AnimatePresence>
 
-      <div className="relative pointer-events-auto flex flex-row-reverse items-center gap-1.5 translate-y-1">
+      <div className="relative pointer-events-auto flex items-center gap-2 translate-y-1">
         <motion.button
+          id="chat-trigger-button"
           onClick={() => setIsOpen(!isOpen)}
             animate={{ 
               y: isOpen ? 0 : [0, -8, 0],
@@ -311,6 +312,7 @@ export const SupportButton: React.FC = () => {
 
         {!isOpen && (
           <button 
+            id="chat-close-temp-button"
             onClick={hideBot}
             className="w-8 h-8 md:w-9 md:h-9 bg-gray-100/80 backdrop-blur-sm text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl flex items-center justify-center transition-all border border-gray-100 group relative shadow-sm"
             title="إخفاء لمدة 5 دقائق"

@@ -11,7 +11,8 @@ import { ar } from 'date-fns/locale';
 import { ChatRoom } from '../components/chat/ChatRoom';
 import { OrderRating } from '../components/OrderRating';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
-import { sendNotification, recordTransaction } from '../lib/notificationService';
+import { sendNotification, recordTransaction, recordOrderEvent, updateSellerPerformance } from '../lib/notificationService';
+import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 
 export const OrderDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -23,6 +24,8 @@ export const OrderDetailsPage: React.FC = () => {
   const [ratingSuccess, setRatingSuccess] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'mada' | 'visa' | 'apple'>('mada');
+  const [completionComment, setCompletionComment] = useState('');
+  const [orderLogs, setOrderLogs] = useState<any[]>([]);
 
   useEffect(() => {
     if (!id) return;
@@ -38,17 +41,42 @@ export const OrderDetailsPage: React.FC = () => {
        handleFirestoreError(error, OperationType.GET, `orders/${id}`);
     });
 
-    return () => unsubscribe();
+    // Fetch Audit Logs
+    const logQuery = query(collection(db, 'orderLogs'), where('orderId', '==', id), orderBy('createdAt', 'desc'));
+    const unsubscribeLogs = onSnapshot(logQuery, (snapshot) => {
+      setOrderLogs(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+
+    return () => {
+      unsubscribe();
+      unsubscribeLogs();
+    };
   }, [id, navigate]);
 
-  const updateStatus = async (newStatus: Order['status']) => {
-    if (!order) return;
+  const updateStatus = async (newStatus: Order['status'], comment?: string) => {
+    if (!order || !user) return;
     setActionLoading(true);
     try {
+      const prevStatus = order.status;
       await updateDoc(doc(db, 'orders', order.id), {
         status: newStatus,
         updatedAt: serverTimestamp(),
       });
+
+      // Record in Audit Trail
+      await recordOrderEvent(
+        order.id,
+        user.uid,
+        `تغيير الحالة: ${newStatus}`,
+        prevStatus,
+        newStatus,
+        comment
+      );
+
+      // If seller is updating status, sync their performance metrics
+      if (order.sellerId === user.uid) {
+        await updateSellerPerformance(user.uid);
+      }
 
       // --- Notifications Logic ---
       const messages: Record<string, string> = {
@@ -250,6 +278,14 @@ export const OrderDetailsPage: React.FC = () => {
         sellerId: user.uid,
         updatedAt: serverTimestamp(),
       });
+      await recordOrderEvent(
+        order.id,
+        user.uid,
+        'قبول الصفقة',
+        order.status,
+        order.status,
+        'قام الطرف الثاني بقبول الصفقة وربطها بحسابه.'
+      );
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `orders/${order.id}`);
     } finally {
@@ -311,20 +347,20 @@ export const OrderDetailsPage: React.FC = () => {
       <div className="grid lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
           {/* Status Tracker */}
-          <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
-            <div className="flex justify-between items-center mb-8">
+          <div className="bg-white p-4 md:p-8 rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="flex justify-between items-center mb-8 overflow-x-auto pb-4 gap-4 px-2 no-scrollbar">
                {steps.map((step, idx) => (
-                 <div key={step.key} className="flex flex-col items-center gap-2 relative z-10">
-                   <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-500 ${
+                 <div key={step.key} className="flex flex-col items-center gap-2 relative z-10 shrink-0">
+                   <div className={`w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center transition-all duration-500 ${
                      idx <= currentStepIndex ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' : 'bg-gray-100 text-gray-400'
                    }`}>
-                     {React.cloneElement(step.icon as React.ReactElement, { className: 'w-5 h-5' })}
+                     {React.cloneElement(step.icon as React.ReactElement, { className: 'w-4 h-4 md:w-5 md:h-5' })}
                    </div>
-                   <span className={`text-xs font-bold ${idx <= currentStepIndex ? 'text-blue-600' : 'text-gray-400'}`}>
+                   <span className={`text-[10px] md:text-xs font-bold whitespace-nowrap ${idx <= currentStepIndex ? 'text-blue-600' : 'text-gray-400'}`}>
                      {step.label}
                    </span>
                    {idx < steps.length - 1 && (
-                     <div className={`absolute top-6 left-12 w-[calc(100%-24px)] h-[2px] -z-10 ${
+                     <div className={`absolute top-5 md:top-6 left-10 md:left-12 w-[calc(100%+16px)] h-[2px] -z-10 ${
                        idx < currentStepIndex ? 'bg-blue-600' : 'bg-gray-100'
                      }`} />
                    )}
@@ -373,6 +409,46 @@ export const OrderDetailsPage: React.FC = () => {
                 </div>
              </div>
              
+             {/* Audit Timeline - Oversight */}
+             <div className="p-8 border-t border-gray-100 bg-gray-50/20">
+               <div className="flex items-center gap-2 mb-6">
+                  <Clock className="w-5 h-5 text-gray-400" />
+                  <h3 className="font-bold text-gray-900 underline decoration-blue-100 decoration-4">سجل الرقابة والتحركات</h3>
+               </div>
+               <div className="space-y-6">
+                 {orderLogs.length === 0 ? (
+                   <p className="text-sm text-gray-400 text-center py-4 italic text-right">بانتظار التحركات الأولى في الصفقة...</p>
+                 ) : (
+                   <div className="relative border-r-2 border-gray-100 pr-6 mr-3 space-y-8">
+                      {orderLogs.map((log) => (
+                        <div key={log.id} className="relative">
+                           <div className={`absolute -right-[33px] top-0 w-4 h-4 rounded-full border-2 border-white shadow-sm transition-colors ${
+                             log.newStatus === 'completed' ? 'bg-green-500' : 
+                             log.newStatus === 'cancelled' ? 'bg-red-500' :
+                             log.newStatus === 'disputed' ? 'bg-amber-500' : 
+                             log.newStatus === 'delivered' ? 'bg-blue-600' : 'bg-blue-300'
+                           }`} />
+                           <div className="space-y-1 text-right">
+                              <div className="flex justify-between items-start">
+                                 <p className="text-sm font-black text-gray-900 leading-none">{log.action}</p>
+                                 <span className="text-[10px] text-gray-400 font-bold bg-white px-2 py-1 rounded-lg border border-gray-50">
+                                   {log.createdAt ? format(log.createdAt.toDate(), 'HH:mm - d MMM', { locale: ar }) : ''}
+                                 </span>
+                              </div>
+                              {log.comment && (
+                                <p className="text-xs text-gray-600 bg-white p-3 rounded-2xl border border-gray-100 shadow-sm mt-2 italic leading-relaxed text-right">
+                                  "{log.comment}"
+                                </p>
+                              )}
+                              <p className="text-[10px] text-gray-400 mt-1 text-right">بواسطة: {log.userId === order.buyerId ? 'المشتري' : (log.userId === order.sellerId ? 'المعقب' : 'النظام')}</p>
+                           </div>
+                        </div>
+                      ))}
+                   </div>
+                 )}
+               </div>
+             </div>
+             
              {/* Action Bar */}
              <div className="p-8 bg-gray-50/50 border-t border-gray-100">
                <div className="flex flex-wrap gap-4">
@@ -402,22 +478,54 @@ export const OrderDetailsPage: React.FC = () => {
                    </div>
                  )}
                  {order.status === 'escrowed' && isSeller && (
-                    <button
-                      onClick={() => updateStatus('delivered')}
-                      disabled={actionLoading}
-                      className="bg-[#2563eb] text-white px-8 py-3 rounded-xl font-bold hover:bg-[#1d4ed8] transition-all shadow-md"
-                    >
-                      تأكيد تسليم الخدمة/المنتج
-                    </button>
+                    <div className="w-full space-y-4">
+                      <div className="space-y-2">
+                         <label className="text-sm font-bold text-gray-700 block">وصف العمل المنجز (إثبات التسليم)</label>
+                         <textarea 
+                           className="w-full bg-white border border-gray-200 rounded-2xl p-4 text-sm focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                           placeholder="اكتب هنا ما تم إنجازه، أو أي ملاحظات للعميل قبل تأكيد التسليم..."
+                           value={completionComment}
+                           onChange={(e) => setCompletionComment(e.target.value)}
+                         />
+                      </div>
+                      <button
+                        onClick={() => updateStatus('delivered', completionComment)}
+                        disabled={actionLoading || !completionComment.trim()}
+                        className="bg-[#2563eb] text-white px-8 py-3 rounded-xl font-bold hover:bg-[#1d4ed8] transition-all shadow-md disabled:opacity-50"
+                      >
+                        إرسال العمل وتأكيد التسليم
+                      </button>
+                    </div>
                  )}
                  {order.status === 'delivered' && isBuyer && (
-                    <button
-                      onClick={() => updateStatus('completed')}
-                      disabled={actionLoading}
-                      className="bg-green-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-green-700 transition-all shadow-md"
-                    >
-                      موافقة وتحرير المبلغ للبائع
-                    </button>
+                    <div className="flex flex-col gap-4">
+                      <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 flex gap-3">
+                         <CheckCircle2 className="w-6 h-6 text-blue-600 shrink-0" />
+                         <div>
+                            <p className="text-sm font-bold text-blue-900">ملاحظة المعقب حول التسليم:</p>
+                            <p className="text-sm text-blue-700 leading-relaxed italic">{orderLogs.find(l => l.newStatus === 'delivered')?.comment || 'لم يتم ترك ملاحظات'}</p>
+                         </div>
+                      </div>
+                      <div className="flex gap-4">
+                        <button
+                          onClick={() => updateStatus('completed')}
+                          disabled={actionLoading}
+                          className="bg-green-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-green-700 transition-all shadow-md flex-1"
+                        >
+                          موافقة وتحرير المبلغ
+                        </button>
+                        <button
+                          onClick={() => {
+                            const reason = prompt('يرجى ذكر سبب رفض التسليم:');
+                            if (reason) updateStatus('escrowed', `تم رفض التسليم: ${reason}`);
+                          }}
+                          disabled={actionLoading}
+                          className="bg-white text-gray-500 border border-gray-200 px-6 py-3 rounded-xl font-bold hover:bg-gray-50"
+                        >
+                          طلب تعديل/رفض
+                        </button>
+                      </div>
+                    </div>
                  )}
                  {(order.status === 'escrowed' || order.status === 'delivered') && (
                     <button

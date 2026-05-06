@@ -7,7 +7,7 @@ import { Send, User as UserIcon, Clock } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { handleFirestoreError, OperationType } from '../../lib/error-handler';
-import { sendNotification } from '../../lib/notificationService';
+import { sendNotification, updateSellerPerformance } from '../../lib/notificationService';
 
 interface ChatRoomProps {
   orderId: string;
@@ -95,6 +95,11 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ orderId }) => {
         orderId,
         user.uid
       );
+
+      // If sender is a seller, update their performance metrics automatically
+      if (order?.sellerId === user.uid) {
+        await updateSellerPerformance(user.uid);
+      }
 
       setNewMessage('');
     } catch (error) {
