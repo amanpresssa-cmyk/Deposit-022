@@ -5,7 +5,7 @@ import { db } from '../lib/firebase';
 import { useAuth } from '../hooks/useAuth';
 import { Order } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
-import { Shield, Clock, CheckCircle2, ChevronRight, AlertTriangle, CreditCard, PackageCheck } from 'lucide-react';
+import { Shield, Clock, CheckCircle2, ChevronRight, AlertTriangle, CreditCard, PackageCheck, Copy, Check } from 'lucide-react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { ChatRoom } from '../components/chat/ChatRoom';
@@ -31,6 +31,14 @@ export const OrderDetailsPage: React.FC = () => {
   const [specificProvider, setSpecificProvider] = useState<'mada' | 'visa' | 'mastercard' | 'applepay' | 'stcpay' | 'tabby' | 'tamara'>('mada');
   const [completionComment, setCompletionComment] = useState('');
   const [orderLogs, setOrderLogs] = useState<any[]>([]);
+  const [copied, setCopied] = useState(false);
+
+  const copyOrderLink = () => {
+    const url = window.location.href;
+    navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -270,7 +278,19 @@ export const OrderDetailsPage: React.FC = () => {
           <ChevronRight className="w-4 h-4" />
           <span>{order.title}</span>
         </div>
-        <p className="font-mono font-bold text-sm">#ARB-{order.id.slice(0, 8).toUpperCase()}</p>
+        <div className="flex items-center gap-3">
+          <p className="font-mono font-bold text-sm bg-gray-50 px-3 py-1 rounded-lg border border-gray-100">#ARB-{order.id.slice(0, 8).toUpperCase()}</p>
+          <button 
+            onClick={copyOrderLink}
+            className="flex items-center gap-2 text-xs font-black text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 hover:bg-blue-100 transition-all group"
+          >
+            {copied ? (
+              <><Check className="w-3 h-3" /> تم النسخ</>
+            ) : (
+              <><Copy className="w-3 h-3 group-hover:scale-110 transition-transform" /> نسخ رابط الطلب</>
+            )}
+          </button>
+        </div>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-8">
@@ -339,7 +359,7 @@ export const OrderDetailsPage: React.FC = () => {
                 {order.status === 'pending' && isBuyer && (
                   <button onClick={() => setShowPaymentModal(true)} disabled={actionLoading} className="bg-green-600 text-white px-8 py-3 rounded-xl font-bold flex items-center gap-2">
                     <CreditCard className="w-5 h-5" />
-                    دفع وتعميد المبلغ
+                    دفع وتعميد الطلب
                   </button>
                 )}
                 {order.status === 'escrowed' && isSeller && (

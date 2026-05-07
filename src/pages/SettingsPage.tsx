@@ -388,38 +388,27 @@ export const SettingsPage: React.FC = () => {
                                  <Smartphone className="w-6 h-6" />
                               </div>
                               <div className="text-right">
-                                 <p className="font-black text-gray-900">توثيق الهوية والجوال</p>
+                                 <p className="font-black text-gray-900">توثيق رقم الجوال</p>
                                  <p className="text-[10px] text-blue-600 font-bold mt-1 leading-relaxed">
-                                    {profile?.verificationStatus === 'verified' 
-                                      ? 'أنت أحد الأعضاء الموثوقين في المنصة' 
-                                      : 'قم بتوثيق حسابك للحصول على شارة التحقق ورفع مستوى الثقة.'}
+                                    {profile?.phoneNumber 
+                                      ? 'رقم جوالك موثق ومرتبط بحسابك' 
+                                      : 'قم بتوثيق رقم جوالك عبر رمز OTP لرفع مستوى الأمان في حسابك.'}
                                  </p>
                               </div>
                            </div>
                            
-                           {profile?.verificationStatus === 'verified' ? (
+                           {profile?.phoneNumber ? (
                              <div className="bg-white px-6 py-3 rounded-2xl flex items-center gap-2 text-green-600 font-black text-xs shadow-sm shadow-green-100 ring-1 ring-green-100">
                                 <CheckCircle2 className="w-4 h-4" />
-                                موثق بالكامل
+                                موثق
                              </div>
                            ) : (
                              <div className="flex flex-col gap-3 items-end">
-                               {profile?.verificationStatus === 'rejected' && profile.verificationRejectionReason && (
-                                 <div className="bg-red-50 p-4 rounded-2xl border border-red-100 text-right space-y-2 max-w-md">
-                                    <div className="flex items-center gap-2 text-red-600 font-black text-xs">
-                                      <ShieldAlert className="w-4 h-4" />
-                                      سبب الرفض:
-                                    </div>
-                                    <p className="text-xs text-red-700 font-medium leading-relaxed">
-                                      {profile.verificationRejectionReason}
-                                    </p>
-                                 </div>
-                               )}
                                <button 
-                                 onClick={() => setShowIdentityVerification(true)}
+                                 onClick={() => setShowPhoneVerification(true)}
                                  className="bg-blue-600 text-white px-8 py-3 rounded-2xl text-xs font-black hover:bg-blue-700 transition-all shadow-xl shadow-blue-200"
                                >
-                                 {profile?.verificationStatus === 'rejected' ? 'إعادة المحاولة' : 'ابدأ التوثيق الآن'}
+                                 ابدأ التوثيق الآن
                                </button>
                              </div>
                            )}
