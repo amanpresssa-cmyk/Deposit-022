@@ -3,7 +3,7 @@ import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, g
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../hooks/useAuth';
 import { Message, Order, UserProfile } from '../../types';
-import { Send, User as UserIcon, Clock } from 'lucide-react';
+import { Send, User as UserIcon, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { handleFirestoreError, OperationType } from '../../lib/error-handler';
@@ -135,6 +135,13 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ orderId }) => {
         createdAt: serverTimestamp(),
       });
 
+      // Update order document with last message info
+      await updateDoc(doc(db, 'orders', orderId), {
+        lastMessage: text,
+        lastMessageAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+
       // Send Notification to recipient
       await sendNotification(
         otherUser.uid,
@@ -214,6 +221,24 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ orderId }) => {
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {order?.status === 'completed' && (
+          <div className="bg-green-50 border border-green-100 p-4 rounded-2xl flex items-center justify-center gap-3 mb-4">
+            <CheckCircle2 className="w-5 h-5 text-green-600" />
+            <p className="text-sm font-bold text-green-800">تم إكمال هذه الصفقة بنجاح. المحادثة الآن في الأرشيف.</p>
+          </div>
+        )}
+        {order?.status === 'cancelled' && (
+          <div className="bg-gray-50 border border-gray-100 p-4 rounded-2xl flex items-center justify-center gap-3 mb-4">
+            <AlertCircle className="w-5 h-5 text-gray-400" />
+            <p className="text-sm font-bold text-gray-500">تم إلغاء هذه الصفقة. المحادثة مؤرشفة.</p>
+          </div>
+        )}
+        {order?.status === 'disputed' && (
+          <div className="bg-red-50 border border-red-100 p-4 rounded-2xl flex items-center justify-center gap-3 mb-4">
+            <AlertCircle className="w-5 h-5 text-red-600 animate-pulse" />
+            <p className="text-sm font-bold text-red-800">هذه الصفقة في حالة نزاع حالياً. يرجى انتظار تدخل الإدارة.</p>
+          </div>
+        )}
         {messages.map((msg) => {
           const isOwn = msg.senderId === user?.uid;
           return (
@@ -241,8 +266,9 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ orderId }) => {
       <form onSubmit={sendMessage} className="p-4 bg-gray-50/50 border-t border-gray-100 flex gap-2">
         <input
           type="text"
-          className="flex-1 px-4 py-2 rounded-xl border border-gray-200 focus:border-blue-500 outline-none text-sm transition-all"
-          placeholder="اكتب رسالتك هنا..."
+          className="flex-1 px-4 py-2 rounded-xl border border-gray-200 focus:border-blue-500 outline-none text-sm transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
+          placeholder={order?.status === 'completed' || order?.status === 'cancelled' ? "تم إغلاق المحادثة" : "اكتب رسالتك هنا..."}
+          disabled={sending || order?.status === 'completed' || order?.status === 'cancelled'}
           value={newMessage}
           onChange={(e) => {
             setNewMessage(e.target.value);
@@ -251,7 +277,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ orderId }) => {
         />
         <button
           type="submit"
-          disabled={sending || !newMessage.trim()}
+          disabled={sending || !newMessage.trim() || order?.status === 'completed' || order?.status === 'cancelled'}
           className="bg-blue-600 text-white p-2 w-10 h-10 rounded-xl flex items-center justify-center hover:bg-blue-700 disabled:opacity-50 transition-all shadow-sm"
         >
           <Send className="w-5 h-5 rtl:scale-x-[-1]" />

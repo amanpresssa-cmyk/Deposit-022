@@ -64,11 +64,12 @@ export const SellerCard: React.FC<SellerCardProps> = ({ seller }) => {
           ))}
         </div>
 
-        <div className="flex items-center gap-2 mb-6">
-           <PaymentIcon type="mada" className="h-4" />
-           <PaymentIcon type="visa" className="h-3" />
-           <PaymentIcon type="mastercard" className="h-5" />
-           <PaymentIcon type="applepay" className="h-4" />
+        <div className="flex items-center gap-3 mb-6">
+           <PaymentIcon type="mada" className="h-6" />
+           <PaymentIcon type="visa" className="h-5" />
+           <PaymentIcon type="mastercard" className="h-7" />
+           <PaymentIcon type="applepay" className="h-6" />
+           <PaymentIcon type="stcpay" className="h-5" />
         </div>
 
         <div className="flex items-center justify-between pt-4 border-t border-gray-50">

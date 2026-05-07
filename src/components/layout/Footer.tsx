@@ -95,11 +95,11 @@ export const Footer: React.FC = () => {
             © 2024 منصة عربون للوساطة الذكية. توثيق رسمي برقم هوية.
           </p>
           <div className="flex items-center gap-6">
-            <PaymentIcon type="mada" className="h-4 opacity-50 hover:opacity-100 transition-opacity" white />
-            <PaymentIcon type="visa" className="h-3 opacity-50 hover:opacity-100 transition-opacity" white />
-            <PaymentIcon type="mastercard" className="h-5 opacity-50 hover:opacity-100 transition-opacity" white />
-            <PaymentIcon type="applepay" className="h-4 opacity-50 hover:opacity-100 transition-opacity" white />
-            <PaymentIcon type="googlepay" className="h-3 opacity-50 hover:opacity-100 transition-opacity" white />
+            <PaymentIcon type="mada" className="h-6 opacity-60 hover:opacity-100 transition-opacity" white />
+            <PaymentIcon type="visa" className="h-5 opacity-60 hover:opacity-100 transition-opacity" white />
+            <PaymentIcon type="mastercard" className="h-7 opacity-60 hover:opacity-100 transition-opacity" white />
+            <PaymentIcon type="applepay" className="h-6 opacity-60 hover:opacity-100 transition-opacity" white />
+            <PaymentIcon type="stcpay" className="h-5 opacity-60 hover:opacity-100 transition-opacity" white />
           </div>
         </div>
       </div>

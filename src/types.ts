@@ -74,6 +74,10 @@ export interface Order {
   typingStatus?: Record<string, boolean>;
   buyerRatingCompleted?: boolean;
   sellerRatingCompleted?: boolean;
+  buyerRating?: number;
+  sellerRating?: number;
+  lastMessage?: string;
+  lastMessageAt?: any;
   createdAt: any;
   updatedAt: any;
 }

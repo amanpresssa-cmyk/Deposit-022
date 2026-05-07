@@ -11,20 +11,22 @@ import { ar } from 'date-fns/locale';
 import { ChatRoom } from '../components/chat/ChatRoom';
 import { PaymentIcon } from '../components/ui/PaymentIcon';
 import { OrderRating } from '../components/OrderRating';
+import { LoginModal } from '../components/auth/LoginModal';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { sendNotification, recordTransaction, recordOrderEvent, updateSellerPerformance } from '../lib/notificationService';
 import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 
 export const OrderDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const { user, login, profile } = useAuth();
+  const { user, profile } = useAuth();
   const navigate = useNavigate();
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [ratingSuccess, setRatingSuccess] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<'mada' | 'visa' | 'mastercard' | 'applepay' | 'googlepay'>('mada');
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<'mada' | 'visa' | 'mastercard' | 'applepay' | 'stcpay'>('mada');
   const [completionComment, setCompletionComment] = useState('');
   const [orderLogs, setOrderLogs] = useState<any[]>([]);
 
@@ -265,7 +267,7 @@ export const OrderDetailsPage: React.FC = () => {
             <p className="text-sm text-gray-400 font-medium">للإطلاع على التفاصيل الكاملة والموافقة على الطلب يرجى تسجيل الدخول</p>
             <div className="flex flex-col gap-3">
               <button 
-                onClick={login} 
+                onClick={() => setIsLoginModalOpen(true)} 
                 className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold text-lg hover:bg-blue-700 shadow-xl shadow-blue-100 transition-all"
               >
                 تسجيل الدخول / إنشاء حساب
@@ -282,6 +284,7 @@ export const OrderDetailsPage: React.FC = () => {
         <div className="pt-8 border-t border-gray-50 flex items-center justify-center gap-2">
            <p className="text-[10px] text-gray-400 font-medium italic">منصة عربون - الوساطة المالية الأكثر أماناً في المملكة</p>
         </div>
+        <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} />
       </div>
     );
   }
@@ -703,7 +706,7 @@ const PaymentModal: React.FC<{
               { id: 'visa' as const, name: 'VISA' },
               { id: 'mastercard' as const, name: 'Mastercard' },
               { id: 'applepay' as const, name: 'Apple Pay' },
-              { id: 'googlepay' as const, name: 'Google Pay' },
+              { id: 'stcpay' as const, name: 'STC Pay' },
             ].map(m => (
               <button
                 key={m.id}

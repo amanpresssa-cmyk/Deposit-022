@@ -75,12 +75,18 @@ export const OrderRating: React.FC<OrderRatingProps> = ({ orderId, reviewerId, r
         );
       }
 
-      // 6. Update order status to mark rating as completed
+      // 6. Update order status to mark rating as completed and store the rating value
       const orderRef = doc(db, 'orders', orderId);
       if (type === 'buyer-to-seller') {
-        await updateDoc(orderRef, { buyerRatingCompleted: true });
+        await updateDoc(orderRef, { 
+          buyerRatingCompleted: true,
+          sellerRating: rating // Rating given BY buyer TO seller
+        });
       } else {
-        await updateDoc(orderRef, { sellerRatingCompleted: true });
+        await updateDoc(orderRef, { 
+          sellerRatingCompleted: true,
+          buyerRating: rating // Rating given BY seller TO buyer
+        });
       }
 
       // 7. Update Performance (Automated Featured Status & Response Speed)

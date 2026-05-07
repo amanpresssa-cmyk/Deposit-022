@@ -178,7 +178,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }).catch(console.error);
     };
 
+    const handleBeforeUnload = () => {
+      // Use beacon or sync request if possible, but Firestore update is async. 
+      // Most browsers allow some small async work here or it might fail, 
+      // but it's worth a shot.
+      updateDoc(userRef, { 
+        isOnline: false,
+        lastSeen: serverTimestamp()
+      }).catch(console.error);
+    };
+
     window.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('beforeunload', handleBeforeUnload);
     
     // Periodically update lastSeen as a heartbeat
     const interval = setInterval(() => {
@@ -189,6 +200,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     return () => {
       window.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
       clearInterval(interval);
       // Best effort set offline on unmount
       updateDoc(userRef, { 
@@ -234,12 +246,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const result = await confirmationResult.confirm(code);
       if (result.user) {
-        // Phone verification success
         const userRef = doc(db, 'users', result.user.uid);
-        await updateDoc(userRef, { 
-          phoneNumber: result.user.phoneNumber,
-          isVerified: true 
-        });
+        const userSnap = await getDoc(userRef);
+        
+        if (!userSnap.exists()) {
+          const pendingRefCode = sessionStorage.getItem('pendingReferral');
+          const newProfile: UserProfile = {
+            uid: result.user.uid,
+            displayName: result.user.displayName || `مستخدم ${result.user.phoneNumber?.slice(-4) || ''}`,
+            email: result.user.email || '',
+            phoneNumber: result.user.phoneNumber || '',
+            photoURL: result.user.photoURL || '',
+            rating: 3,
+            reviewsCount: 0,
+            isVerified: false,
+            isSeller: false,
+            isAdmin: false,
+            trustLevel: 10,
+            verificationStatus: 'none',
+            referralCode: generateReferralCode(result.user.uid),
+            referredBy: '',
+            freeFeeTransactions: pendingRefCode ? 1 : 0,
+            createdAt: serverTimestamp(),
+          };
+          await setDoc(userRef, newProfile);
+          setProfile(newProfile);
+        } else {
+          await updateDoc(userRef, { 
+            phoneNumber: result.user.phoneNumber,
+            isVerified: true 
+          });
+        }
       }
     } catch (err: any) {
       console.error('OTP Verification Error:', err);

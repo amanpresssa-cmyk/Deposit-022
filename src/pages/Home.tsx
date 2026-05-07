@@ -10,13 +10,15 @@ import { PaymentIcon } from '../components/ui/PaymentIcon';
 import { SellerCard } from '../components/SellerCard';
 import { TestimonialSlider } from '../components/TestimonialSlider';
 import { GeneralFeedbackForm } from '../components/GeneralFeedbackForm';
+import { LoginModal } from '../components/auth/LoginModal';
 
 export const Home: React.FC = () => {
-  const { login, user } = useAuth();
+  const { user } = useAuth();
   const [featuredSellers, setFeaturedSellers] = React.useState<UserProfile[]>([]);
   const [homeCard, setHomeCard] = useState<any>(null);
   const [loadingSellers, setLoadingSellers] = useState(true);
   const [trustIndex, setTrustIndex] = useState(0);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const navigate = useNavigate();
 
   const trustMessages = [
@@ -156,7 +158,7 @@ export const Home: React.FC = () => {
               </button>
             ) : (
               <button
-                onClick={login}
+                onClick={() => setIsLoginModalOpen(true)}
                 className="bg-blue-600 text-white px-10 py-5 rounded-2xl font-bold text-lg hover:bg-blue-700 shadow-xl shadow-blue-200 transition-all flex items-center justify-center gap-2 group"
               >
                 ابدأ رحلتك الآن
@@ -185,11 +187,11 @@ export const Home: React.FC = () => {
         >
           <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-6">وسائل دفع آمنة ومعتمدة</p>
           <div className="flex flex-wrap justify-center items-center gap-6 md:gap-10">
-            <PaymentIcon type="mada" className="h-4 md:h-6" />
-            <PaymentIcon type="visa" className="h-3 md:h-5" />
-            <PaymentIcon type="mastercard" className="h-6 md:h-8" />
-            <PaymentIcon type="applepay" className="h-5 md:h-7" />
-            <PaymentIcon type="googlepay" className="h-4 md:h-6" />
+            <PaymentIcon type="mada" className="h-10 md:h-14" />
+            <PaymentIcon type="visa" className="h-8 md:h-12" />
+            <PaymentIcon type="mastercard" className="h-12 md:h-16" />
+            <PaymentIcon type="applepay" className="h-10 md:h-14" />
+            <PaymentIcon type="stcpay" className="h-8 md:h-12" />
           </div>
         </motion.div>
       </section>
@@ -359,7 +361,7 @@ export const Home: React.FC = () => {
                 </p>
               </div>
               <button 
-                onClick={login}
+                onClick={() => setIsLoginModalOpen(true)}
                 className="w-full md:w-auto bg-white text-blue-600 px-6 py-3 rounded-xl font-black text-sm hover:bg-gray-50 transition-all shadow-lg text-center"
               >
                 أنشئ حسابك
@@ -370,6 +372,9 @@ export const Home: React.FC = () => {
           </div>
         </section>
       )}
+
+      {/* Login Modal */}
+      <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} />
 
       {/* Feedback Form */}
       <section className="px-4 pt-12">
