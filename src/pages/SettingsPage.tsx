@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -29,11 +30,12 @@ import { PhoneVerification } from '../components/PhoneVerification';
 import { IdentityVerification } from '../components/IdentityVerification';
 
 export const SettingsPage: React.FC = () => {
-  const { user, profile, setProfile } = useAuth();
+  const { user, profile, setProfile, toggle2FA } = useAuth();
   const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'financial' | 'platform'>('profile');
   const [loading, setLoading] = useState(false);
   const [savedStatus, setSavedStatus] = useState(false);
   const [showPhoneVerification, setShowPhoneVerification] = useState(false);
+  const [show2FASetup, setShow2FASetup] = useState(false);
   const [showIdentityVerification, setShowIdentityVerification] = useState(false);
   
   const [formData, setFormData] = useState({
@@ -49,6 +51,7 @@ export const SettingsPage: React.FC = () => {
     payoutIban: profile?.payoutIban || '',
     payoutAccountName: profile?.payoutAccountName || '',
     isPrivate: profile?.isPrivate || false,
+    twoFactorEnabled: profile?.twoFactorEnabled || false,
   });
 
   const handleSave = async () => {
@@ -345,6 +348,37 @@ export const SettingsPage: React.FC = () => {
                           </button>
                         </div>
 
+                        <div className="p-6 bg-gray-50 rounded-[2rem] flex items-center justify-between border border-gray-100 group hover:bg-white hover:shadow-lg hover:shadow-blue-50/50 transition-all">
+                          <div className="flex gap-4">
+                            <div className="bg-amber-100 p-4 rounded-[1.5rem] text-amber-600 shrink-0 group-hover:scale-110 transition-transform">
+                              <ShieldCheck className="w-6 h-6" />
+                            </div>
+                            <div className="text-right">
+                              <p className="font-black text-gray-900">التحقق بخطوتين (2FA)</p>
+                              <p className="text-xs text-gray-400 mt-1 font-medium italic">تأمين حسابك عبر رمز OTP يصل لجوالك عند الدخول</p>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={async () => {
+                              if (!formData.twoFactorEnabled) {
+                                // If enabling, check if phone number exists
+                                if (!profile?.phoneNumber) {
+                                  setShowPhoneVerification(true);
+                                  return;
+                                }
+                                await toggle2FA(true);
+                                setFormData({...formData, twoFactorEnabled: true});
+                              } else {
+                                await toggle2FA(false);
+                                setFormData({...formData, twoFactorEnabled: false});
+                              }
+                            }}
+                            className={`w-14 h-8 rounded-full transition-all relative ${formData.twoFactorEnabled ? 'bg-amber-500' : 'bg-gray-200'}`}
+                          >
+                             <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all shadow-sm ${formData.twoFactorEnabled ? 'right-1' : 'right-7'}`} />
+                          </button>
+                        </div>
+
                         <div className="p-6 bg-blue-50/50 rounded-[2rem] flex flex-col md:flex-row items-center gap-4 justify-between border border-blue-100/50 mt-6 overflow-hidden relative">
                            <div className="absolute -left-4 -bottom-4 opacity-10 rotate-12">
                               <ShieldCheck className="w-24 h-24 text-blue-600" />
@@ -392,9 +426,42 @@ export const SettingsPage: React.FC = () => {
                         </div>
                       </div>
 
-                      <div className="pt-10 border-t border-gray-50 flex items-center justify-between">
-                         <div className="text-right">
-                            <p className="font-black text-red-600 mb-1">تعطيل الحساب</p>
+                       <div className="pt-10 border-t border-gray-50">
+                          <h3 className="font-black text-gray-900 mb-6 font-mono text-sm uppercase tracking-widest text-blue-600">المستندات القانونية والدعم</h3>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                             <Link to="/terms" className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center justify-between group hover:bg-white hover:shadow-lg transition-all">
+                                <div className="flex items-center gap-3">
+                                   <div className="p-2 bg-blue-50 text-blue-600 rounded-lg group-hover:scale-110 transition-transform">
+                                      <Globe className="w-4 h-4" />
+                                   </div>
+                                   <span className="text-xs font-black text-gray-700">شروط الاستخدام</span>
+                                </div>
+                                <ExternalLink className="w-4 h-4 text-gray-300" />
+                             </Link>
+                             <Link to="/privacy" className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center justify-between group hover:bg-white hover:shadow-lg transition-all">
+                                <div className="flex items-center gap-3">
+                                   <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg group-hover:scale-110 transition-transform">
+                                      <Lock className="w-4 h-4" />
+                                   </div>
+                                   <span className="text-xs font-black text-gray-700">سياسة الخصوصية</span>
+                                </div>
+                                <ExternalLink className="w-4 h-4 text-gray-300" />
+                             </Link>
+                             <Link to="/faq" className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center justify-between group hover:bg-white hover:shadow-lg transition-all">
+                                <div className="flex items-center gap-3">
+                                   <div className="p-2 bg-amber-50 text-amber-600 rounded-lg group-hover:scale-110 transition-transform">
+                                      <Bell className="w-4 h-4" />
+                                   </div>
+                                   <span className="text-xs font-black text-gray-700">الأسئلة الشائعة</span>
+                                </div>
+                                <ExternalLink className="w-4 h-4 text-gray-300" />
+                             </Link>
+                          </div>
+                       </div>
+
+                       <div className="pt-10 border-t border-gray-50 flex items-center justify-between">
+                          <div className="text-right">
+                             <p className="font-black text-red-600 mb-1">تعطيل الحساب</p>
                             <p className="text-[10px] text-gray-400 font-medium">سيتم إخفاء بياناتك من المنصة بشكل مؤقت</p>
                          </div>
                          <button className="px-6 py-3 rounded-xl border border-red-100 text-red-600 text-xs font-black hover:bg-red-50 transition-colors">

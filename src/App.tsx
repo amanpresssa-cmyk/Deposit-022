@@ -35,6 +35,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Shield, X } from 'lucide-react';
 import { FloatingScrollToTop } from './components/ui/FloatingScrollToTop';
 
+import { PhoneVerification } from './components/PhoneVerification';
+
 interface ErrorBoundaryProps {
   children: ReactNode;
 }
@@ -110,7 +112,7 @@ function MainLayout({ children, isAdmin }: { children: React.ReactNode, isAdmin:
 }
 
 export default function App() {
-  const { user, profile, loading, error, clearError } = useAuth();
+  const { user, profile, loading, error, pending2FA, clearError } = useAuth();
   const isAdmin = user?.email === 'khyratfarmdates@gmail.com' || profile?.isAdmin;
 
   if (loading) {
@@ -161,6 +163,32 @@ export default function App() {
                 </motion.div>
               )}
             </AnimatePresence>
+            
+            {/* 2FA Global Overlay */}
+            <AnimatePresence>
+              {pending2FA && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md"
+                >
+                  <motion.div
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    className="w-full max-w-md"
+                  >
+                    <PhoneVerification 
+                      mode="2fa"
+                      onSuccess={() => {
+                        // Pending state is handled inside verify2FA in useAuth
+                      }}
+                    />
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             <MainLayout isAdmin={!!isAdmin}>
                 <Routes>
                   <Route path="/" element={<Home />} />

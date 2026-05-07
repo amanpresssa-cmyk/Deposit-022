@@ -20,14 +20,18 @@ interface AuthContextType {
   profile: UserProfile | null;
   loading: boolean;
   error: string | null;
+  pending2FA: boolean;
   login: () => Promise<void>;
   logout: () => Promise<void>;
   sendOTP: (phoneNumber: string, recaptchaContainerId: string) => Promise<ConfirmationResult | null>;
   verifyOTP: (confirmationResult: ConfirmationResult, code: string) => Promise<void>;
+  verify2FA: (confirmationResult: ConfirmationResult, code: string) => Promise<void>;
   updateUserPhone: (phoneNumber: string) => Promise<void>;
+  toggle2FA: (enabled: boolean) => Promise<void>;
   submitVerification: (data: { idNumber: string, birthDate: string, phoneNumber: string, idPhotoUrl: string, agreedToTerms: boolean }) => Promise<void>;
   clearError: () => void;
   setProfile: React.Dispatch<React.SetStateAction<UserProfile | null>>;
+  setPending2FA: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -42,6 +46,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [pending2FA, setPending2FA] = useState(false);
+  const [twoFactorVerified, setTwoFactorVerified] = useState(false);
 
   // Capture referral code from URL if present
   useEffect(() => {
@@ -97,6 +103,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               referralCode: generateReferralCode(user.uid),
               referredBy: '',
               freeFeeTransactions: pendingRefCode ? 1 : 0,
+              twoFactorEnabled: false,
               createdAt: serverTimestamp(),
             };
 
@@ -138,6 +145,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               await updateDoc(userRef, { referralCode: code });
             }
             setProfile(data);
+            
+            // Check for 2FA requirement
+            if (data.twoFactorEnabled && !twoFactorVerified) {
+              setPending2FA(true);
+            } else {
+              setPending2FA(false);
+            }
           }
           setLoading(false);
         }, (err) => {
@@ -330,20 +344,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const clearError = () => setError(null);
 
+  const toggle2FA = async (enabled: boolean) => {
+    if (!user) return;
+    try {
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, { twoFactorEnabled: enabled });
+      setProfile(prev => prev ? { ...prev, twoFactorEnabled: enabled } : null);
+    } catch (err) {
+      console.error('Error toggling 2FA:', err);
+      setError('فشل تعديل إعدادات التحقق بخطوتين');
+    }
+  };
+
+  const verify2FA = async (confirmationResult: ConfirmationResult, code: string) => {
+    try {
+      await confirmationResult.confirm(code);
+      setTwoFactorVerified(true);
+      setPending2FA(false);
+    } catch (err: any) {
+      console.error('2FA Verification Error:', err);
+      setError('كود التحقق غير صحيح');
+      throw err;
+    }
+  };
+
   return (
     <AuthContext.Provider value={{ 
       user, 
       profile, 
       loading, 
       error, 
+      pending2FA,
       login, 
       logout, 
       sendOTP, 
       verifyOTP, 
+      verify2FA,
       updateUserPhone,
+      toggle2FA,
       submitVerification,
       clearError,
-      setProfile
+      setProfile,
+      setPending2FA
     }}>
       {children}
     </AuthContext.Provider>

@@ -7,11 +7,12 @@ import { ConfirmationResult } from 'firebase/auth';
 interface PhoneVerificationProps {
   onSuccess?: () => void;
   onClose?: () => void;
+  mode?: 'verification' | '2fa';
 }
 
-export const PhoneVerification: React.FC<PhoneVerificationProps> = ({ onSuccess, onClose }) => {
-  const { sendOTP, verifyOTP, error, clearError } = useAuth();
-  const [phoneNumber, setPhoneNumber] = useState('');
+export const PhoneVerification: React.FC<PhoneVerificationProps> = ({ onSuccess, onClose, mode = 'verification' }) => {
+  const { sendOTP, verifyOTP, verify2FA, profile, error, clearError } = useAuth();
+  const [phoneNumber, setPhoneNumber] = useState(mode === '2fa' && profile?.phoneNumber ? profile.phoneNumber.replace('+966', '') : '');
   const [verificationCode, setVerificationCode] = useState('');
   const [showOtpInput, setShowOtpInput] = useState(false);
   const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
@@ -56,7 +57,11 @@ export const PhoneVerification: React.FC<PhoneVerificationProps> = ({ onSuccess,
     clearError();
     
     try {
-      await verifyOTP(confirmationResult, verificationCode);
+      if (mode === '2fa') {
+        await verify2FA(confirmationResult, verificationCode);
+      } else {
+        await verifyOTP(confirmationResult, verificationCode);
+      }
       if (onSuccess) onSuccess();
     } catch (err) {
       console.error(err);
@@ -71,10 +76,14 @@ export const PhoneVerification: React.FC<PhoneVerificationProps> = ({ onSuccess,
       
       <div className="p-8 text-center border-b border-gray-50">
         <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-blue-100 shadow-sm">
-          <Phone className="w-8 h-8 text-blue-600" />
+          <ShieldCheck className="w-8 h-8 text-blue-600" />
         </div>
-        <h3 className="text-2xl font-black text-gray-900 leading-tight">توثيق رقم الجوال</h3>
-        <p className="text-gray-500 mt-2 text-sm">خطوة أساسية لضمان أمان حسابك وعملياتك المالية</p>
+        <h3 className="text-2xl font-black text-gray-900 leading-tight">
+          {mode === '2fa' ? 'التحقق بخطوتين' : 'توثيق رقم الجوال'}
+        </h3>
+        <p className="text-gray-500 mt-2 text-sm">
+          {mode === '2fa' ? 'يرجى تأكيد هويتك عبر رمز التحقق' : 'خطوة أساسية لضمان أمان حسابك وعملياتك المالية'}
+        </p>
       </div>
 
       <div className="p-8 space-y-6">

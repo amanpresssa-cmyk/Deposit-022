@@ -25,10 +25,10 @@ export const PrivacyPolicyPage: React.FC = () => {
               <span className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center">
                 <UserCheck className="w-6 h-6" />
               </span>
-              المعلومات التي نجمعها
+              جمع ومعالجة البيانات
             </h2>
             <p className="text-gray-600 leading-loose font-medium">
-              نجمع الحد الأدنى من البيانات اللازمة لضمان سلامة التعاملات، وتشمل: المعلومات الشخصية (الاسم، البريد الإلكتروني، رقم الجوال)، وبيانات الهوية (للتوثيق الرسمي فقط)، وبيانات العمليات المالية.
+              نلتزم في منصة "عربون" بجمع الحد الأدنى من البيانات الشخصية الضرورية لتقديم خدماتنا بأمان. يتضمن ذلك: بيانات الهوية والاتصال الموثقة عبر الجهات الرسمية، بيانات الموقع الجغرافي (عند الحاجة لخدمات لوجستية)، وسجلات العمليات المالية. يتم تخزين هذه البيانات في خوادم مشفرة داخل مراكز بيانات عالية الأمان.
             </p>
           </section>
 
@@ -37,10 +37,20 @@ export const PrivacyPolicyPage: React.FC = () => {
               <span className="w-10 h-10 bg-green-50 text-green-600 rounded-xl flex items-center justify-center">
                 <ShieldCheck className="w-6 h-6" />
               </span>
-              كيفية استخدام البيانات
+              أهداف استخدام المعلومات
             </h2>
+            <div className="grid md:grid-cols-2 gap-4">
+               <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                  <h4 className="font-black text-xs text-gray-900 mb-2">الأمان والتوثيق</h4>
+                  <p className="text-[10px] text-gray-500 font-bold">التحقق من هوية المستخدمين لمنع الاحتيال وضمان سلامة المجتمع.</p>
+               </div>
+               <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                  <h4 className="font-black text-xs text-gray-900 mb-2">الدعم الفني</h4>
+                  <p className="text-[10px] text-gray-500 font-bold">القدرة على مساعدتك وحل النزاعات البرمجية أو المالية بكفاءة.</p>
+               </div>
+            </div>
             <p className="text-gray-600 leading-loose font-medium">
-              تُستخدم بياناتك حصراً لغرض: التحقق من الهوية، معالجة الدفع والوساطة، التواصل معك بشأن طلباتك، ومنع عمليات الاحتيال. لا يتم مشاركة بياناتك مع أي طرف ثالث لأغراض تسويقية إطلاقاً.
+              لا نقوم ببيع أو تأجير بياناتك لأي جهات خارجية لأغراض تسويقية. يتم مشاركة المعلومات فقط مع الجهات النظامية المختصة في حال وجود طلب رسمي قانوني أو لمنع وقوع جرائم مالية.
             </p>
           </section>
 
@@ -49,10 +59,10 @@ export const PrivacyPolicyPage: React.FC = () => {
               <span className="w-10 h-10 bg-red-50 text-red-600 rounded-xl flex items-center justify-center">
                 <EyeOff className="w-6 h-6" />
               </span>
-              سرية المحادثات
+              حقوق المستخدم (الخصوصية والشفافية)
             </h2>
             <p className="text-gray-600 leading-loose font-medium">
-              كافة المراسلات داخل المنصة مشفرة ومحمية. لا يحق لأي جهة الاطلاع عليها إلا في حال وجود نزاع رسمي يتطلب تدخل فريق التحكيم لفض النزاع.
+              لك الحق الكامل في: الوصول إلى بياناتك المخزنة وتصحيحها، طلب حذف بياناتك (ما لم تتعارض مع التزامات قانونية أو مالية قائمة)، ومعرفة الغرض من معالجة أي بيانات إضافية. كما نحرص على تشفير كافة المراسلات داخل نظام المحادثات للحفاظ على سرية اتفاقياتكم.
             </p>
           </section>
 
@@ -61,17 +71,20 @@ export const PrivacyPolicyPage: React.FC = () => {
               <span className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
                 <Lock className="w-6 h-6" />
               </span>
-              أمن المدفوعات
+              تأمين المدفوعات والبطاقات
             </h2>
             <p className="text-gray-600 leading-loose font-medium">
-              نحن لا نخزن بيانات بطاقاتك الائتمانية. جميع المدفوعات تتم عبر قنوات رسمية معتمدة ومتوافقة مع أعلى معايير الأمن العالمية (PCI DSS).
+              نلتزم بأعلى معايير الأمن السيبراني العالمية. نستخدم بوابات دفع معتمدة من البنك المركزي السعودي، ولا يتم تخزين أرقام بطاقاتك البنكية أو رموز الأمان (CVV) في قواعد بياناتنا، بل يتم التعامل معها عبر تشفير رقمي (Tokenization) آمن تماماً.
             </p>
           </section>
 
-          <div className="p-8 bg-blue-600 rounded-[2rem] text-white">
-             <h3 className="font-black text-lg mb-2">هل لديك استفسار حول خصوصيتك؟</h3>
-             <p className="text-blue-100 text-sm font-medium mb-6">يمكنك دائماً التواصل مع مسؤول حماية البيانات لدينا عبر البريد الرسمي.</p>
-             <a href="mailto:privacy@arboon.sa" className="bg-white text-blue-600 px-8 py-3 rounded-xl font-black text-sm inline-block">تواصل معنا</a>
+          <div className="p-8 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-[2rem] text-white">
+             <div className="flex items-center gap-4 mb-4">
+                <ShieldCheck className="w-8 h-8 opacity-50" />
+                <h3 className="font-black text-lg">التزامنا تجاهك</h3>
+             </div>
+             <p className="text-blue-100 text-sm font-medium mb-6">نحن ندرك حجم الثقة التي تضعها فينا عند تزويدنا بمعلوماتك، لذا نلتزم بتطوير أنظمتنا الدفاعية وقواعد الخصوصية باستمرار لمواكبة أحدث التقنيات العالمية.</p>
+             <a href="mailto:privacy@arboon.sa" className="bg-white text-blue-600 px-8 py-3 rounded-xl font-black text-sm inline-block shadow-lg hover:bg-gray-50 transition-all">تواصل مع مكتب الخصوصية</a>
           </div>
         </div>
       </div>

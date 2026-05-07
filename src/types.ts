@@ -43,6 +43,7 @@ export interface UserProfile {
   referredBy?: string;
   freeFeeTransactions?: number;
   emailConsent?: boolean;
+  twoFactorEnabled?: boolean;
   isOnline?: boolean;
   lastSeen?: any;
   createdAt: any;
