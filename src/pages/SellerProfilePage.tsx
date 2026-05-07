@@ -174,7 +174,15 @@ export const SellerProfilePage: React.FC = () => {
             </div>
             
             <div className="flex-1 pb-4">
-              <h1 className="text-4xl font-black text-gray-900 mb-2">{seller.displayName}</h1>
+              <div className="flex items-center gap-3 mb-2">
+                <h1 className="text-4xl font-black text-gray-900">{seller.displayName}</h1>
+                {(seller.isEliteSeller || seller.isFeatured) && (
+                  <div className="bg-orange-50 text-orange-600 px-3 py-1 rounded-full flex items-center gap-1.5 animate-pulse border border-orange-100 shadow-sm">
+                    <Star className="w-4 h-4 fill-current" />
+                    <span className="text-[10px] font-black uppercase tracking-wider">بائع متميز</span>
+                  </div>
+                )}
+              </div>
               <div className="flex flex-wrap items-center gap-6 text-gray-500 font-medium">
                 <div className="flex items-center gap-1.5">
                   <Star className="w-5 h-5 text-orange-400 fill-orange-400" />

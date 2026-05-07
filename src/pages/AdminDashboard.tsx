@@ -5,11 +5,13 @@ import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { UserProfile } from '../types';
-import { ShieldCheck, UserCheck, UserX, Clock, Search, AlertCircle, CheckCircle2, XCircle, TrendingUp, Wallet, PieChart, Activity, LayoutGrid, Image as ImageIcon, Upload, Star, MessageSquare, MessageCircle } from 'lucide-react';
+import { ShieldCheck, UserCheck, UserX, Clock, Search, AlertCircle, CheckCircle2, XCircle, TrendingUp, Wallet, PieChart, Activity, LayoutGrid, Image as ImageIcon, Upload, Star, MessageSquare, MessageCircle, ExternalLink } from 'lucide-react';
 import { motion } from 'motion/react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { sendNotification } from '../lib/notificationService';
+
+import { AdminSupportPopup } from '../components/chat/AdminSupportPopup';
 
 export const AdminDashboard: React.FC = () => {
   const { profile, logout } = useAuth();
@@ -135,6 +137,10 @@ export const AdminDashboard: React.FC = () => {
 
     return () => unsubscribe();
   }, [profile]);
+
+  const handleSupportReply = (notifId: string, userId: string) => {
+    setTab('support');
+  };
 
   const handleVerify = async (uid: string, approve: boolean, reason?: string) => {
     try {
@@ -285,36 +291,10 @@ export const AdminDashboard: React.FC = () => {
   });
 
   return (
-    <div className="min-h-screen bg-gray-50 rtl" dir="rtl">
-      <header className="bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-100">
-               <ShieldCheck className="w-6 h-6" />
-            </div>
-            <div>
-              <h2 className="text-lg font-black text-gray-900 leading-none">مدير النظام</h2>
-              <p className="text-[10px] text-gray-400 font-bold mt-1 uppercase tracking-widest">Arboon Admin Console</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <div className="hidden md:block text-left">
-              <p className="text-xs font-bold text-gray-900 leading-none">{profile?.displayName}</p>
-              <p className="text-[10px] text-gray-400 font-medium mt-1">{profile?.email}</p>
-            </div>
-            <button 
-              onClick={() => logout()}
-              className="flex items-center gap-2 px-4 py-2 text-red-600 font-black text-xs hover:bg-red-50 rounded-xl transition-all border border-transparent hover:border-red-100"
-            >
-              <Activity className="w-4 h-4" />
-              تسجيل الخروج
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <div className="max-w-7xl mx-auto px-4 py-12 space-y-12">
+    <div className="bg-gray-50 rtl" dir="rtl">
+      <AdminSupportPopup onReply={(notifId, userId) => handleSupportReply(notifId, userId)} />
+      
+      <div className="space-y-12 pb-12">
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6">
         <div>
            <h1 className="text-4xl font-black text-gray-900 mb-2">مركز إدارة عربون</h1>
@@ -444,12 +424,20 @@ export const AdminDashboard: React.FC = () => {
                            </p>
                         </div>
                      </div>
+                     {alert.reporterId && (
+                        <Link 
+                           to={`/seller/${alert.reporterId}`}
+                           className="bg-gray-100 text-gray-600 px-6 py-3 rounded-xl font-bold text-xs hover:bg-gray-200 transition-all"
+                        >
+                           صاحب البلاغ
+                        </Link>
+                     )}
                      {alert.targetUserId && (
                         <Link 
                            to={`/seller/${alert.targetUserId}`}
                            className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100"
                         >
-                           عرض ملف المستخدم
+                           المشكو منه
                         </Link>
                      )}
                   </div>
@@ -488,6 +476,15 @@ export const AdminDashboard: React.FC = () => {
                                  {ticket.type === 'complaint' ? 'بلاغ' : 'محادثة مباشرة'}
                               </span>
                               <h4 className="font-black text-lg text-gray-900">{ticket.userName}</h4>
+                              {ticket.userId && (
+                                <Link 
+                                  to={`/seller/${ticket.userId}`}
+                                  className="p-1.5 bg-gray-50 text-gray-400 rounded-lg hover:text-blue-600 transition-all"
+                                  title="عرض الملف"
+                                >
+                                  <ExternalLink className="w-4 h-4" />
+                                </Link>
+                              )}
                            </div>
                            <p className="text-sm font-bold text-gray-400">{ticket.userEmail}</p>
                            {ticket.category && (

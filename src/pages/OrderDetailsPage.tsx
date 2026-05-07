@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { doc, onSnapshot, updateDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../hooks/useAuth';
 import { Order } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
-import { Shield, Clock, CheckCircle2, ChevronRight, AlertTriangle, CreditCard, PackageCheck, Star, EyeOff } from 'lucide-react';
+import { Shield, Clock, CheckCircle2, ChevronRight, AlertTriangle, CreditCard, PackageCheck } from 'lucide-react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { ChatRoom } from '../components/chat/ChatRoom';
@@ -14,7 +14,8 @@ import { OrderRating } from '../components/OrderRating';
 import { LoginModal } from '../components/auth/LoginModal';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { sendNotification, recordTransaction, recordOrderEvent, updateSellerPerformance } from '../lib/notificationService';
-import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
+import { calculateOrderFees, PaymentMethod } from '../lib/payment-utils';
+import { collection, query, where, orderBy, getDocs, getDoc } from 'firebase/firestore';
 
 export const OrderDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -26,7 +27,8 @@ export const OrderDetailsPage: React.FC = () => {
   const [ratingSuccess, setRatingSuccess] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<'mada' | 'visa' | 'mastercard' | 'applepay' | 'stcpay'>('mada');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('standard');
+  const [specificProvider, setSpecificProvider] = useState<'mada' | 'visa' | 'mastercard' | 'applepay' | 'stcpay' | 'tabby' | 'tamara'>('mada');
   const [completionComment, setCompletionComment] = useState('');
   const [orderLogs, setOrderLogs] = useState<any[]>([]);
 
@@ -44,13 +46,11 @@ export const OrderDetailsPage: React.FC = () => {
        handleFirestoreError(error, OperationType.GET, `orders/${id}`);
     });
 
-    // Fetch Audit Logs
     const logQuery = query(collection(db, 'orderLogs'), where('orderId', '==', id), orderBy('createdAt', 'desc'));
     const unsubscribeLogs = onSnapshot(logQuery, (snapshot) => {
       setOrderLogs(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    // Auto-mark notifications for this order as read
     const markAsRead = async () => {
       if (!user) return;
       const q = query(
@@ -76,17 +76,58 @@ export const OrderDetailsPage: React.FC = () => {
     };
   }, [id, navigate]);
 
-  const updateStatus = async (newStatus: Order['status'], comment?: string) => {
+  const updateStatus = async (newStatus: Order['status'], comment?: string, paymentRef?: string) => {
     if (!order || !user) return;
     setActionLoading(true);
     try {
       const prevStatus = order.status;
-      await updateDoc(doc(db, 'orders', order.id), {
+      
+      const updateData: any = {
         status: newStatus,
         updatedAt: serverTimestamp(),
-      });
+      };
 
-      // Record in Audit Trail
+      if (paymentRef) {
+        updateData.paymentRef = paymentRef;
+      }
+
+      if (newStatus === 'escrowed') {
+        const fees = calculateOrderFees(order.amount, paymentMethod);
+        const hasFreeFee = (profile?.freeFeeTransactions || 0) > 0;
+        const finalPlatformFee = hasFreeFee ? 0 : fees.platformCommission;
+
+        updateData.paymentMethod = paymentMethod;
+        updateData.paymentFees = {
+          ...fees,
+          platformCommission: finalPlatformFee
+        };
+
+        await recordTransaction({
+          orderId: order.id,
+          buyerId: order.buyerId,
+          sellerId: order.sellerId,
+          amount: order.amount,
+          fee: finalPlatformFee,
+          netAmount: order.amount,
+          status: 'escrowed',
+          specialty: order.category,
+          paymentMethod,
+          platformNetRevenue: fees.platformNetRevenue,
+          providerCost: fees.providerCost,
+          sellerNetShare: fees.sellerNetShare,
+          paymentRef: paymentRef // Link reference to transaction audit
+        });
+
+        if (hasFreeFee) {
+          const userRef = doc(db, 'users', user.uid);
+          await updateDoc(userRef, {
+            freeFeeTransactions: (profile?.freeFeeTransactions || 1) - 1
+          });
+        }
+      }
+
+      await updateDoc(doc(db, 'orders', order.id), updateData);
+
       await recordOrderEvent(
         order.id,
         user.uid,
@@ -96,132 +137,39 @@ export const OrderDetailsPage: React.FC = () => {
         comment
       );
 
-      // If seller is updating status, sync their performance metrics
       if (order.sellerId === user.uid) {
         await updateSellerPerformance(user.uid);
       }
 
-      // --- Notifications Logic ---
+      // Notifications logic...
       const messages: Record<string, string> = {
         'cancelled': 'تم إلغاء الصفقة من قبل الطرف الآخر.',
-        'escrowed': `رائع! تم دفع مبلغ ${order.amount} ر.س واحتجازه بأمان. يمكنك البدء في تنفيذ المعاملة.`,
-        'delivered': 'تم رفع إنجاز المعاملة من قبل المعقب، يرجى المراجعة والاعتماد.',
-        'completed': 'تم تحرير المبلغ بنجاح لحساب المعقب. شكراً لتعاملك مع عربون.',
-        'disputed': 'تم فتح نزاع بخصوص هذا الطلب. سيتواصل معك أحد مدراء المنصة قريباً.'
+        'escrowed': `تم تأمين مبلغ ${order.amount} ر.س. يمكنك البدء في التنفيذ.`,
+        'delivered': 'تم إرسال العمل للمراجعة.',
+        'completed': 'تم تحرير المبلغ بنجاح.',
+        'disputed': 'تم فتح نزاع للتدخل الإداري.'
       };
-
-      const titles: Record<string, string> = {
-        'cancelled': 'تنبيه: إلغاء صفقة',
-        'escrowed': 'تنبيه: تم تعميد المبلغ',
-        'delivered': 'تنبيه: تم تسليم العمل',
-        'completed': 'تنبيه: اكتمال الصفقة',
-        'disputed': 'تنبيه: فتح نزاع'
-      };
-
+      
       if (messages[newStatus]) {
-        // Decide who gets the notification
-        // For Escrowed: Seller gets it
-        // For Delivered: Buyer gets it
-        // For Completed: Seller gets it
-        // For Cancelled/Disputed: Both? Let's simplify.
-        const isToSeller = ['escrowed', 'completed'].includes(newStatus);
-        const isBoth = ['cancelled', 'disputed'].includes(newStatus);
-        const sellerId = order.sellerId === 'unknown' ? null : order.sellerId;
-
-        const priorityMap: Record<string, 'urgent' | 'settlement' | 'normal'> = {
-          'disputed': 'urgent',
-          'escrowed': 'settlement',
-          'completed': 'settlement',
-          'delivered': 'normal',
-          'cancelled': 'urgent'
-        };
-        const priority = priorityMap[newStatus] || 'normal';
-
-        if (isBoth) {
-          if (order.buyerId) await sendNotification(order.buyerId, titles[newStatus], messages[newStatus], 'order_update', priority, order.id);
-          if (sellerId) await sendNotification(sellerId, titles[newStatus], messages[newStatus], 'order_update', priority, order.id);
-        } else {
-          const recipientId = isToSeller ? sellerId : order.buyerId;
-          if (recipientId) {
-            await sendNotification(
-              recipientId, 
-              titles[newStatus], 
-              messages[newStatus], 
-              newStatus === 'escrowed' ? 'payment' : 'order_update',
-              priority,
-              order.id
-            );
-          }
+        const recipientId = ['escrowed', 'completed'].includes(newStatus) ? (order.sellerId === 'unknown' ? null : order.sellerId) : order.buyerId;
+        if (recipientId) {
+          await sendNotification(recipientId, 'تحديث الطلب', messages[newStatus], 'order_update', 'normal', order.id);
         }
       }
 
-      // --- Financial Transaction Records ---
-      if (newStatus === 'escrowed') {
-        const hasFreeFee = (profile?.freeFeeTransactions || 0) > 0;
-        const fee = hasFreeFee ? 0 : order.amount * 0.05;
-
-        await recordTransaction({
-          orderId: order.id,
-          buyerId: order.buyerId,
-          sellerId: order.sellerId,
-          amount: order.amount,
-          fee: fee,
-          netAmount: order.amount,
-          status: 'escrowed',
-          specialty: order.category
-        });
-
-        // Consume free fee transaction benefit
-        if (hasFreeFee && user) {
-          const userRef = doc(db, 'users', user.uid);
-          await updateDoc(userRef, {
-            freeFeeTransactions: (profile?.freeFeeTransactions || 1) - 1
-          });
-        }
-      } else if (newStatus === 'completed') {
-        // Referral Reward System Logic
+      if (newStatus === 'completed') {
         try {
-          const { collection, query, where, getDocs, updateDoc: firestoreUpdateDoc, addDoc, getDoc, doc: firestoreDoc } = await import('firebase/firestore');
-          
-          // Check if this buyer was referred and has a pending referral
-          const refQ = query(
-            collection(db, 'referrals'), 
-            where('inviteeId', '==', order.buyerId), 
-            where('status', '==', 'pending')
-          );
-          const refSnap = await getDocs(refQ);
-          
-          if (!refSnap.empty) {
-            const referralDoc = refSnap.docs[0];
-            const referralData = referralDoc.data();
-            
-            // Mark referral as completed
-            await firestoreUpdateDoc(firestoreDoc(db, 'referrals', referralDoc.id), {
-              status: 'completed',
-              completedAt: serverTimestamp()
-            });
-            
-            // Reward the Inviter
-            const inviterRef = firestoreDoc(db, 'users', referralData.inviterId);
-            const inviterSnap = await getDoc(inviterRef);
-            if (inviterSnap.exists()) {
-              const inviterData = inviterSnap.data();
-              await firestoreUpdateDoc(inviterRef, {
-                freeFeeTransactions: (inviterData.freeFeeTransactions || 0) + 1
-              });
-              
-              // Notify Inviter
-              await sendNotification(
-                referralData.inviterId,
-                'تم تفعيل مكافأة الدعوة! 🎁',
-                'قام صديقك بإتمام أول عملية له. لقد حصلت على عملية وساطة قادمة بدون رسوم منصة!',
-                'settlement',
-                'settlement'
-              );
-            }
-          }
-        } catch (err) {
-          console.error("Error processing referral reward:", err);
+          await fetch('/api/payment/capture', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              orderId: order.id, 
+              amount: order.amount,
+              transactionId: order.paymentRef // Use the stored Geidea reference
+            })
+          });
+        } catch (captureErr) {
+          console.error("Capture failed:", captureErr);
         }
       }
 
@@ -238,52 +186,10 @@ export const OrderDetailsPage: React.FC = () => {
   if (!user) {
     return (
       <div className="max-w-2xl mx-auto py-12 px-4 space-y-8 text-center bg-white rounded-[3rem] border border-gray-100 shadow-xl overflow-hidden relative">
-        <div className="absolute top-0 left-0 w-full h-2 bg-blue-600"></div>
-        <div className="space-y-6">
-          <div className="w-20 h-20 bg-blue-50 rounded-3xl flex items-center justify-center mx-auto shadow-sm">
-            <Shield className="w-10 h-10 text-blue-600" />
-          </div>
-          <div className="space-y-2">
-            <h1 className="text-3xl font-black text-gray-900 leading-tight">طلب ضمان مالي جديد</h1>
-            <p className="text-gray-500 font-medium">لديك دعوة لإتمام عملية وساطة مالية عبر منصة عربون</p>
-          </div>
-          
-          <div className="bg-gray-50 p-8 rounded-3xl border border-gray-100 text-right space-y-4">
-            <div className="flex justify-between items-center border-b border-gray-200 pb-4">
-               <span className="text-gray-400 font-bold ml-4">عنوان الصفقة</span>
-               <span className="text-gray-900 font-black">{order.title}</span>
-            </div>
-            <div className="flex justify-between items-center border-b border-gray-200 pb-4">
-               <span className="text-gray-400 font-bold ml-4">القيمة</span>
-               <span className="text-[#2563eb] font-black text-xl">{order.amount} ر.س</span>
-            </div>
-            <div className="pt-2">
-               <p className="text-xs text-gray-400 font-bold mb-2 uppercase tracking-widest">الوصف</p>
-               <p className="text-sm text-gray-600 leading-relaxed line-clamp-3">{order.description}</p>
-            </div>
-          </div>
-
-          <div className="space-y-4 pt-4">
-            <p className="text-sm text-gray-400 font-medium">للإطلاع على التفاصيل الكاملة والموافقة على الطلب يرجى تسجيل الدخول</p>
-            <div className="flex flex-col gap-3">
-              <button 
-                onClick={() => setIsLoginModalOpen(true)} 
-                className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold text-lg hover:bg-blue-700 shadow-xl shadow-blue-100 transition-all"
-              >
-                تسجيل الدخول / إنشاء حساب
-              </button>
-              <button 
-                onClick={() => navigate('/')}
-                className="w-full py-3 text-gray-400 font-bold hover:text-gray-600 transition-colors"
-              >
-                العودة للرئيسية
-              </button>
-            </div>
-          </div>
-        </div>
-        <div className="pt-8 border-t border-gray-50 flex items-center justify-center gap-2">
-           <p className="text-[10px] text-gray-400 font-medium italic">منصة عربون - الوساطة المالية الأكثر أماناً في المملكة</p>
-        </div>
+        <Shield className="w-10 h-10 text-blue-600 mx-auto" />
+        <h1 className="text-3xl font-black">طلب ضمان مالي جديد</h1>
+        <p className="text-gray-500">سجل دخولك للإطلاع والقبول</p>
+        <button onClick={() => setIsLoginModalOpen(true)} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold">تسجيل الدخول</button>
         <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} />
       </div>
     );
@@ -298,18 +204,8 @@ export const OrderDetailsPage: React.FC = () => {
     if (!user || !order) return;
     setActionLoading(true);
     try {
-      await updateDoc(doc(db, 'orders', order.id), {
-        sellerId: user.uid,
-        updatedAt: serverTimestamp(),
-      });
-      await recordOrderEvent(
-        order.id,
-        user.uid,
-        'قبول الصفقة',
-        order.status,
-        order.status,
-        'قام الطرف الثاني بقبول الصفقة وربطها بحسابه.'
-      );
+      await updateDoc(doc(db, 'orders', order.id), { sellerId: user.uid, updatedAt: serverTimestamp() });
+      await recordOrderEvent(order.id, user.uid, 'قبول الصفقة', order.status, order.status);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `orders/${order.id}`);
     } finally {
@@ -325,16 +221,26 @@ export const OrderDetailsPage: React.FC = () => {
   ];
 
   const currentStepIndex = steps.findIndex(s => s.key === order.status);
+  const fees = order.paymentFees || calculateOrderFees(order.amount, order.paymentMethod || 'standard');
 
   const handleConfirmPayment = async () => {
     setActionLoading(true);
     try {
-      // هنا يتم الربط الحقيقي مع Stripe/Moyasar
-      // في هذه المحاكاة، نفترض نجاح العملية مباشرة
-      await updateStatus('escrowed');
+      const response = await fetch('/api/payment/authorize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: order.id, amount: order.amount, method: paymentMethod, provider: specificProvider })
+      });
+      
+      if (!response.ok) throw new Error('Payment failed');
+      
+      const data = await response.json();
+      const paymentRef = data.transactionId || data.geideaReference;
+
+      await updateStatus('escrowed', undefined, paymentRef);
       setShowPaymentModal(false);
     } catch (error) {
-      console.error(error);
+      alert('حدث خطأ أثناء معالجة الدفع عبر جيديا، يرجى المحاولة لاحقاً');
     } finally {
       setActionLoading(false);
     }
@@ -349,6 +255,8 @@ export const OrderDetailsPage: React.FC = () => {
             loading={actionLoading}
             paymentMethod={paymentMethod}
             setPaymentMethod={setPaymentMethod}
+            specificProvider={specificProvider}
+            setSpecificProvider={setSpecificProvider}
             profile={profile}
             onClose={() => setShowPaymentModal(false)}
             onConfirm={handleConfirmPayment}
@@ -360,313 +268,101 @@ export const OrderDetailsPage: React.FC = () => {
         <div className="flex items-center gap-2 text-sm text-gray-500">
           <button onClick={() => navigate('/dashboard')} className="hover:text-blue-600">لوحة التحكم</button>
           <ChevronRight className="w-4 h-4" />
-          <span className="text-gray-900 font-medium">تفاصيل الطلب: {order.title}</span>
+          <span>{order.title}</span>
         </div>
-        <div className="text-right">
-           <p className="text-xs text-gray-500 uppercase font-bold tracking-wider">سجل رقم</p>
-           <p className="text-sm font-mono font-bold text-gray-900">#ARB-{order.id.slice(0, 8).toUpperCase()}</p>
-        </div>
+        <p className="font-mono font-bold text-sm">#ARB-{order.id.slice(0, 8).toUpperCase()}</p>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
-          {/* Status Tracker */}
-          <div className="bg-white p-4 md:p-8 rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm">
+             <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-3">
+                   <Shield className="w-8 h-8 text-blue-600" />
+                   <div>
+                      <h3 className="text-xl font-black">القيمة والرسوم</h3>
+                      <p className="text-gray-400 text-xs">نظام الوساطة يحمي حقوقكم</p>
+                   </div>
+                </div>
+                <span className="bg-blue-50 text-blue-600 px-4 py-1.5 rounded-full text-[10px] font-black uppercase">
+                   {order.paymentMethod === 'bnpl' ? 'دفع آجل (BNPL)' : 'دفع مباشر (Standard)'}
+                </span>
+             </div>
+
+             <div className="grid md:grid-cols-3 gap-6">
+                <div className="p-6 bg-gray-50 rounded-3xl border border-gray-100 text-center">
+                   <p className="text-[10px] text-gray-400 font-black mb-1">المبلغ المطلوب</p>
+                   <p className="text-xl font-black">{order.amount.toLocaleString()} ر.س</p>
+                </div>
+                <div className="p-6 bg-gray-50 rounded-3xl border border-gray-100 text-center">
+                   <p className="text-[10px] text-gray-400 font-black mb-1">رسوم الخدمة ({fees.feePercentage}%)</p>
+                   <p className="text-xl font-black">{fees.platformCommission.toLocaleString()} ر.س</p>
+                </div>
+                <div className="p-6 bg-blue-600 rounded-3xl text-center text-white shadow-xl shadow-blue-100">
+                   <p className="text-[10px] opacity-80 font-black mb-1">صافي المعقب</p>
+                   <p className="text-xl font-black">{(order.amount - fees.platformCommission).toLocaleString()} ر.س</p>
+                </div>
+             </div>
+          </div>
+
+          <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
             <div className="flex justify-between items-center mb-8 overflow-x-auto pb-4 gap-4 px-2 no-scrollbar">
                {steps.map((step, idx) => (
                  <div key={step.key} className="flex flex-col items-center gap-2 relative z-10 shrink-0">
-                   <div className={`w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center transition-all duration-500 ${
-                     idx <= currentStepIndex ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' : 'bg-gray-100 text-gray-400'
-                   }`}>
-                     {React.cloneElement(step.icon as React.ReactElement, { className: 'w-4 h-4 md:w-5 md:h-5' })}
-                   </div>
-                   <span className={`text-[10px] md:text-xs font-bold whitespace-nowrap ${idx <= currentStepIndex ? 'text-blue-600' : 'text-gray-400'}`}>
-                     {step.label}
-                   </span>
-                   {idx < steps.length - 1 && (
-                     <div className={`absolute top-5 md:top-6 left-10 md:left-12 w-[calc(100%+16px)] h-[2px] -z-10 ${
-                       idx < currentStepIndex ? 'bg-blue-600' : 'bg-gray-100'
-                     }`} />
-                   )}
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
+                      idx <= currentStepIndex ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' : 'bg-gray-100 text-gray-400'
+                    }`}>
+                      {React.cloneElement(step.icon as React.ReactElement, { className: 'w-5 h-5' })}
+                    </div>
+                    <span className={`text-xs font-bold ${idx <= currentStepIndex ? 'text-blue-600' : 'text-gray-400'}`}>{step.label}</span>
+                    {idx < steps.length - 1 && (
+                      <div className={`absolute top-6 left-12 w-[calc(100%+16px)] h-[2px] -z-10 ${idx < currentStepIndex ? 'bg-blue-600' : 'bg-gray-100'}`} />
+                    )}
                  </div>
                ))}
             </div>
-
-            {order.status === 'disputed' && (
-              <div className="bg-red-50 border border-red-100 p-4 rounded-2xl flex gap-3 text-red-800">
-                <AlertTriangle className="w-6 h-6 shrink-0" />
-                <div>
-                  <h4 className="font-bold">نزاع مالي مفتوح</h4>
-                  <p className="text-sm opacity-90 leading-relaxed">تم تعليق الصفقة. سيقوم فريق عربون بمراجعة المحادثة والمستندات لحل النزاع بشكل عادل.</p>
-                </div>
-              </div>
-            )}
           </div>
 
-          {/* Details */}
-          <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-             <div className="p-8 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
-                <h2 className="text-xl font-bold text-gray-900">تفاصيل الصفقة</h2>
-                <div className="text-right">
-                  <p className="text-sm text-gray-500">القيمة الإجمالية</p>
-                  <p className="text-2xl font-black text-[#2563eb]">{order.amount} ر.س</p>
-                </div>
+          <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm space-y-6">
+             <div className="flex justify-between items-center border-b pb-4">
+                <h2 className="text-xl font-bold">تفاصيل الصفقة</h2>
+                <p className="text-2xl font-black text-[#2563eb]">{order.amount} ر.س</p>
              </div>
-             <div className="p-8 space-y-6">
-                <div className="grid grid-cols-2 gap-8">
-                  <div className="space-y-1">
-                    <p className="text-sm text-gray-400">التصنيف</p>
-                    <p className="font-bold text-gray-900">{order.category}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-sm text-gray-500">تاريخ البدء</p>
-                    <p className="font-bold text-gray-900">
-                       {order.createdAt ? format(order.createdAt.toDate(), 'd MMMM yyyy (HH:mm)', { locale: ar }) : ''}
-                    </p>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <p className="text-sm text-gray-400 font-bold uppercase tracking-tight">الوصف والشروط</p>
-                  <div className="bg-gray-50 p-6 rounded-2xl text-gray-700 leading-relaxed whitespace-pre-wrap min-h-[100px] border border-gray-100">
-                    {order.description}
-                  </div>
-                </div>
-             </div>
-             
-             {/* Audit Timeline - Oversight */}
-             <div className="p-8 border-t border-gray-100 bg-gray-50/20">
-               <div className="flex items-center gap-2 mb-6">
-                  <Clock className="w-5 h-5 text-gray-400" />
-                  <h3 className="font-bold text-gray-900 underline decoration-blue-100 decoration-4">سجل الرقابة والتحركات</h3>
-               </div>
-               <div className="space-y-6">
-                 {orderLogs.length === 0 ? (
-                   <p className="text-sm text-gray-400 text-center py-4 italic text-right">بانتظار التحركات الأولى في الصفقة...</p>
-                 ) : (
-                   <div className="relative border-r-2 border-gray-100 pr-6 mr-3 space-y-8">
-                      {orderLogs.map((log) => (
-                        <div key={log.id} className="relative">
-                           <div className={`absolute -right-[33px] top-0 w-4 h-4 rounded-full border-2 border-white shadow-sm transition-colors ${
-                             log.newStatus === 'completed' ? 'bg-green-500' : 
-                             log.newStatus === 'cancelled' ? 'bg-red-500' :
-                             log.newStatus === 'disputed' ? 'bg-amber-500' : 
-                             log.newStatus === 'delivered' ? 'bg-blue-600' : 'bg-blue-300'
-                           }`} />
-                           <div className="space-y-1 text-right">
-                              <div className="flex justify-between items-start">
-                                 <p className="text-sm font-black text-gray-900 leading-none">{log.action}</p>
-                                 <span className="text-[10px] text-gray-400 font-bold bg-white px-2 py-1 rounded-lg border border-gray-50">
-                                   {log.createdAt ? format(log.createdAt.toDate(), 'HH:mm - d MMM', { locale: ar }) : ''}
-                                 </span>
-                              </div>
-                              {log.comment && (
-                                <p className="text-xs text-gray-600 bg-white p-3 rounded-2xl border border-gray-100 shadow-sm mt-2 italic leading-relaxed text-right">
-                                  "{log.comment}"
-                                </p>
-                              )}
-                              <p className="text-[10px] text-gray-400 mt-1 text-right">بواسطة: {log.userId === order.buyerId ? 'المشتري' : (log.userId === order.sellerId ? 'المعقب' : 'النظام')}</p>
-                           </div>
-                        </div>
-                      ))}
-                   </div>
-                 )}
-               </div>
-             </div>
-             
-             {/* Action Bar */}
-             <div className="p-8 bg-gray-50/50 border-t border-gray-100">
-               <div className="flex flex-wrap gap-4">
-                 {order.sellerId === 'unknown' && (isSellerByEmail || isSellerByPhone) && (
-                    <button
-                      onClick={claimOrder}
-                      disabled={actionLoading}
-                      className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-md flex items-center gap-2"
-                    >
-                      <CheckCircle2 className="w-5 h-5" />
-                      <span>قبول الصفقة وربطها بحسابي</span>
-                    </button>
-                 )}
-                 {order.status === 'pending' && isBuyer && (
-                   <button
-                     onClick={() => setShowPaymentModal(true)}
-                     disabled={actionLoading}
-                     className="bg-green-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-green-700 transition-all shadow-md flex items-center gap-2"
-                   >
-                     <CreditCard className="w-5 h-5" />
-                     دفع وتعميد المبلغ ({order.amount} ر.س)
-                   </button>
-                 )}
-                 {order.status === 'pending' && isSeller && (
-                   <div className="bg-blue-50 text-blue-700 px-6 py-3 rounded-xl font-bold border border-blue-100 text-sm">
-                     بانتظار قيام المشتري بدفع المبلغ وتعميد الصفقة...
-                   </div>
-                 )}
-                 {order.status === 'escrowed' && isSeller && (
-                    <div className="w-full space-y-4">
-                      <div className="space-y-2">
-                         <label className="text-sm font-bold text-gray-700 block">وصف العمل المنجز (إثبات التسليم)</label>
-                         <textarea 
-                           className="w-full bg-white border border-gray-200 rounded-2xl p-4 text-sm focus:ring-2 focus:ring-blue-100 outline-none transition-all"
-                           placeholder="اكتب هنا ما تم إنجازه، أو أي ملاحظات للعميل قبل تأكيد التسليم..."
-                           value={completionComment}
-                           onChange={(e) => setCompletionComment(e.target.value)}
-                         />
-                      </div>
-                      <button
-                        onClick={() => updateStatus('delivered', completionComment)}
-                        disabled={actionLoading || !completionComment.trim()}
-                        className="bg-[#2563eb] text-white px-8 py-3 rounded-xl font-bold hover:bg-[#1d4ed8] transition-all shadow-md disabled:opacity-50"
-                      >
-                        إرسال العمل وتأكيد التسليم
-                      </button>
-                    </div>
-                 )}
-                 {order.status === 'delivered' && isBuyer && (
-                    <div className="flex flex-col gap-4">
-                      <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 flex gap-3">
-                         <CheckCircle2 className="w-6 h-6 text-blue-600 shrink-0" />
-                         <div>
-                            <p className="text-sm font-bold text-blue-900">ملاحظة المعقب حول التسليم:</p>
-                            <p className="text-sm text-blue-700 leading-relaxed italic">{orderLogs.find(l => l.newStatus === 'delivered')?.comment || 'لم يتم ترك ملاحظات'}</p>
-                         </div>
-                      </div>
-                      <div className="flex gap-4">
-                        <button
-                          onClick={() => updateStatus('completed')}
-                          disabled={actionLoading}
-                          className="bg-green-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-green-700 transition-all shadow-md flex-1"
-                        >
-                          موافقة وتحرير المبلغ
-                        </button>
-                        <button
-                          onClick={() => {
-                            const reason = prompt('يرجى ذكر سبب رفض التسليم:');
-                            if (reason) updateStatus('escrowed', `تم رفض التسليم: ${reason}`);
-                          }}
-                          disabled={actionLoading}
-                          className="bg-white text-gray-500 border border-gray-200 px-6 py-3 rounded-xl font-bold hover:bg-gray-50"
-                        >
-                          طلب تعديل/رفض
-                        </button>
-                      </div>
-                    </div>
-                 )}
-                 {(order.status === 'escrowed' || order.status === 'delivered') && (
-                    <button
-                      onClick={() => updateStatus('disputed')}
-                      disabled={actionLoading}
-                      className="bg-white text-red-600 border border-red-200 px-6 py-3 rounded-xl font-bold hover:bg-red-50 transition-all"
-                    >
-                      فتح نزاع
-                    </button>
-                 )}
-                 {order.status === 'pending' && (
-                   <>
-                    <button
-                      onClick={() => updateStatus('cancelled')}
-                      disabled={actionLoading}
-                      className="bg-white text-gray-600 border border-gray-200 px-6 py-3 rounded-xl font-bold hover:bg-gray-50 transition-all"
-                    >
-                      إلغاء الطلب نهائياً
-                    </button>
-                    <p className="mt-2 text-[10px] text-gray-400 font-bold border-r-2 border-gray-100 pr-2 pb-1 leading-relaxed">
-                      * ملاحظة هامة: الإلغاء متاح فقط في مرحلة "بانتظار الموافقة" وقبل دفع المبلغ. بمجرد قيام المشتري بالتعميد، يتم حجز الأموال لضمان حقوق الطرفين.
-                    </p>
-                   </>
-                 )}
-                 {user?.email === 'khyratfarmdates@gmail.com' && (
-                   <div className="w-full mt-6 p-6 bg-red-50 border border-red-100 rounded-3xl">
-                      <div className="flex items-center gap-2 text-red-600 font-black text-sm mb-4">
-                         <Shield className="w-4 h-4" />
-                         أدوات تحكم الإدارة (خاص بالمالك)
-                      </div>
-                      <div className="flex flex-wrap gap-3">
-                         <button 
-                           onClick={() => updateStatus('completed')}
-                           className="bg-red-600 text-white px-6 py-2 rounded-xl font-bold text-xs hover:bg-red-700 transition-all"
-                         >
-                           إكمال قسري (تحرير المبلغ)
-                         </button>
-                         <button 
-                           onClick={() => updateStatus('cancelled')}
-                           className="bg-white text-red-600 border border-red-200 px-6 py-2 rounded-xl font-bold text-xs hover:bg-red-50 transition-all"
-                         >
-                           إلغاء قسري (إعادة المبلغ)
-                         </button>
-                         <button 
-                           onClick={() => updateStatus('escrowed')}
-                           className="bg-white text-gray-600 border border-gray-200 px-6 py-2 rounded-xl font-bold text-xs hover:bg-gray-50 transition-all"
-                         >
-                           تغيير الحالة إلى "معمد"
-                         </button>
-                      </div>
-                   </div>
-                 )}
-                 {order.status === 'completed' && (
-                   <div className="flex flex-col gap-4">
-                    <div className="flex items-center gap-2 text-green-600 font-bold bg-green-50 px-4 py-2 rounded-xl border border-green-100">
-                      <CheckCircle2 className="w-5 h-5" />
-                      <span>تم إغلاق الصفقة بنجاح</span>
-                    </div>
-                    
-                    {isBuyer && !order.buyerRatingCompleted && !ratingSuccess && (
-                      <div className="mt-8">
-                         <OrderRating 
-                            orderId={order.id}
-                            reviewerId={user!.uid}
-                            revieweeId={order.sellerId}
-                            type="buyer-to-seller"
-                            onSuccess={() => setRatingSuccess(true)}
-                         />
-                      </div>
-                    )}
+             <p className="text-gray-600 whitespace-pre-wrap leading-relaxed">{order.description}</p>
+          </div>
 
-                    {isSeller && !order.sellerRatingCompleted && !ratingSuccess && (
-                      <div className="mt-8">
-                         <OrderRating 
-                            orderId={order.id}
-                            reviewerId={user!.uid}
-                            revieweeId={order.buyerId}
-                            type="seller-to-buyer"
-                            onSuccess={() => setRatingSuccess(true)}
-                         />
-                      </div>
-                    )}
-
-                    {ratingSuccess && (
-                      <div className="mt-8 p-6 bg-blue-50 border border-blue-100 rounded-3xl text-center">
-                         <CheckCircle2 className="w-12 h-12 text-blue-500 mx-auto mb-4" />
-                         <h3 className="text-xl font-bold text-blue-900">شكراً لتقييمك!</h3>
-                         <p className="text-blue-600 font-medium">مساهمتك تساعد في جعل المجتمع أكثر شفافية.</p>
-                      </div>
-                    )}
-                   </div>
-                 )}
-               </div>
+          <div className="p-8 bg-gray-50/50 rounded-3xl border border-gray-100">
+             <div className="flex flex-wrap gap-4">
+                {order.sellerId === 'unknown' && (isSellerByEmail || isSellerByPhone) && (
+                   <button onClick={claimOrder} disabled={actionLoading} className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold">قبول الصفقة</button>
+                )}
+                {order.status === 'pending' && isBuyer && (
+                  <button onClick={() => setShowPaymentModal(true)} disabled={actionLoading} className="bg-green-600 text-white px-8 py-3 rounded-xl font-bold flex items-center gap-2">
+                    <CreditCard className="w-5 h-5" />
+                    دفع وتعميد المبلغ
+                  </button>
+                )}
+                {order.status === 'escrowed' && isSeller && (
+                  <div className="w-full space-y-4">
+                    <textarea className="w-full border rounded-2xl p-4" placeholder="وصف العمل المنجز..." value={completionComment} onChange={(e) => setCompletionComment(e.target.value)} />
+                    <button onClick={() => updateStatus('delivered', completionComment)} disabled={actionLoading || !completionComment.trim()} className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold">تسليم العمل</button>
+                  </div>
+                )}
+                {order.status === 'delivered' && isBuyer && (
+                  <div className="flex gap-4">
+                    <button onClick={() => updateStatus('completed')} disabled={actionLoading} className="bg-green-600 text-white px-8 py-3 rounded-xl font-bold flex-1">استلام وتحرير المبلغ</button>
+                    <button onClick={() => updateStatus('disputed')} disabled={actionLoading} className="bg-white text-red-600 border border-red-200 px-6 py-3 rounded-xl font-bold">فتح نزاع</button>
+                  </div>
+                )}
              </div>
           </div>
         </div>
 
-        {/* Sidebar/Chat */}
         <div className="space-y-8">
            <ChatRoom orderId={order.id} />
-           
            <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm space-y-4">
-              <h3 className="font-bold text-gray-900 border-b border-gray-100 pb-2">نصائح عربون الرمضانية</h3>
-              <ul className="space-y-3">
-                <li className="flex gap-2 text-sm text-gray-600">
-                  <Shield className="w-4 h-4 text-blue-500 shrink-0" />
-                  <span>لا تشارك معلوماتك البنكية خارج المنصة.</span>
-                </li>
-                <li className="flex gap-2 text-sm text-gray-600">
-                  <Shield className="w-4 h-4 text-blue-500 shrink-0" />
-                  <span>وثق كل الاتفاقيات في هذه المحادثة.</span>
-                </li>
-                <li className="flex gap-2 text-sm text-gray-600">
-                  <Shield className="w-4 h-4 text-blue-500 shrink-0" />
-                   <span>فريق عربون يراقب المحادثات للتدخل السريع.</span>
-                </li>
-              </ul>
+              <h3 className="font-bold">نصائح عربون الرمضانية</h3>
+              <p className="text-xs text-gray-500 leading-relaxed">• لا تشارك تفاصيلك البنكية.<br/>• وثق كل شيء في المحادثة.<br/>• عربون يضمن حقك.</p>
            </div>
         </div>
       </div>
@@ -679,94 +375,47 @@ const PaymentModal: React.FC<{
   onConfirm: () => void; 
   onClose: () => void;
   loading: boolean;
-  paymentMethod: string;
-  setPaymentMethod: (m: any) => void;
+  paymentMethod: PaymentMethod;
+  setPaymentMethod: (m: PaymentMethod) => void;
+  specificProvider: string;
+  setSpecificProvider: (m: any) => void;
   profile: any;
-}> = ({ amount, onConfirm, onClose, loading, paymentMethod, setPaymentMethod, profile }) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-    <motion.div 
-      initial={{ scale: 0.9, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
-      className="bg-white rounded-[2.5rem] w-full max-w-md overflow-hidden shadow-2xl"
-    >
-      <div className="p-8 text-center border-b border-gray-100">
-        <div className="w-16 h-16 bg-green-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-          <CreditCard className="w-8 h-8 text-green-600" />
-        </div>
-        <h3 className="text-2xl font-black text-gray-900">دفع العربون والتعميد</h3>
-        <p className="text-gray-500 mt-2">سيتم احتجاز المبلغ في منصة عربون حتى استلامك للخدمة</p>
-      </div>
+}> = ({ amount, onConfirm, onClose, loading, paymentMethod, setPaymentMethod, specificProvider, setSpecificProvider, profile }) => {
+  const fees = calculateOrderFees(amount, paymentMethod);
+  const hasFreeFee = (profile?.freeFeeTransactions || 0) > 0;
+  const platformFee = hasFreeFee ? 0 : fees.platformCommission;
 
-      <div className="p-8 space-y-6">
-        <div className="flex flex-col gap-3">
-          <p className="font-bold text-sm text-gray-400 text-right">اختر وسيلة الدفع</p>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {[
-              { id: 'mada' as const, name: 'MADA' },
-              { id: 'visa' as const, name: 'VISA' },
-              { id: 'mastercard' as const, name: 'Mastercard' },
-              { id: 'applepay' as const, name: 'Apple Pay' },
-              { id: 'stcpay' as const, name: 'STC Pay' },
-            ].map(m => (
-              <button
-                key={m.id}
-                onClick={() => setPaymentMethod(m.id as any)}
-                className={`p-4 rounded-2xl border-2 transition-all flex items-center justify-center h-16 ${
-                  paymentMethod === (m.id as any) ? 'border-blue-600 bg-blue-50' : 'border-gray-50 bg-gray-50/50'
-                }`}
-              >
-                <PaymentIcon type={m.id} className="max-h-8" />
-              </button>
-            ))}
-          </div>
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl">
+        <div className="p-8 text-center border-b bg-gray-50/50">
+          <Shield className="w-10 h-10 text-blue-600 mx-auto mb-2" />
+          <h3 className="text-2xl font-black">تعميد ودفع آمن (Escrow)</h3>
+          <p className="text-gray-500 text-sm">حجز المبلغ لضمان الحقوق</p>
         </div>
-
-        <div className="bg-gray-50 p-4 rounded-2xl space-y-2">
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-500">قيمة الطلب</span>
-            <span className="font-bold">{amount} ر.س</span>
+        <div className="p-8 space-y-6">
+          <div className="grid grid-cols-2 gap-4">
+             <button onClick={() => setPaymentMethod('standard')} className={`p-4 rounded-3xl border-2 transition-all ${paymentMethod === 'standard' ? 'border-blue-600 bg-blue-50' : 'border-gray-50 bg-gray-50'}`}>
+               <CreditCard className="mx-auto" /><span className="block mt-2 font-bold text-sm">دفع مباشر</span>
+             </button>
+             <button onClick={() => setPaymentMethod('bnpl')} className={`p-4 rounded-3xl border-2 transition-all ${paymentMethod === 'bnpl' ? 'border-purple-600 bg-purple-50' : 'border-gray-50 bg-gray-50'}`}>
+               <PackageCheck className="mx-auto" /><span className="block mt-2 font-bold text-sm">تقسيط</span>
+             </button>
           </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-500">رسوم التعميد (5%)</span>
-            <span className={`font-bold ${((profile?.freeFeeTransactions || 0) > 0) ? 'line-through text-gray-400' : ''}`}>
-              {(amount * 0.05).toFixed(2)} ر.س
-            </span>
+          <div className="bg-gray-900 rounded-[2rem] p-6 text-white space-y-4">
+             <div className="flex justify-between text-sm"><span>قيمة الصفقة</span><span>{amount.toLocaleString()} ر.س</span></div>
+             <div className="flex justify-between text-sm"><span>رسوم الوساطة ({fees.feePercentage}%)</span><span className={hasFreeFee ? 'line-through opacity-50' : ''}>{fees.platformCommission.toLocaleString()} ر.س</span></div>
+             <div className="border-t border-white/10 pt-4 flex justify-between items-end">
+                <div><p className="text-[10px] opacity-50 uppercase mb-1">المجموع للدفع</p><p className="text-3xl font-black">{amount.toLocaleString()} ر.س</p></div>
+                <div className="text-right"><p className="text-[8px] opacity-50 uppercase">سيصل للمعقب</p><p className="font-bold">{(amount - platformFee).toLocaleString()} ر.س</p></div>
+             </div>
           </div>
-          {(profile?.freeFeeTransactions || 0) > 0 && (
-            <div className="flex justify-between text-sm text-green-600 font-bold">
-              <span>خصم مكافأة الدعوة</span>
-              <span>-{(amount * 0.05).toFixed(2)} ر.س</span>
-            </div>
-          )}
-          <div className="pt-2 border-t border-gray-200 flex justify-between">
-            <span className="font-black text-gray-900">المجموع المطلوب</span>
-            <span className="font-black text-blue-600">
-              {((profile?.freeFeeTransactions || 0) > 0 ? amount : (amount * 1.05)).toFixed(2)} ر.س
-            </span>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-3">
-          <button
-            onClick={onConfirm}
-            disabled={loading}
-            className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black text-lg hover:bg-blue-700 transition-all shadow-xl shadow-blue-100 disabled:opacity-50"
-          >
-            {loading ? 'جاري معالجة الدفع...' : 'تأكيد الدفع والتعميد الفوري'}
+          <button onClick={onConfirm} disabled={loading} className="w-full bg-[#2563eb] text-white py-4 rounded-2xl font-black text-xl flex items-center justify-center gap-3">
+            {loading ? <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" /> : <><Shield /><span>تأكيد التعميد</span></>}
           </button>
-          <button
-            onClick={onClose}
-            className="w-full py-3 text-gray-400 font-bold hover:text-gray-600 transition-colors"
-          >
-            إلغاء
-          </button>
+          <button onClick={onClose} className="w-full text-gray-400 font-bold">إلغاء</button>
         </div>
-      </div>
-
-      <div className="p-4 bg-gray-50 text-[10px] text-center text-gray-400 flex items-center justify-center gap-2">
-        <Shield className="w-3 h-3" />
-        مدعوم من منصة عربون للوساطة الآمنة - تشفير 256-bit
-      </div>
-    </motion.div>
-  </div>
-);
+      </motion.div>
+    </div>
+  );
+};

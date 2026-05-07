@@ -79,25 +79,34 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     const handleClick = async () => {
       if (notif.id) await markNotificationAsRead(notif.id);
-      if (notif.orderId) {
+      if (notif.action?.url) {
+        navigate(notif.action.url);
+      } else if (notif.orderId) {
         navigate(`/order/${notif.orderId}`);
       } else if (notif.type === 'message') {
-        navigate('/messages');
+        navigate('/dashboard?tab=messages');
+      } else {
+        navigate('/dashboard?tab=notifications');
       }
     };
 
     toast(notif.title, {
       description: (
         <div onClick={handleClick} className="cursor-pointer group">
-          {notif.message}
-          <div className="text-[10px] text-blue-600 font-bold mt-1 group-hover:underline">اضغط للتفاصيل</div>
+          <p className="text-[11px] leading-tight text-gray-500">{notif.message}</p>
+          {notif.action && (
+            <div className="text-[10px] text-blue-600 font-black mt-2 flex items-center gap-1 group-hover:gap-2 transition-all">
+               {notif.action.label}
+               <span>←</span>
+            </div>
+          )}
         </div>
       ),
       icon: getIcon(),
-      duration: 6000,
+      duration: 8000,
       position: 'top-center',
-      action: notif.orderId ? {
-        label: 'فتح',
+      action: (notif.action || notif.orderId) ? {
+        label: notif.action?.label || 'عرض',
         onClick: handleClick
       } : undefined,
     });

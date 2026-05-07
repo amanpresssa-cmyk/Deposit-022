@@ -4,7 +4,11 @@ import { db } from '../lib/firebase';
 import { useAuth } from '../hooks/useAuth';
 import { Order } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
-import { Clock, CheckCircle2, AlertCircle, MessageCircle, ArrowLeft, Plus, ShieldCheck, ChevronRight, Briefcase, Globe, ExternalLink, LogOut, Star, Shield, Terminal, Activity, Trash2 } from 'lucide-react';
+import { 
+  Bell, CreditCard, AlertTriangle, MessageSquare, Clock, Globe, ExternalLink, LogOut, Star, 
+  Shield, Terminal, Activity, Trash2, ChevronRight, MessageCircle, Plus, Briefcase, 
+  ShieldCheck, CheckCircle2, AlertCircle 
+} from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
@@ -13,6 +17,8 @@ import { IdentityVerification } from '../components/IdentityVerification';
 import { TrustProgressBar } from '../components/TrustProgressBar';
 import { ServiceManager } from '../components/ServiceManager';
 import { ChatRoom } from '../components/chat/ChatRoom';
+import { useNotifications } from '../components/providers/NotificationProvider';
+import { markNotificationAsRead, markAllNotificationsAsRead } from '../lib/notificationService';
 
 const getStatusBadge = (status: Order['status']) => {
   switch (status) {
@@ -121,9 +127,10 @@ export const Dashboard: React.FC = () => {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [reviews, setReviews] = useState<any[]>([]);
   const [confidenceScore, setConfidenceScore] = useState(100);
-  const [activeTab, setActiveTab] = useState<'orders' | 'services' | 'messages' | 'stats' | 'system'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'services' | 'messages' | 'stats' | 'system' | 'notifications'>('orders');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [logs, setLogs] = useState<any[]>([]);
+  const { notifications, unreadCount } = useNotifications();
   const { logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -137,6 +144,8 @@ export const Dashboard: React.FC = () => {
       if (orderId) setSelectedOrderId(orderId);
     } else if (tab === 'services') {
       setActiveTab('services');
+    } else if (tab === 'notifications') {
+      setActiveTab('notifications');
     }
   }, [location.search]);
 
@@ -310,6 +319,7 @@ export const Dashboard: React.FC = () => {
       <div className="flex gap-2 p-1.5 bg-gray-100/50 rounded-2xl w-full md:w-fit overflow-x-auto no-scrollbar border border-gray-100">
         {[
           { id: 'orders', label: 'طلباتي', icon: Clock },
+          { id: 'notifications', label: 'الإشعارات', icon: Bell, count: unreadCount },
           { id: 'services', label: 'خدمات البائع', icon: Briefcase, sellerOnly: true },
           { id: 'messages', label: 'المحادثات', icon: MessageCircle },
           { id: 'stats', label: 'الرقابة والتقييم', icon: ShieldCheck, sellerOnly: true },
@@ -318,7 +328,7 @@ export const Dashboard: React.FC = () => {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
-            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition-all shrink-0 ${
+            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition-all shrink-0 relative ${
               activeTab === tab.id 
               ? 'bg-white text-blue-600 shadow-sm border border-gray-50' 
               : 'text-gray-500 hover:text-gray-700 hover:bg-white/50'
@@ -326,11 +336,97 @@ export const Dashboard: React.FC = () => {
           >
             <tab.icon className="w-4 h-4" />
             <span className="whitespace-nowrap">{tab.label}</span>
+            {tab.count !== undefined && tab.count > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[10px] font-black text-white ring-2 ring-gray-100">
+                {tab.count}
+              </span>
+            )}
           </button>
         ))}
       </div>
 
       <AnimatePresence mode="wait">
+        {activeTab === 'notifications' && (
+          <motion.div
+            key="notifications"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="space-y-6"
+          >
+             <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden min-h-[500px]">
+                <div className="p-8 border-b border-gray-50 bg-gray-50/30 flex justify-between items-center">
+                   <h2 className="text-xl font-black text-gray-900">سجل الإشعارات</h2>
+                   <div className="flex items-center gap-4">
+                     {unreadCount > 0 && (
+                       <button 
+                         onClick={() => markAllNotificationsAsRead(user?.uid || '')}
+                         className="text-xs font-black text-blue-600 hover:underline"
+                       >
+                         تحديد الكل كمقروء
+                       </button>
+                     )}
+                     <div className="flex gap-2 text-[10px] items-center text-gray-400 font-bold uppercase tracking-widest">
+                       <div className="w-2 h-2 rounded-full bg-blue-600"></div>
+                       <span>{unreadCount} غير مقروء</span>
+                     </div>
+                   </div>
+                </div>
+                <div className="divide-y divide-gray-50">
+                  {notifications.map((notif) => (
+                    <div 
+                      key={notif.id}
+                      onClick={() => {
+                        if (!notif.isRead) markNotificationAsRead(notif.id);
+                        if (notif.orderId) navigate(`/order/${notif.orderId}`);
+                      }}
+                      className={`p-6 hover:bg-gray-50 transition-all cursor-pointer flex items-start gap-4 ${!notif.isRead ? 'bg-blue-50/20' : ''}`}
+                    >
+                       <div className={`p-3 rounded-2xl shrink-0 ${
+                         notif.priority === 'urgent' ? 'bg-red-50 text-red-500' :
+                         notif.type === 'payment' ? 'bg-green-50 text-green-500' :
+                         notif.type === 'dispute' ? 'bg-red-50 text-red-500' :
+                         notif.type === 'message' ? 'bg-blue-50 text-blue-500' :
+                         'bg-gray-100 text-gray-400'
+                       }`}>
+                          {notif.type === 'payment' && <CreditCard className="w-5 h-5" />}
+                          {notif.type === 'dispute' && <AlertTriangle className="w-5 h-5" />}
+                          {notif.type === 'message' && <MessageSquare className="w-5 h-5" />}
+                          {notif.type === 'order_update' && <Clock className="w-5 h-5" />}
+                          {(!['payment', 'dispute', 'message', 'order_update'].includes(notif.type)) && <Bell className="w-5 h-5" />}
+                       </div>
+                       <div className="flex-1">
+                          <div className="flex justify-between items-start mb-1">
+                             <h4 className={`font-black tracking-tight ${!notif.isRead ? 'text-gray-900' : 'text-gray-600'}`}>{notif.title}</h4>
+                             <span className="text-[10px] text-gray-400 font-bold">
+                               {notif.createdAt ? format(notif.createdAt.toDate(), 'HH:mm | d MMM', { locale: ar }) : ''}
+                             </span>
+                          </div>
+                          <p className={`text-sm leading-relaxed mb-3 ${!notif.isRead ? 'text-gray-600' : 'text-gray-400'}`}>{notif.message}</p>
+                          {notif.orderId && (
+                             <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-50 border border-gray-100 rounded-lg group hover:border-blue-200 transition-all">
+                               <Shield className="w-3 h-3 text-gray-400" />
+                               <span className="text-[10px] font-black text-gray-600">رقم الطلب: #ARB-{notif.orderId.slice(0, 8)}</span>
+                               <ChevronRight className="w-3 h-3 text-gray-300 group-hover:text-blue-500 transition-all" />
+                             </div>
+                          )}
+                       </div>
+                       {!notif.isRead && (
+                         <div className="w-2 h-2 rounded-full bg-blue-600 mt-2 shrink-0"></div>
+                       )}
+                    </div>
+                  ))}
+                  {notifications.length === 0 && (
+                    <div className="flex flex-col items-center justify-center py-20 text-center px-6">
+                       <Bell className="w-12 h-12 text-gray-200 mb-4" />
+                       <p className="text-gray-500 font-medium italic">لا توجد إشعارات حالياً.</p>
+                    </div>
+                  )}
+                </div>
+             </div>
+          </motion.div>
+        )}
+
         {activeTab === 'orders' && (
           <motion.div 
             key="orders"
@@ -597,9 +693,20 @@ export const Dashboard: React.FC = () => {
                           {log.timestamp ? format(log.timestamp.toDate(), 'HH:mm:ss | d MMM', { locale: ar }) : 'الآن'}
                         </td>
                         <td className="px-8 py-4">
-                          <div className="flex flex-col">
-                            <span className="text-xs font-black text-gray-900">{log.authInfo?.email || 'زائر'}</span>
-                            <span className="text-[10px] text-gray-400 font-bold">UID: {log.authInfo?.userId?.slice(0, 8) || 'N/A'}</span>
+                          <div className="flex items-center justify-between">
+                            <div className="flex flex-col">
+                              <span className="text-xs font-black text-gray-900">{log.authInfo?.email || 'زائر'}</span>
+                              <span className="text-[10px] text-gray-400 font-bold">UID: {log.authInfo?.userId?.slice(0, 8) || 'N/A'}</span>
+                            </div>
+                            {log.authInfo?.userId && (
+                              <Link 
+                                to={`/seller/${log.authInfo.userId}`}
+                                className="p-2 hover:bg-blue-50 text-blue-600 rounded-lg transition-all"
+                                title="عرض الملف الشخصي"
+                              >
+                                <ExternalLink className="w-4 h-4" />
+                              </Link>
+                            )}
                           </div>
                         </td>
                         <td className="px-8 py-4">
@@ -635,6 +742,79 @@ export const Dashboard: React.FC = () => {
             exit={{ opacity: 0, x: -20 }}
             className="space-y-8"
           >
+            {/* Elite Status Eligibility Tracker */}
+            <div className="bg-white border border-gray-100 rounded-[2.5rem] p-8 md:p-10 shadow-sm relative overflow-hidden">
+               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
+                  <div>
+                    <h3 className="text-2xl font-black text-gray-900 mb-2 flex items-center gap-3">
+                      <Star className={`w-8 h-8 ${profile?.isEliteSeller ? 'fill-orange-400 text-orange-400' : 'text-gray-200'}`} />
+                      استحقاق النجمة الذهبية
+                    </h3>
+                    <p className="text-gray-500 font-medium italic">المعايير التلقائية للانضمام لقائمة البائعين المتميزين.</p>
+                  </div>
+                  {profile?.isEliteSeller ? (
+                    <div className="bg-orange-50 text-orange-600 px-6 py-3 rounded-2xl font-black flex items-center gap-2 border border-orange-100">
+                      <Star className="w-5 h-5 fill-current" />
+                      أنت بائع متميز حالياً
+                    </div>
+                  ) : (
+                    <div className="bg-gray-50 text-gray-400 px-6 py-3 rounded-2xl font-black border border-gray-100">
+                      لم يستوفِ الشروط بعد
+                    </div>
+                  )}
+               </div>
+
+               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {/* Rating Criteria */}
+                  <div className={`p-6 rounded-2xl border transition-all ${profile?.rating >= 4.75 ? 'bg-green-50 border-green-100' : 'bg-gray-50 border-gray-100'}`}>
+                    <div className="flex justify-between items-center mb-4">
+                      <Star className={`w-6 h-6 ${profile?.rating >= 4.75 ? 'text-green-600 fill-current' : 'text-gray-300'}`} />
+                      <span className={`text-xs font-black ${profile?.rating >= 4.75 ? 'text-green-600' : 'text-gray-400'}`}>
+                        {profile?.rating >= 4.75 ? 'مكتمل' : 'مطلوب 4.8'}
+                      </span>
+                    </div>
+                    <p className="text-gray-500 text-xs font-bold mb-1">التقييم الحالي</p>
+                    <p className="text-xl font-black text-gray-900">{profile?.rating?.toFixed(1) || '0.0'}</p>
+                  </div>
+
+                  {/* Completed Orders Criteria */}
+                  <div className={`p-6 rounded-2xl border transition-all ${(profile?.completedOrdersCount || 0) >= 5 ? 'bg-green-50 border-green-100' : 'bg-gray-50 border-gray-100'}`}>
+                    <div className="flex justify-between items-center mb-4">
+                      <CheckCircle2 className={`w-6 h-6 ${ (profile?.completedOrdersCount || 0) >= 5 ? 'text-green-600' : 'text-gray-300'}`} />
+                      <span className={`text-xs font-black ${(profile?.completedOrdersCount || 0) >= 5 ? 'text-green-600' : 'text-gray-400'}`}>
+                        {(profile?.completedOrdersCount || 0) >= 5 ? 'مكتمل' : 'مطلوب 5'}
+                      </span>
+                    </div>
+                    <p className="text-gray-500 text-xs font-bold mb-1">عمليات مكتملة</p>
+                    <p className="text-xl font-black text-gray-900">{profile?.completedOrdersCount || 0}</p>
+                  </div>
+
+                  {/* Verification Criteria */}
+                  <div className={`p-6 rounded-2xl border transition-all ${profile?.isVerified ? 'bg-green-50 border-green-100' : 'bg-gray-50 border-gray-100'}`}>
+                    <div className="flex justify-between items-center mb-4">
+                      <ShieldCheck className={`w-6 h-6 ${profile?.isVerified ? 'text-green-600' : 'text-gray-300'}`} />
+                      <span className={`text-xs font-black ${profile?.isVerified ? 'text-green-600' : 'text-gray-400'}`}>
+                        {profile?.isVerified ? 'مكتمل' : 'غير موثق'}
+                      </span>
+                    </div>
+                    <p className="text-gray-500 text-xs font-bold mb-1">توثيق الهوية</p>
+                    <p className="text-xl font-black text-gray-900">{profile?.isVerified ? 'موثق ✅' : 'نقص البيانات'}</p>
+                  </div>
+
+                  {/* Response Time Criteria */}
+                  <div className={`p-6 rounded-2xl border transition-all ${profile?.avgResponseTime === 'خلال دقائق' ? 'bg-green-50 border-green-100' : 'bg-gray-50 border-gray-100'}`}>
+                    <div className="flex justify-between items-center mb-4">
+                      <Clock className={`w-6 h-6 ${profile?.avgResponseTime === 'خلال دقائق' ? 'text-green-600' : 'text-gray-300'}`} />
+                      <span className={`text-xs font-black ${profile?.avgResponseTime === 'خلال دقائق' ? 'text-green-600' : 'text-gray-400'}`}>
+                        {profile?.avgResponseTime === 'خلال دقائق' ? 'مكتمل' : 'مطلوب دقائق'}
+                      </span>
+                    </div>
+                    <p className="text-gray-500 text-xs font-bold mb-1">سرعة الرد</p>
+                    <p className="text-xl font-black text-gray-900 truncate">{profile?.avgResponseTime || 'خلال ساعات'}</p>
+                  </div>
+               </div>
+            </div>
+
             <div className="bg-orange-50 border border-orange-100 rounded-[2.5rem] p-10 relative overflow-hidden">
                <h3 className="text-2xl font-black text-gray-900 mb-4 flex items-center gap-2">
                  <ShieldCheck className="w-8 h-8 text-orange-600" />

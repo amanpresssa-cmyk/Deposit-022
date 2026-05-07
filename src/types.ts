@@ -35,6 +35,9 @@ export interface UserProfile {
   agreedToTerms?: boolean;
   isBlocked?: boolean;
   isFeatured?: boolean;
+  isEliteSeller?: boolean;
+  totalSales?: number;
+  completedOrdersCount?: number;
   avgResponseTime?: string;
   referralCode?: string;
   referredBy?: string;
@@ -70,6 +73,15 @@ export interface Order {
   amount: number;
   status: OrderStatus;
   category: string;
+  paymentMethod?: 'standard' | 'bnpl';
+  paymentFees?: {
+    platformCommission: number;
+    providerCost: number;
+    platformNetRevenue: number;
+    sellerNetShare: number;
+    feePercentage: number;
+  };
+  paymentRef?: string;
   visibility: 'public' | 'private';
   typingStatus?: Record<string, boolean>;
   buyerRatingCompleted?: boolean;

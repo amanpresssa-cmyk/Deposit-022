@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { Search, PlusCircle, LayoutDashboard, User, ShieldCheck, Bell, X, CreditCard, AlertTriangle, Clock, CheckCircle2, MessageSquare, Settings, Sparkles } from 'lucide-react';
+import { Search, PlusCircle, LayoutDashboard, User, ShieldCheck, Bell, X, CreditCard, AlertTriangle, Clock, CheckCircle2, MessageSquare, Settings, Sparkles, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { collection, query, where, orderBy, onSnapshot, limit, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -70,6 +70,8 @@ export const Navbar: React.FC = () => {
     await updateDoc(doc(db, 'users', user.uid), { emailConsent: consent });
   };
 
+  const isAdmin = user?.email === 'khyratfarmdates@gmail.com' || profile?.isAdmin;
+
   return (
     <div className="sticky top-0 z-50 w-full">
       {/* Announcement Bar */}
@@ -117,7 +119,7 @@ export const Navbar: React.FC = () => {
 
         {/* Desktop Menu */}
         <div className="hidden md:flex items-center gap-6">
-          {user && profile?.isAdmin && (
+          {user && isAdmin && (
             <Link to="/admin" className="px-5 py-2 bg-red-50 text-red-600 rounded-2xl font-black text-[11px] uppercase tracking-wider hover:bg-red-100 transition-all flex items-center gap-2 border border-red-100 shadow-sm">
               <ShieldCheck className="w-4 h-4" />
               لوحة الإدارة
@@ -203,36 +205,78 @@ export const Navbar: React.FC = () => {
                           </div>
                         ) : (
                           filteredNotifications.map((n) => (
-                            <Link
+                            <div
                               key={n.id}
-                              to={n.orderId ? `/order/${n.orderId}` : '#'}
-                              onClick={async () => {
-                                setShowNotifications(false);
-                                if (!n.isRead) await markNotificationAsRead(n.id);
-                              }}
-                              className={`group flex gap-4 p-4 rounded-2xl transition-all border border-transparent mb-1 relative ${n.isRead ? 'hover:bg-gray-50 opacity-75' : 'bg-blue-50/30 hover:bg-blue-50/60 border-blue-100/50'}`}
+                              className={`group p-4 rounded-2xl transition-all border border-transparent mb-1 relative flex gap-4 ${n.isRead ? 'hover:bg-gray-50 opacity-75' : 'bg-blue-50/40 hover:bg-blue-50/60 border-blue-100/60 shadow-sm'}`}
                             >
                               {!n.isRead && (
-                                <div className="absolute top-4 left-4 w-2 h-2 bg-blue-600 rounded-full animate-pulse" />
+                                <div className="absolute top-4 left-4 w-2 h-2 bg-blue-600 rounded-full shadow-[0_0_8px_rgba(37,99,235,0.5)] animate-pulse" />
                               )}
-                              <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-inner shrink-0 ${getPriorityConfig(n.priority).color} bg-opacity-10`}>
+                              
+                              <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${getPriorityConfig(n.priority).color} bg-opacity-10 ring-1 ring-inset ${getPriorityConfig(n.priority).color.replace('bg-', 'ring-')}/20`}>
                                 <div className={`${getPriorityConfig(n.priority).color.replace('bg-', 'text-')}`}>
                                   {getIcon(n.type, n.priority)}
                                 </div>
                               </div>
-                              <div className="text-right overflow-hidden flex-1">
+
+                              <div className="flex-1 overflow-hidden">
                                 <div className="flex items-center justify-between mb-1">
-                                  <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${getPriorityConfig(n.priority).color} text-white`}>
+                                  <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${getPriorityConfig(n.priority).color} text-white uppercase`}>
                                     {getPriorityConfig(n.priority).label}
                                   </span>
                                   <span className="text-[9px] text-gray-400 font-bold">
                                     {format(n.createdAt?.toDate?.() || new Date(), 'HH:mm', { locale: ar })}
                                   </span>
                                 </div>
-                                <p className="text-xs font-black text-gray-900 leading-tight group-hover:text-blue-600 transition-colors uppercase">{n.title}</p>
-                                <p className="text-[10px] text-gray-500 mt-1 line-clamp-2 leading-relaxed font-bold">{n.message}</p>
+                                <h5 className="text-[11px] font-black text-gray-900 leading-tight mb-1 group-hover:text-blue-600 transition-colors uppercase">
+                                  {n.title}
+                                </h5>
+                                <p className="text-[10px] text-gray-500 font-bold leading-relaxed line-clamp-2">
+                                  {n.message}
+                                </p>
+                                
+                                <div className="mt-3 flex items-center gap-2">
+                                  {n.action ? (
+                                    <button 
+                                      onClick={async () => {
+                                        if (!n.isRead) await markNotificationAsRead(n.id);
+                                        setShowNotifications(false);
+                                        navigate(n.action.url);
+                                      }}
+                                      className="px-4 py-1.5 bg-blue-600 text-white rounded-lg text-[10px] font-black shadow-sm shadow-blue-100 hover:shadow-md transition-all flex items-center gap-2"
+                                    >
+                                      {n.action.label}
+                                      <ChevronRight className="w-3 h-3" />
+                                    </button>
+                                  ) : n.orderId && (
+                                    <Link 
+                                      to={`/order/${n.orderId}`}
+                                      onClick={async () => {
+                                        if (!n.isRead) await markNotificationAsRead(n.id);
+                                        setShowNotifications(false);
+                                      }}
+                                      className="px-4 py-1.5 bg-gray-900 text-white rounded-lg text-[10px] font-black hover:bg-blue-600 transition-all flex items-center gap-2"
+                                    >
+                                      تفاصيل الطلب
+                                      <LayoutDashboard className="w-3 h-3" />
+                                    </Link>
+                                  )}
+                                  
+                                  {!n.isRead && (
+                                    <button 
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        markNotificationAsRead(n.id);
+                                      }}
+                                      className="text-[9px] font-black text-gray-400 hover:text-blue-600 px-2 py-1"
+                                    >
+                                      تحديد كمقروء
+                                    </button>
+                                  )}
+                                </div>
                               </div>
-                            </Link>
+                            </div>
                           ))
                         )}
                       </div>

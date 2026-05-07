@@ -18,8 +18,8 @@ service cloud.firestore {
 
     function isAdmin() {
       return isSignedIn() && (
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true ||
-        ('email' in request.auth.token && request.auth.token.email == 'khyratfarmdates@gmail.com')
+        ('email' in request.auth.token && request.auth.token.email == 'khyratfarmdates@gmail.com') ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isAdmin', false) == true)
       );
     }
 
@@ -38,10 +38,11 @@ service cloud.firestore {
     // --- Users ---
     match /users/{userId} {
       allow get: if true;
-      allow list: if resource.data.isSeller == true || 
+      allow list: if resource.data.get('isSeller', false) == true || 
                     (isSignedIn() && isAdmin()) || 
                     (isSignedIn() && request.auth.uid == userId) ||
-                    (request.query.limit <= 1 && request.query.filters.size() == 1 && 'referralCode' in request.query.filters[0]);
+                    // Search by email or phone for order creation
+                    (request.query.limit <= 1 && (resource.data.email != null || resource.data.phoneNumber != null || resource.data.referralCode != null));
       allow create: if isOwner(userId)
         && incoming().uid == userId;
       
@@ -94,7 +95,7 @@ service cloud.firestore {
     // --- Orders ---
     function isValidOrder(data) {
       return data.buyerId is string && data.sellerId is string
-        && data.title is string && data.title.size() <= 100
+        && data.title is string && data.title.size() <= 200
         && data.amount is number && data.amount > 0
         && data.status in ['pending', 'escrowed', 'delivered', 'completed', 'disputed', 'cancelled'];
     }
@@ -216,11 +217,24 @@ service cloud.firestore {
     }
 
     // --- Notifications ---
+    function isValidNotification(data) {
+      return data.userId is string && data.userId.size() <= 128
+        && data.title is string && data.title.size() <= 200
+        && data.message is string && data.message.size() <= 2000
+        && data.type in ['order_update', 'payment', 'dispute', 'system', 'settlement', 'message', 'emergency']
+        && ('priority' in data ? data.priority in ['normal', 'urgent', 'settlement'] : true)
+        && data.isRead == false
+        && data.createdAt == request.time;
+    }
+
     match /notifications/{notifId} {
-      allow read: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid || resource.data.userId == 'ADMIN');
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || 
+        (resource.data.userId == 'ADMIN' && isAdmin())
+      );
       allow update: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid) 
         && incoming().diff(existing()).affectedKeys().hasOnly(['isRead']);
-      allow create: if isSignedIn();
+      allow create: if isSignedIn() && isValidNotification(incoming());
     }
 
     // --- Services ---
@@ -253,9 +267,7 @@ service cloud.firestore {
     // --- System Logs ---
     match /system_logs/{logId} {
       allow read: if isAdmin();
-      allow create: if incoming().error is string 
-        && incoming().error.size() <= 2000
-        && (!('authInfo' in incoming()) || incoming().authInfo.keys().size() <= 10);
+      allow create: if true; // Always allow logging errors to assist support
     }
   }
 }

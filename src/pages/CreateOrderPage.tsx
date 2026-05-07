@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { collection, addDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, getDocs, limit } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Shield, ChevronRight, AlertCircle, Search, Smartphone, Mail, CreditCard } from 'lucide-react';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
@@ -75,20 +75,25 @@ export const CreateOrderPage: React.FC = () => {
       // Find target user
       let targetRef = null;
       
-      if (formData.targetEmail) {
-        const emailQuery = query(collection(db, 'users'), where('email', '==', formData.targetEmail.trim().toLowerCase()));
-        const snap = await getDocs(emailQuery);
-        if (!snap.empty) targetRef = snap.docs[0];
-      }
-      
-      if (!targetRef && formData.targetPhone) {
-        let phone = formData.targetPhone.trim();
-        if (!phone.startsWith('+')) {
-          phone = `+966${phone.replace(/^0/, '')}`;
+      try {
+        if (formData.targetEmail) {
+          const emailQuery = query(collection(db, 'users'), where('email', '==', formData.targetEmail.trim().toLowerCase()), limit(1));
+          const snap = await getDocs(emailQuery);
+          if (!snap.empty) targetRef = snap.docs[0];
         }
-        const phoneQuery = query(collection(db, 'users'), where('phoneNumber', '==', phone));
-        const snap = await getDocs(phoneQuery);
-        if (!snap.empty) targetRef = snap.docs[0];
+        
+        if (!targetRef && formData.targetPhone) {
+          let phone = formData.targetPhone.trim();
+          if (!phone.startsWith('+')) {
+            phone = `+966${phone.replace(/^0/, '')}`;
+          }
+          const phoneQuery = query(collection(db, 'users'), where('phoneNumber', '==', phone), limit(1));
+          const snap = await getDocs(phoneQuery);
+          if (!snap.empty) targetRef = snap.docs[0];
+        }
+      } catch (searchErr) {
+        console.warn("User search failed (likely permission), proceeding as unknown:", searchErr);
+        // We continue even if search fails, the order creator will be fine
       }
       
       const targetUserId = targetRef ? targetRef.id : 'unknown';
@@ -131,9 +136,11 @@ export const CreateOrderPage: React.FC = () => {
       navigate(`/order/${docRef.id}`);
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'حدث خطأ أثناء إنشاء الصفقة، يرجى المحاولة لاحقاً');
       if (err.message?.includes('permission')) {
-        setError('خطأ في الصلاحيات: تأكد من إكمال بيانات حسابك أولاً');
+        handleFirestoreError(err, OperationType.CREATE, 'orders');
+        setError('خطأ في الصلاحيات: لم نتمكن من إنشاء الطلب. يرجى التأكد من صحة البيانات أو التواصل مع الدعم التقني.');
+      } else {
+        setError(err.message || 'حدث خطأ أثناء إنشاء الصفقة، يرجى المحاولة لاحقاً');
       }
     } finally {
       setLoading(false);

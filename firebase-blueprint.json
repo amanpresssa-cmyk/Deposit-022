@@ -148,6 +148,22 @@
         "completedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["inviterId", "inviteeId", "status", "createdAt"]
+    },
+    "SystemLog": {
+      "title": "System Log",
+      "description": "Technical logs and error records",
+      "type": "object",
+      "properties": {
+        "error": { "type": "string" },
+        "operationType": { "type": "string" },
+        "path": { "type": "string" },
+        "authInfo": { "type": "object" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "severity": { "type": "string" },
+        "userAgent": { "type": "string" },
+        "url": { "type": "string" }
+      },
+      "required": ["error", "timestamp"]
     }
   },
   "firestore": {
@@ -186,6 +202,10 @@
     "referrals": {
       "schema": "Referral",
       "description": "User referral tracking"
+    },
+    "system_logs": {
+      "schema": "SystemLog",
+      "description": "Technical error logs"
     }
   }
 }

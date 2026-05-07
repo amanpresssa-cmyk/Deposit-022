@@ -9,7 +9,14 @@ import { SearchPage } from './pages/SearchPage';
 import { SellerProfilePage } from './pages/SellerProfilePage';
 import { SettingsPage } from './pages/SettingsPage';
 import { UserProfilePage } from './pages/UserProfilePage';
-import { AdminDashboard } from './pages/AdminDashboard';
+import { AdminLayout } from './components/layout/AdminLayout';
+import { AdminOverview } from './pages/admin/AdminOverview';
+import { AdminUsers } from './pages/admin/AdminUsers';
+import { AdminFinance } from './pages/admin/AdminFinance';
+import { AdminDisputes } from './pages/admin/AdminDisputes';
+import { AdminSupport } from './pages/admin/AdminSupport';
+import { AdminSettings } from './pages/admin/AdminSettings';
+import { useLocation } from 'react-router-dom';
 import { HelpCenterPage } from './pages/HelpCenterPage';
 import { TermsPage } from './pages/TermsPage';
 import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
@@ -26,8 +33,7 @@ import { InstallPWAHint } from './components/layout/InstallPWAHint';
 import { ProductTour } from './components/layout/ProductTour';
 import { motion, AnimatePresence } from 'motion/react';
 import { Shield, X } from 'lucide-react';
-import { doc, getDocFromServer } from 'firebase/firestore';
-import { db } from './lib/firebase';
+import { FloatingScrollToTop } from './components/ui/FloatingScrollToTop';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -78,7 +84,30 @@ class ErrorBoundary extends Component<any, any> {
   }
 }
 
-import { FloatingScrollToTop } from './components/ui/FloatingScrollToTop';
+function MainLayout({ children, isAdmin }: { children: React.ReactNode, isAdmin: boolean }) {
+  const location = useLocation();
+  const isAdminRoute = location.pathname.startsWith('/admin');
+
+  if (isAdminRoute && isAdmin) {
+    return <div className="min-h-screen bg-gray-50">{children}</div>;
+  }
+
+  return (
+    <>
+      <Navbar />
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-16 md:pb-8">
+        <AnimatePresence mode="wait">
+          {children}
+        </AnimatePresence>
+      </main>
+      <Footer />
+      <BottomNav />
+      <InstallPWAHint />
+      <ProductTour />
+      <SupportButton />
+    </>
+  );
+}
 
 export default function App() {
   const { user, profile, loading, error, clearError } = useAuth();
@@ -111,11 +140,6 @@ export default function App() {
       <ErrorBoundary>
         <NotificationProvider>
           <Toaster position="top-center" richColors />
-          {isAdmin ? (
-          <div className="min-h-screen bg-gray-50" dir="rtl">
-            <AdminDashboard />
-          </div>
-        ) : (
           <div className="min-h-screen bg-[#f8fafc] font-sans antialiased rtl relative" dir="rtl">
             <AnimatePresence>
               {error && (
@@ -137,9 +161,7 @@ export default function App() {
                 </motion.div>
               )}
             </AnimatePresence>
-            <Navbar />
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-16 md:pb-8">
-              <AnimatePresence mode="wait">
+            <MainLayout isAdmin={!!isAdmin}>
                 <Routes>
                   <Route path="/" element={<Home />} />
                   <Route path="/search" element={<SearchPage />} />
@@ -147,6 +169,19 @@ export default function App() {
                     path="/dashboard"
                     element={user ? <Dashboard /> : <Navigate to="/" />}
                   />
+                  
+                  {/* Admin Protected Routes with professional layout */}
+                  {isAdmin && (
+                    <Route path="/admin" element={<AdminLayout />}>
+                      <Route index element={<AdminOverview />} />
+                      <Route path="users" element={<AdminUsers />} />
+                      <Route path="finance" element={<AdminFinance />} />
+                      <Route path="disputes" element={<AdminDisputes />} />
+                      <Route path="support" element={<AdminSupport />} />
+                      <Route path="settings" element={<AdminSettings />} />
+                    </Route>
+                  )}
+
                   <Route
                     path="/order/:id"
                     element={<OrderDetailsPage />}
@@ -174,15 +209,8 @@ export default function App() {
                   <Route path="/how-it-works" element={<HowItWorksPage />} />
                   <Route path="*" element={<Navigate to="/" />} />
                 </Routes>
-              </AnimatePresence>
-            </main>
-            <Footer />
-            <BottomNav />
-            <InstallPWAHint />
-            <ProductTour />
-            <SupportButton />
+            </MainLayout>
           </div>
-        )}
         </NotificationProvider>
       </ErrorBoundary>
     </Router>
