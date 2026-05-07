@@ -116,7 +116,7 @@ service cloud.firestore {
       allow create: if isSignedIn() 
         && isValidOrder(incoming())
         && (isOwner(incoming().buyerId) || isOwner(incoming().sellerId) || isOwner(incoming().creatorId))
-        && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isBlocked != true)
+        && (!exists(/databases/$(database)/documents/users/$(request.auth.uid)) || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isBlocked', false) != true)
         && incoming().status == 'pending'
         && incoming().createdAt == request.time;
         
@@ -248,6 +248,14 @@ service cloud.firestore {
       allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
       allow list: if isAdmin();
       allow update: if isAdmin();
+    }
+
+    // --- System Logs ---
+    match /system_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if incoming().error is string 
+        && incoming().error.size() <= 2000
+        && (!('authInfo' in incoming()) || incoming().authInfo.keys().size() <= 10);
     }
   }
 }

@@ -194,9 +194,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Periodically update lastSeen as a heartbeat
     const interval = setInterval(() => {
       if (document.visibilityState === 'visible') {
-        updateDoc(userRef, { lastSeen: serverTimestamp() }).catch(console.error);
+        updateDoc(userRef, { lastSeen: serverTimestamp(), isOnline: true }).catch(console.error);
       }
-    }, 30000); // Every 30 seconds for better presence awareness
+    }, 15000); // Every 15 seconds for pin-point presence awareness
     
     return () => {
       window.removeEventListener('visibilitychange', handleVisibilityChange);

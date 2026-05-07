@@ -1,4 +1,5 @@
-import { auth } from '../lib/firebase';
+import { auth, db } from '../lib/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 export enum OperationType {
   CREATE = 'create',
@@ -44,5 +45,19 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     path
   }
   console.error('Firestore Error: ', JSON.stringify(errInfo));
+  
+  // Log to Firestore for Admin visibility
+  try {
+    addDoc(collection(db, 'system_logs'), {
+      ...errInfo,
+      timestamp: serverTimestamp(),
+      severity: 'error',
+      userAgent: navigator.userAgent,
+      url: window.location.href
+    }).catch(e => console.error('Failed to log error to Firestore:', e));
+  } catch (e) {
+    console.error('Failed to log error to Firestore:', e);
+  }
+
   throw new Error(JSON.stringify(errInfo));
 }

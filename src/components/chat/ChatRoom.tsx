@@ -166,14 +166,24 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ orderId }) => {
     }
   };
 
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    // Force re-render every 30s to update "Last Seen" relative strings
+    const interval = setInterval(() => {
+      setRefreshKey(prev => prev + 1);
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   const isTrulyOnline = (u: UserProfile | null) => {
     if (!u) return false;
     if (!u.lastSeen) return false;
     
-    // If heartbeat was within last 2 minutes, consider online
+    // If heartbeat was within last 45 seconds, consider online
     const lastSeenDate = u.lastSeen.toDate ? u.lastSeen.toDate() : new Date(u.lastSeen);
     const diff = (new Date().getTime() - lastSeenDate.getTime()) / 1000;
-    return u.isOnline && diff < 120;
+    return u.isOnline && diff < 45;
   };
 
   const formatLastSeen = (timestamp: any) => {

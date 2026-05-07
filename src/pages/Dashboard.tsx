@@ -4,7 +4,7 @@ import { db } from '../lib/firebase';
 import { useAuth } from '../hooks/useAuth';
 import { Order } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
-import { Clock, CheckCircle2, AlertCircle, MessageCircle, ArrowLeft, Plus, ShieldCheck, ChevronRight, Briefcase, Globe, ExternalLink, LogOut, Star, Shield } from 'lucide-react';
+import { Clock, CheckCircle2, AlertCircle, MessageCircle, ArrowLeft, Plus, ShieldCheck, ChevronRight, Briefcase, Globe, ExternalLink, LogOut, Star, Shield, Terminal, Activity, Trash2 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
@@ -121,8 +121,9 @@ export const Dashboard: React.FC = () => {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [reviews, setReviews] = useState<any[]>([]);
   const [confidenceScore, setConfidenceScore] = useState(100);
-  const [activeTab, setActiveTab] = useState<'orders' | 'services' | 'messages' | 'stats'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'services' | 'messages' | 'stats' | 'system'>('orders');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [logs, setLogs] = useState<any[]>([]);
   const { logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -238,6 +239,21 @@ export const Dashboard: React.FC = () => {
     fetchOrders();
   }, [user]);
 
+  useEffect(() => {
+    if (!profile?.isAdmin) return;
+
+    const qLogs = query(
+      collection(db, 'system_logs'),
+      orderBy('timestamp', 'desc')
+    );
+
+    const unsubLogs = onSnapshot(qLogs, (snapshot) => {
+      setLogs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+
+    return () => unsubLogs();
+  }, [profile?.isAdmin]);
+
   const handleUpdateProfile = async (specialties: string[]) => {
     if (!user) return;
     setIsUpdatingSeller(true);
@@ -296,8 +312,9 @@ export const Dashboard: React.FC = () => {
           { id: 'orders', label: 'طلباتي', icon: Clock },
           { id: 'services', label: 'خدمات البائع', icon: Briefcase, sellerOnly: true },
           { id: 'messages', label: 'المحادثات', icon: MessageCircle },
-          { id: 'stats', label: 'الرقابة والتقييم', icon: ShieldCheck, sellerOnly: true }
-        ].filter(t => !t.sellerOnly || profile?.isSeller).map(tab => (
+          { id: 'stats', label: 'الرقابة والتقييم', icon: ShieldCheck, sellerOnly: true },
+          { id: 'system', label: 'سجلات النظام', icon: Terminal, adminOnly: true }
+        ].filter(t => (!t.sellerOnly || profile?.isSeller) && (!t.adminOnly || profile?.isAdmin)).map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
@@ -534,6 +551,78 @@ export const Dashboard: React.FC = () => {
                   <h2 className="text-xl font-black text-gray-900">اختر محادثة للبدء</h2>
                 </div>
               )}
+            </div>
+          </motion.div>
+        )}
+
+        {activeTab === 'system' && profile?.isAdmin && (
+          <motion.div 
+            key="system"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="space-y-6"
+          >
+            <div className="bg-gray-900 text-white rounded-[2.5rem] p-8 relative overflow-hidden">
+              <div className="relative z-10">
+                <h2 className="text-2xl font-black mb-2 flex items-center gap-3">
+                  <Activity className="w-8 h-8 text-blue-400" />
+                  مراقب الأداء الفني
+                </h2>
+                <p className="text-gray-400 max-w-2xl font-medium">
+                  هنا يمكنك تتبع جميع الأخطاء التقنية التي واجهها المستخدمون في الوقت الفعلي. يساعدك هذا على فهم المشاكل وتقديم دعم فني دقيق.
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden">
+              <div className="p-8 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
+                <h3 className="font-black text-gray-900">سجل الأخطاء والعمليات ({logs.length})</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-right border-collapse">
+                  <thead>
+                    <tr className="bg-gray-50 text-[10px] text-gray-400 font-bold uppercase tracking-widest border-b border-gray-100">
+                      <th className="px-8 py-4">الوقت</th>
+                      <th className="px-8 py-4">المستخدم</th>
+                      <th className="px-8 py-4">العملية</th>
+                      <th className="px-8 py-4">المسار</th>
+                      <th className="px-8 py-4">الخطأ</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {logs.map(log => (
+                      <tr key={log.id} className="hover:bg-red-50/10 transition-colors">
+                        <td className="px-8 py-4 text-xs font-bold text-gray-500">
+                          {log.timestamp ? format(log.timestamp.toDate(), 'HH:mm:ss | d MMM', { locale: ar }) : 'الآن'}
+                        </td>
+                        <td className="px-8 py-4">
+                          <div className="flex flex-col">
+                            <span className="text-xs font-black text-gray-900">{log.authInfo?.email || 'زائر'}</span>
+                            <span className="text-[10px] text-gray-400 font-bold">UID: {log.authInfo?.userId?.slice(0, 8) || 'N/A'}</span>
+                          </div>
+                        </td>
+                        <td className="px-8 py-4">
+                          <span className="px-2 py-1 bg-gray-100 rounded-md text-[10px] font-black text-gray-600 uppercase tracking-tighter">
+                            {log.operationType}
+                          </span>
+                        </td>
+                        <td className="px-8 py-4 text-[10px] font-mono text-blue-600 break-all max-w-[150px]">
+                          {log.path || 'Global'}
+                        </td>
+                        <td className="px-8 py-4">
+                          <p className="text-xs text-red-600 font-bold leading-relaxed line-clamp-2" title={log.error}>
+                            {log.error}
+                          </p>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {logs.length === 0 && (
+                  <div className="p-20 text-center text-gray-400 font-medium italic">السجل نظيف، لا توجد أخطاء حالياً.</div>
+                )}
+              </div>
             </div>
           </motion.div>
         )}
