@@ -184,6 +184,7 @@
         "senderName": { "type": "string" },
         "senderRole": { "type": "string", "enum": ["user", "admin"] },
         "text": { "type": "string" },
+        "isInternal": { "type": "boolean" },
         "attachments": { "type": "array", "items": { "type": "string" } },
         "createdAt": { "type": "string", "format": "date-time" }
       },

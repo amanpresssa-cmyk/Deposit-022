@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { Search, PlusCircle, LayoutDashboard, User, ShieldCheck, Bell, X, CreditCard, AlertTriangle, Clock, CheckCircle2, MessageSquare, Settings, Sparkles, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -70,7 +70,10 @@ export const Navbar: React.FC = () => {
     await updateDoc(doc(db, 'users', user.uid), { emailConsent: consent });
   };
 
+  const location = useLocation();
+  const isViewingAsUser = new URLSearchParams(location.search).get('view') === 'site';
   const isAdmin = user?.email === 'khyratfarmdates@gmail.com' || profile?.isAdmin;
+  const showAdminUI = isAdmin && !isViewingAsUser;
 
   return (
     <div className="sticky top-0 z-50 w-full">
@@ -125,7 +128,7 @@ export const Navbar: React.FC = () => {
               لوحة الإدارة
             </Link>
           )}
-          {!isAdmin && (
+          {!showAdminUI && (
             <>
               <Link to="/search" className="text-sm font-bold text-gray-600 hover:text-blue-600 transition-colors">تصفح الخدمات</Link>
               <Link to="/how-it-works" className="text-sm font-bold text-gray-600 hover:text-blue-600 transition-colors">كيف يعمل؟</Link>
@@ -296,7 +299,7 @@ export const Navbar: React.FC = () => {
               </div>
 
               <div className="hidden md:flex items-center gap-3">
-                {!isAdmin && (
+                {!showAdminUI && (
                   <>
                     <Link 
                       to="/dashboard" 

@@ -9,7 +9,7 @@ import {
   AlertTriangle, CheckCircle2, LayoutDashboard,
   Zap, ArrowLeftRight
 } from 'lucide-react';
-import { format, startOfWeek, eachDayOfInterval, endOfWeek, isSameDay } from 'date-fns';
+import { format, startOfWeek, eachDayOfInterval, endOfWeek, isSameDay, startOfMonth, endOfMonth, eachWeekOfInterval } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, 
@@ -21,22 +21,24 @@ export const AdminOverview: React.FC = () => {
   const { profile, user } = useAuth();
   const isAdmin = user?.email === 'khyratfarmdates@gmail.com' || profile?.isAdmin;
 
+  const [chartView, setChartView] = useState<'weekly' | 'monthly'>('weekly');
   const [stats, setStats] = useState({
     totalVolume: 0,
     totalFees: 0,
     activeEscrows: 0,
     pendingVerifications: 0,
     totalUsers: 0,
+    totalTickets: 0,
     recentTransactions: [] as any[],
     chartData: [] as { name: string, value: number }[],
+    allTx: [] as any[], // Keep all transactions to re-calculate chart locally
     disputeCount: 0
   });
 
   useEffect(() => {
     if (!isAdmin) return;
 
-    // Tx Stats & Recent Feed + Chart Data
-    // We fetch more to calculate the chart or we could have a separate query
+    // Tx Stats
     const txQ = query(collection(db, 'transactions'), orderBy('createdAt', 'desc'));
     const unsubTx = onSnapshot(txQ, (snapshot) => {
       const allTx = snapshot.docs.map(d => {
@@ -52,28 +54,13 @@ export const AdminOverview: React.FC = () => {
       const fees = allTx.reduce((acc, tx: any) => acc + (Number(tx.fee) || 0), 0);
       const active = allTx.filter((tx: any) => tx.status === 'escrowed').length;
 
-      // Calculate Chart Data (Current Week)
-      const now = new Date();
-      const start = startOfWeek(now, { weekStartsOn: 6 }); // Saturday
-      const end = endOfWeek(now, { weekStartsOn: 6 });
-      const days = eachDayOfInterval({ start, end });
-
-      const weeklyData = days.map(day => {
-        const dayName = format(day, 'EEEE', { locale: ar });
-        const dayTotal = allTx
-          .filter(tx => isSameDay(tx.date, day))
-          .reduce((acc, tx: any) => acc + (Number(tx.amount) || 0), 0);
-        
-        return { name: dayName, value: dayTotal };
-      });
-      
       setStats(prev => ({ 
         ...prev, 
         totalVolume: volume, 
         totalFees: fees, 
         activeEscrows: active,
         recentTransactions: allTx.slice(0, 10),
-        chartData: weeklyData
+        allTx: allTx
       }));
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'transactions');
@@ -92,6 +79,12 @@ export const AdminOverview: React.FC = () => {
       handleFirestoreError(error, OperationType.GET, 'users');
     });
 
+    // Support Tickets count for space estimation
+    const ticketsQ = query(collection(db, 'support_tickets'));
+    const unsubTickets = onSnapshot(ticketsQ, (snapshot) => {
+      setStats(prev => ({ ...prev, totalTickets: snapshot.size }));
+    });
+
     // Disputes
     const disputeQ = collection(db, 'disputes');
     const unsubDisputes = onSnapshot(disputeQ, (snapshot) => {
@@ -104,8 +97,55 @@ export const AdminOverview: React.FC = () => {
       unsubTx();
       unsubUsers();
       unsubDisputes();
+      unsubTickets();
     };
   }, [isAdmin]);
+
+  // Calculate System Usage Percentage (Proxy for Used Space)
+  // Assuming a free-tier limit of 50,000 documents total for major collections
+  const totalDocs = stats.totalUsers + stats.allTx.length + stats.totalTickets;
+  const usageLimit = 50000;
+  const usagePercentage = Math.min(Math.round((totalDocs / usageLimit) * 100), 100);
+  const usedSpaceGB = (totalDocs * 0.0001).toFixed(2); // Mocking GB based on doc count
+
+  useEffect(() => {
+    if (stats.allTx.length === 0) return;
+
+    const now = new Date();
+    let computedData: { name: string, value: number }[] = [];
+
+    if (chartView === 'weekly') {
+      const start = startOfWeek(now, { weekStartsOn: 6 });
+      const end = endOfWeek(now, { weekStartsOn: 6 });
+      const days = eachDayOfInterval({ start, end });
+
+      computedData = days.map(day => {
+        const dayName = format(day, 'EEEE', { locale: ar });
+        const dayTotal = stats.allTx
+          .filter(tx => isSameDay(tx.date, day))
+          .reduce((acc, tx: any) => acc + (Number(tx.amount) || 0), 0);
+        
+        return { name: dayName, value: dayTotal };
+      });
+    } else {
+      // Monthly view
+      const start = startOfMonth(now);
+      const end = endOfMonth(now);
+      const weeks = eachWeekOfInterval({ start, end });
+
+      computedData = weeks.map((weekStart, idx) => {
+        const weekEnd = endOfWeek(weekStart);
+        const weekName = `الأسبوع ${idx + 1}`;
+        const weekTotal = stats.allTx
+          .filter(tx => tx.date >= weekStart && tx.date <= weekEnd)
+          .reduce((acc, tx: any) => acc + (Number(tx.amount) || 0), 0);
+        
+        return { name: weekName, value: weekTotal };
+      });
+    }
+
+    setStats(prev => ({ ...prev, chartData: computedData }));
+  }, [chartView, stats.allTx]);
 
   const quickActions = [
     { label: 'توثيق الحسابات', desc: `${stats.pendingVerifications} طلب جديد`, link: '/admin/users', icon: <ShieldCheck />, color: 'blue' },
@@ -115,10 +155,38 @@ export const AdminOverview: React.FC = () => {
   ];
 
   const mainStats = [
-    { label: 'إجمالي التداولات', value: `${stats.totalVolume.toLocaleString()} ر.س`, icon: <TrendingUp />, trend: 'مباشر', color: 'blue' },
-    { label: 'صافي أرباح العمولات', value: `${stats.totalFees.toLocaleString()} ر.س`, icon: <Zap />, trend: 'مباشر', color: 'yellow' },
-    { label: 'المستخدمين النشطين', value: stats.totalUsers, icon: <UsersIcon />, trend: 'مباشر', color: 'indigo' },
-    { label: 'العمليات في الضمان', value: stats.activeEscrows, icon: <Clock />, trend: 'مباشر', color: 'orange' },
+    { 
+      label: 'إجمالي التداولات', 
+      value: `${stats.totalVolume.toLocaleString()} ر.س`, 
+      icon: <TrendingUp />, 
+      trend: 'مباشر', 
+      color: 'blue',
+      info: 'مجموع المبالغ التي تم تداولها عبر المنصة منذ التأسيس.'
+    },
+    { 
+      label: 'صافي أرباح العمولات', 
+      value: `${stats.totalFees.toLocaleString()} ر.س`, 
+      icon: <Zap />, 
+      trend: 'مباشر', 
+      color: 'yellow',
+      info: 'حصيلة الرسوم المستقطعة من العمليات كأرباح للمنصة.'
+    },
+    { 
+      label: 'المستخدمين النشطين', 
+      value: stats.totalUsers, 
+      icon: <UsersIcon />, 
+      trend: 'مباشر', 
+      color: 'indigo',
+      info: 'عدد الحسابات المسجلة والفعالة حالياً في النظام.'
+    },
+    { 
+      label: 'العمليات في الضمان', 
+      value: stats.activeEscrows, 
+      icon: <Clock />, 
+      trend: 'مباشر', 
+      color: 'orange',
+      info: 'عدد العمليات الجارية التي لم تسلم مبالغها للبائعين بعد.'
+    },
   ];
 
   return (
@@ -151,11 +219,12 @@ export const AdminOverview: React.FC = () => {
       {/* Main Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {mainStats.map((s, idx) => (
-          <div key={idx} className="bg-white p-6 rounded-3xl border border-gray-50 shadow-sm relative overflow-hidden group hover:shadow-xl transition-all duration-500">
+          <div key={idx} className="bg-white p-6 rounded-3xl border border-gray-50 shadow-sm relative overflow-hidden group hover:shadow-xl transition-all duration-500 cursor-help">
+             <div className="absolute inset-0 bg-blue-600 opacity-0 group-hover:opacity-[0.02] transition-opacity" />
              <div className="absolute -top-12 -right-12 w-32 h-32 bg-gray-50 rounded-full group-hover:scale-150 transition-transform duration-700 opacity-50" />
              <div className="relative z-10">
                 <div className="flex justify-between items-start mb-4">
-                   <div className="w-12 h-12 rounded-2xl bg-gray-950 text-white flex items-center justify-center shadow-xl shadow-gray-200">
+                   <div className="w-12 h-12 rounded-2xl bg-gray-950 text-white flex items-center justify-center shadow-xl shadow-gray-200 group-hover:bg-blue-600 transition-colors">
                       {React.cloneElement(s.icon as React.ReactElement, { className: 'w-5 h-5' })}
                    </div>
                    <div className="flex items-center gap-1 text-[10px] font-black text-green-600 bg-green-50/50 px-2 py-1 rounded-lg">
@@ -167,6 +236,11 @@ export const AdminOverview: React.FC = () => {
                    <p className="text-gray-400 font-bold text-[10px] uppercase mb-1 tracking-widest">{s.label}</p>
                    <p className="text-2xl font-black text-gray-900 tabular-nums">{s.value}</p>
                 </div>
+                
+                {/* Info Tooltip Overlay */}
+                <div className="mt-4 pt-4 border-t border-gray-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                   <p className="text-[9px] font-black text-gray-400 leading-relaxed italic">{s.info}</p>
+                </div>
              </div>
           </div>
         ))}
@@ -175,15 +249,30 @@ export const AdminOverview: React.FC = () => {
       {/* Charts & Quick Actions */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
          {/* Growth Chart */}
-         <div className="xl:col-span-2 bg-white p-8 rounded-[2.5rem] border border-gray-50 shadow-sm">
+         <div className="xl:col-span-2 bg-white p-8 rounded-[2.5rem] border border-gray-50 shadow-sm group relative">
             <div className="flex items-center justify-between mb-8">
                <div>
                   <h3 className="text-lg font-black text-gray-900 italic">مخطط <span className="text-blue-600">النمو</span></h3>
-                  <p className="text-gray-400 font-bold text-[10px] uppercase tracking-widest">إجمالي حجم التداولات خلال الأسبوع</p>
+                  <p className="text-gray-400 font-bold text-[10px] uppercase tracking-widest">إجمالي حجم التداولات المالي</p>
+               </div>
+               
+               {/* Hover Explanation Overlay */}
+               <div className="absolute top-24 right-8 left-8 bg-gray-950/95 p-6 rounded-2xl text-white text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none text-center shadow-2xl">
+                  يوضح هذا المخطط حركة التدفقات المالية (المبيعات) عبر المنصة، مما يساعد في تتبع مستوى النشاط الاقتصادي وتحديد اتجاهات السوق.
                </div>
                <div className="flex bg-gray-50 p-1 rounded-xl">
-                  <button className="px-4 py-1.5 bg-white text-blue-600 rounded-lg text-[9px] font-black shadow-sm">أسبوعي</button>
-                  <button className="px-4 py-1.5 text-gray-400 rounded-lg text-[9px] font-black">شهري</button>
+                  <button 
+                    onClick={() => setChartView('weekly')}
+                    className={`px-4 py-1.5 rounded-lg text-[9px] font-black transition-all ${chartView === 'weekly' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                  >
+                    أسبوعي
+                  </button>
+                  <button 
+                    onClick={() => setChartView('monthly')}
+                    className={`px-4 py-1.5 rounded-lg text-[9px] font-black transition-all ${chartView === 'monthly' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                  >
+                    شهري
+                  </button>
                </div>
             </div>
             
@@ -318,19 +407,24 @@ export const AdminOverview: React.FC = () => {
                </div>
             </div>
 
-            <div className="mt-auto p-6 bg-gradient-to-br from-indigo-600 to-blue-700 rounded-3xl text-white shadow-xl shadow-blue-100 relative overflow-hidden">
+            <div className="mt-auto p-6 bg-gradient-to-br from-indigo-600 to-blue-700 rounded-3xl text-white shadow-xl shadow-blue-100 relative overflow-hidden group">
                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-16 -mt-16" />
                <div className="relative z-10 flex items-center justify-between">
                   <div>
-                     <p className="text-[10px] font-black uppercase tracking-[0.2em] mb-1 opacity-70">المساحة المستخدمة</p>
-                     <p className="text-2xl font-black">2.4 GB</p>
+                     <p className="text-[10px] font-black uppercase tracking-[0.2em] mb-1 opacity-70 italic">مستوى استهلاك النظام</p>
+                     <p className="text-2xl font-black">{usedSpaceGB} GB <span className="text-[10px] opacity-60">({usagePercentage}%)</span></p>
                   </div>
                   <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center border border-white/30 backdrop-blur-md">
-                     <TrendingUp className="w-7 h-7" />
+                     <Zap className="w-7 h-7" />
                   </div>
                </div>
                <div className="mt-4 w-full h-1.5 bg-white/20 rounded-full overflow-hidden">
-                  <div className="h-full bg-white rounded-full w-[65%]" />
+                  <div className="h-full bg-white rounded-full transition-all duration-1000" style={{ width: `${usagePercentage}%` }} />
+               </div>
+               
+               {/* Explanation Overlay */}
+               <div className="absolute inset-0 bg-gray-950/95 flex items-center justify-center p-6 text-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                  <p className="text-[10px] font-bold leading-relaxed pr-2">يمثل هذا المؤشر مقدار البيانات الحقيقية المخزنة حالياً (مستخدمين، عمليات، تذاكر) مقارنة بالسعة الإجمالية المخصصة لقواعد بياناتك.</p>
                </div>
             </div>
          </div>

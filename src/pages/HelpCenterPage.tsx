@@ -29,7 +29,6 @@ export const HelpCenterPage: React.FC = () => {
   const [message, setMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
   const [activeView, setActiveView] = useState<'faq' | 'new_ticket' | 'my_tickets'>('faq');
   const [myTickets, setMyTickets] = useState<any[]>([]);
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
@@ -84,19 +83,38 @@ export const HelpCenterPage: React.FC = () => {
   };
 
   const handleStartChat = async () => {
-     // For now, we'll create a chat session in Firestore
+     if (!user) return;
+     setIsSubmitting(true);
      try {
-        await addDoc(collection(db, 'support_tickets'), {
-            userId: user?.uid || 'anonymous',
-            userEmail: user?.email || 'anonymous',
+        const docRef = await addDoc(collection(db, 'support_tickets'), {
+            userId: user.uid,
+            userName: profile?.displayName || 'مستخدم',
+            userEmail: user.email || '',
+            title: 'محادثة مباشرة',
             type: 'live_chat',
-            status: 'requested',
+            category: 'general',
+            status: 'open',
+            priority: 'low',
             createdAt: serverTimestamp(),
-            userName: profile?.displayName || 'زائر'
+            updatedAt: serverTimestamp()
         });
-        setChatOpen(true);
+        
+        const newTicket = {
+            id: docRef.id,
+            userId: user.uid,
+            userName: profile?.displayName || 'مستخدم',
+            userEmail: user.email || '',
+            title: 'محادثة مباشرة',
+            type: 'live_chat',
+            category: 'general',
+            status: 'open'
+        };
+        
+        setSelectedTicket(newTicket);
      } catch (e) {
-        console.error(e);
+        console.error('Error starting live chat:', e);
+     } finally {
+        setIsSubmitting(false);
      }
   };
 
@@ -402,61 +420,7 @@ export const HelpCenterPage: React.FC = () => {
         </div>
         )}
 
-        {/* Live Chat Floating Window (Mockup for now) */}
-        <AnimatePresence>
-           {chatOpen && (
-              <motion.div
-                initial={{ opacity: 0, y: 100, scale: 0.9 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 100 }}
-                className="fixed bottom-24 left-4 md:left-8 w-[calc(100%-2rem)] md:w-96 bg-white rounded-[2rem] shadow-2xl border border-gray-100 overflow-hidden z-50 flex flex-col h-[500px]"
-              >
-                 <div className="p-6 bg-blue-600 text-white flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                       <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center ring-2 ring-white/10">
-                          <MessageSquare className="w-5 h-5" />
-                       </div>
-                       <div className="text-right">
-                          <p className="font-black text-sm">المساعد الذكي</p>
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                             <div className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
-                             <span className="text-[10px] font-bold text-white/80">متصل الآن</span>
-                          </div>
-                       </div>
-                    </div>
-                    <button onClick={() => setChatOpen(false)} className="text-white/60 hover:text-white">
-                       <ChevronLeft className="w-6 h-6 rotate-90" />
-                    </button>
-                 </div>
-                 
-                 <div className="flex-1 p-6 overflow-y-auto bg-gray-50/50 space-y-4">
-                    <div className="flex justify-end">
-                       <div className="bg-white p-3 rounded-2xl rounded-tr-none shadow-sm text-xs font-medium text-gray-700 max-w-[80%] text-right border border-gray-100">
-                          مرحباً بك في خدمة المحادثة المباشرة، كيف يمكنني مساعدتك؟
-                       </div>
-                    </div>
-                    {user && (
-                       <div className="flex justify-start">
-                          <div className="bg-blue-600 p-3 rounded-2xl rounded-tl-none shadow-md text-xs font-black text-white max-w-[80%] text-right">
-                             أريد الاستفسار عن حالة طلبي الأخير.
-                          </div>
-                       </div>
-                    )}
-                 </div>
-
-                 <div className="p-4 bg-white border-t border-gray-100 flex gap-2">
-                    <input 
-                       type="text" 
-                       placeholder="اكتب رسالتك هنا..." 
-                       className="flex-1 bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm font-medium focus:bg-white outline-none text-right"
-                    />
-                    <button className="w-11 h-11 bg-blue-600 text-white rounded-xl flex items-center justify-center shadow-lg shadow-blue-100">
-                       <Send className="w-5 h-5 -rotate-45" />
-                    </button>
-                 </div>
-              </motion.div>
-           )}
-        </AnimatePresence>
+        {/* Removed redundant mockup chat window */}
       </div>
     </div>
   );

@@ -138,7 +138,7 @@ export const AdminLayout: React.FC = () => {
                 <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-red-500 rounded-full border border-white"></span>
              </button>
              <Link 
-               to="/"
+               to="/?view=site"
                className="text-[10px] font-black text-gray-500 hover:text-blue-600 transition-all border-r border-gray-100 pr-3 flex items-center gap-1.5"
              >
                عرض الموقع

@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldCheck, ArrowLeftRight, CheckCircle, Search, Clock, MessageSquare, Star, LayoutGrid, Users, Briefcase, Lock, Zap } from 'lucide-react';
+import { ShieldCheck, ArrowLeftRight, CheckCircle, Search, Clock, MessageSquare, Star, LayoutGrid, Users, Briefcase, Lock, Zap, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { collection, query, where, limit, getDocs, doc, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { UserProfile } from '../types';
+import { UserProfile, Service } from '../types';
 import { PaymentIcon } from '../components/ui/PaymentIcon';
 import { SellerCard } from '../components/SellerCard';
 import { TestimonialSlider } from '../components/TestimonialSlider';
@@ -14,20 +14,32 @@ import { LoginModal } from '../components/auth/LoginModal';
 
 export const Home: React.FC = () => {
   const { user, profile } = useAuth();
+  const navigate = useNavigate();
+  const searchParams = new URLSearchParams(window.location.search);
+  const isViewingAsUser = searchParams.get('view') === 'site';
   const isAdmin = user?.email === 'khyratfarmdates@gmail.com' || profile?.isAdmin;
+  const showAdminUI = isAdmin && !isViewingAsUser;
+
   const [featuredSellers, setFeaturedSellers] = React.useState<UserProfile[]>([]);
+  const [liveOffers, setLiveOffers] = React.useState<Service[]>([]);
   const [homeCard, setHomeCard] = useState<any>(null);
   const [loadingSellers, setLoadingSellers] = useState(true);
+  const [loadingOffers, setLoadingOffers] = useState(true);
   const [trustIndex, setTrustIndex] = useState(0);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
-  const navigate = useNavigate();
 
   const trustMessages = [
-    { text: isAdmin ? "أهلاً بك في نظام الإدارة" : "الخيار الأول للتعاملات الآمنة", icon: <ShieldCheck className="w-4 h-4" /> },
-    { text: isAdmin ? "تتبع العمليات والمنازعات بدقة" : "وساطة مالية ذكية وموثوقة", icon: <Lock className="w-4 h-4" /> },
-    { text: isAdmin ? "إدارة الأعضاء والطلبات بسهولة" : "حقك محفوظ بأمان تام", icon: <CheckCircle className="w-4 h-4" /> },
-    { text: isAdmin ? "تقارير مالية تفصيلية ولحظية" : "دفع إلكتروني معتمد 100%", icon: <Zap className="w-4 h-4" /> }
+    { text: showAdminUI ? "أهلاً بك في نظام الإدارة" : "الخيار الأول للتعاملات الآمنة", icon: <ShieldCheck className="w-4 h-4" /> },
+    { text: showAdminUI ? "تتبع العمليات والمنازعات بدقة" : "وساطة مالية ذكية وموثوقة", icon: <Lock className="w-4 h-4" /> },
+    { text: showAdminUI ? "إدارة الأعضاء والطلبات بسهولة" : "حقك محفوظ بأمان تام", icon: <CheckCircle className="w-4 h-4" /> },
+    { text: showAdminUI ? "تقارير مالية تفصيلية ولحظية" : "دفع إلكتروني معتمد 100%", icon: <Zap className="w-4 h-4" /> }
   ];
+
+  useEffect(() => {
+    if (isAdmin && !isViewingAsUser) {
+      navigate('/admin', { replace: true });
+    }
+  }, [isAdmin, isViewingAsUser, navigate]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -48,41 +60,52 @@ export const Home: React.FC = () => {
   }, []);
 
   React.useEffect(() => {
-    const fetchSellers = async () => {
-      try {
-        setLoadingSellers(true);
-        // Fetch real sellers with high potential (isVerified or High Rating)
-        const q = query(
-          collection(db, 'users'), 
-          where('isSeller', '==', true),
-          limit(12)
-        );
-        
-        const snap = await getDocs(q);
-        let sellers = snap.docs
-          .map(d => ({ uid: d.id, ...d.data() } as UserProfile))
-          .filter(u => u.isBlocked !== true && u.displayName);
-        
-        // Custom sort logic:
-        // 1. Featured sellers first
-        // 2. Verified sellers next
-        // 3. Then by rating (desc)
-        // 4. Then by review count (desc)
-        sellers.sort((a, b) => {
-          if (a.isFeatured !== b.isFeatured) return a.isFeatured ? -1 : 1;
-          if (a.isVerified !== b.isVerified) return a.isVerified ? -1 : 1;
-          if ((b.rating || 0) !== (a.rating || 0)) return (b.rating || 0) - (a.rating || 0);
-          return (b.reviewsCount || 0) - (a.reviewsCount || 0);
-        });
+    // Live Users/Sellers
+    const sellersQ = query(
+      collection(db, 'users'), 
+      where('isSeller', '==', true),
+      limit(12)
+    );
+    
+    const unsubSellers = onSnapshot(sellersQ, (snap) => {
+      let sellers = snap.docs
+        .map(d => ({ uid: d.id, ...d.data() } as UserProfile))
+        .filter(u => u.isBlocked !== true && u.displayName);
+      
+      sellers.sort((a, b) => {
+        if (a.isFeatured !== b.isFeatured) return a.isFeatured ? -1 : 1;
+        if (a.isVerified !== b.isVerified) return a.isVerified ? -1 : 1;
+        if ((b.rating || 0) !== (a.rating || 0)) return (b.rating || 0) - (a.rating || 0);
+        return (b.reviewsCount || 0) - (a.reviewsCount || 0);
+      });
 
-        setFeaturedSellers(sellers);
-      } catch (e) {
-        console.error("Error fetching featured sellers:", e);
-      } finally {
-        setLoadingSellers(false);
-      }
+      setFeaturedSellers(sellers);
+      setLoadingSellers(false);
+    }, (error) => {
+      console.error("Error fetching featured sellers:", error);
+      setLoadingSellers(false);
+    });
+
+    // Live Offers
+    const offersQ = query(
+      collection(db, 'services'), 
+      where('isActive', '!=', false),
+      limit(6)
+    );
+    
+    const unsubOffers = onSnapshot(offersQ, (snap) => {
+      const offers = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
+      setLiveOffers(offers);
+      setLoadingOffers(false);
+    }, (error) => {
+      console.error("Error fetching live offers:", error);
+      setLoadingOffers(false);
+    });
+
+    return () => {
+      unsubSellers();
+      unsubOffers();
     };
-    fetchSellers();
   }, []);
 
   const steps = [
@@ -152,9 +175,9 @@ export const Home: React.FC = () => {
             {user ? (
               <button
                 onClick={() => navigate(isAdmin ? '/admin' : '/dashboard')}
-                className={`${isAdmin ? 'bg-red-600 hover:bg-red-700 shadow-red-200' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-200'} text-white px-10 py-5 rounded-2xl font-bold text-lg shadow-xl transition-all flex items-center justify-center gap-2 group`}
+                className={`${showAdminUI ? 'bg-red-600 hover:bg-red-700 shadow-red-200' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-200'} text-white px-10 py-5 rounded-2xl font-bold text-lg shadow-xl transition-all flex items-center justify-center gap-2 group`}
               >
-                {isAdmin ? 'دخول لوحة الإدارة' : 'لوحة التحكم'}
+                {showAdminUI ? 'دخول لوحة الإدارة' : 'لوحة التحكم'}
                 <ArrowLeftRight className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
               </button>
             ) : (
@@ -166,7 +189,7 @@ export const Home: React.FC = () => {
                 <ArrowLeftRight className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
               </button>
             )}
-            {!isAdmin && (
+            {!showAdminUI && (
               <button
                  onClick={() => navigate('/search')}
                  className="bg-white text-gray-900 border-2 border-gray-100 px-10 py-5 rounded-2xl font-bold text-lg hover:bg-gray-50 transition-all"
@@ -200,7 +223,7 @@ export const Home: React.FC = () => {
       </section>
 
       {/* Quick Access Actions Grid */}
-      {!isAdmin && (
+      {!showAdminUI && (
         <section className="px-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
@@ -226,55 +249,139 @@ export const Home: React.FC = () => {
         </section>
       )}
 
-      {/* Featured Sellers - Mobile Grid/Scroll */}
-      {!isAdmin && (
-        <section className="px-4 space-y-6">
-          <div className="flex justify-between items-end">
-            <div className="text-right w-full">
-              <h2 className="text-xl font-black text-gray-900 leading-none">بائعين متميزين</h2>
-              <p className="text-[10px] text-gray-400 font-bold mt-2 uppercase tracking-tight">نخبة المعقبين والوسطاء الموثوقين الذين أثبتوا كفاءتهم</p>
+      {/* Live Offers Sector */}
+      {!showAdminUI && (
+        <section className="py-20 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-100 rounded-full blur-[120px] -mr-64 -mt-64 opacity-30 animate-pulse" />
+          <div className="max-w-7xl mx-auto px-4">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
+               <div className="text-right">
+                  <div className="flex items-center gap-2 mb-2 justify-end">
+                     <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                     <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest italic">Live Marketplace</span>
+                  </div>
+                  <h2 className="text-3xl md:text-5xl font-black text-gray-900 tracking-tight italic">عروض <span className="text-blue-600 underline decoration-blue-100 italic">مباشرة</span> الآن</h2>
+                  <p className="text-gray-500 font-bold mt-4 max-w-xl text-sm md:text-lg opacity-80">تصفح أحدث الخدمات المضافة وتواصل مع أصحاب العمل مباشرة لضمان حقك وحق بائعك.</p>
+               </div>
+               <Link to="/search" className="group flex items-center gap-3 bg-gray-900 text-white px-8 py-4 rounded-2xl font-black text-sm hover:bg-blue-600 transition-all shadow-xl shadow-gray-200 shrink-0">
+                  <span>استكشف المزيد</span>
+                  <ArrowLeft className="w-4 h-4 group-hover:-translate-x-2 transition-transform" />
+               </Link>
             </div>
-          </div>
-          
-          <div className="flex md:grid md:grid-cols-3 lg:grid-cols-4 gap-4 overflow-x-auto pb-6 snap-x no-scrollbar -mx-4 px-4 scroll-smooth">
-            {loadingSellers ? (
-              // Skeleton Loading
-              [1, 2, 3, 4].map(i => (
-                <div key={i} className="min-w-[280px] md:min-w-0 h-64 bg-gray-50 animate-pulse rounded-[2rem] border border-gray-100" />
-              ))
-            ) : featuredSellers.length > 0 ? (
-              featuredSellers.map(seller => (
-                <motion.div 
-                  key={seller.uid} 
-                  className="min-w-[280px] md:min-w-0 snap-center"
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  whileInView={{ opacity: 1, scale: 1 }}
-                  viewport={{ once: true }}
-                >
-                  <SellerCard seller={seller} />
-                </motion.div>
-              ))
+
+            {loadingOffers ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {[1, 2, 3, 4].map(i => (
+                  <div key={i} className="h-48 bg-white rounded-[2rem] border border-gray-100 animate-pulse" />
+                ))}
+              </div>
+            ) : liveOffers.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                 {liveOffers.map((offer) => (
+                    <motion.div
+                       key={offer.id}
+                       initial={{ opacity: 0, y: 20 }}
+                       whileInView={{ opacity: 1, y: 0 }}
+                       viewport={{ once: true }}
+                       onClick={() => navigate(`/seller/${offer.sellerId}`)}
+                       className="bg-white rounded-[2.5rem] p-8 border border-gray-100 shadow-sm hover:shadow-2xl transition-all duration-500 cursor-pointer group flex flex-col h-full hover:border-blue-100 relative overflow-hidden"
+                    >
+                       <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50/50 rounded-bl-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-700" />
+                       
+                       <div className="relative z-10 flex flex-col h-full">
+                          <div className="flex justify-between items-start mb-6">
+                            <span className="px-4 py-1.5 bg-blue-50 text-blue-600 rounded-xl text-[10px] font-black uppercase tracking-wider shadow-[inset_0_1px_2px_rgba(0,0,0,0.05)] border border-blue-100/50">
+                              {offer.category}
+                            </span>
+                            <div className="flex items-center gap-1.5 text-[9px] font-black text-green-600 bg-green-50 px-3 py-1.5 rounded-xl border border-green-100/50">
+                               <Zap className="w-3.5 h-3.5 fill-current" />
+                               مباشر
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-3 mb-8">
+                            <h3 className="text-xl font-black text-gray-900 group-hover:text-blue-600 transition-colors uppercase tracking-tight italic leading-tight">{offer.title}</h3>
+                            <p className="text-sm text-gray-500 font-medium leading-relaxed opacity-80 line-clamp-2">{offer.description}</p>
+                          </div>
+                          
+                          <div className="mt-auto flex items-center justify-between pt-6 border-t border-gray-50">
+                            <div>
+                              <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest leading-none mb-1">المبلغ المطلوب</p>
+                              <p className="text-2xl font-black text-gray-900 italic tracking-tighter group-hover:text-blue-600 transition-colors">
+                                 {offer.price} <span className="text-sm">ر.س</span>
+                              </p>
+                            </div>
+                            <div className="w-12 h-12 rounded-2xl bg-gray-50 group-hover:bg-blue-600 text-gray-400 group-hover:text-white flex items-center justify-center transition-all shadow-inner group-hover:shadow-blue-200 group-hover:scale-110">
+                               <ArrowLeft className="w-6 h-6 -rotate-45" />
+                            </div>
+                          </div>
+                       </div>
+                    </motion.div>
+                 ))}
+              </div>
             ) : (
-              <div className="col-span-full py-16 text-center bg-white rounded-[2.5rem] border-2 border-dashed border-gray-100 w-full">
-                 <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-6">
-                   <Users className="w-10 h-10 text-blue-200" />
-                 </div>
-                 <h3 className="font-bold text-gray-900 text-lg">بانتظار الباعة المتميزين الجدد</h3>
-                 <p className="text-gray-400 text-sm mt-2 max-w-xs mx-auto">كن أول من يوثق حسابه ويظهر في واجهة المنصة لزيادة مبيعاتك.</p>
-                 <button 
-                   onClick={() => navigate('/dashboard')}
-                   className="mt-6 bg-blue-600 text-white px-8 py-3 rounded-2xl font-bold text-sm shadow-xl shadow-blue-100 hover:scale-105 transition-all"
-                 >
-                   التوثيق كبائع متميز
-                 </button>
+              <div className="col-span-full py-16 text-center bg-gray-50 rounded-[3rem] border border-gray-100 italic font-bold text-gray-300">
+                لا توجد عروض مباشرة متاحة حالياً.. كن أنت الأول!
               </div>
             )}
           </div>
         </section>
       )}
 
+      {/* Featured Sellers - Professional Scroll/Grid */}
+      {!showAdminUI && (
+        <section className="py-24 bg-gray-950/2 md:bg-gray-50 relative overflow-hidden">
+          <div className="max-w-7xl mx-auto px-4">
+             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-16">
+               <div className="text-right">
+                  <div className="flex items-center gap-2 mb-2 justify-end">
+                     <ShieldCheck className="w-4 h-4 text-blue-600" />
+                     <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest italic">Certified Experts</span>
+                  </div>
+                  <h2 className="text-3xl md:text-5xl font-black text-gray-900 tracking-tight italic">نخبة <span className="text-blue-600">الخبراء</span> الموثوقين</h2>
+                  <p className="text-gray-500 font-bold mt-4 max-w-xl text-sm md:text-lg opacity-80">أعضاء أثبتوا جدية استحقاقهم للثقة عبر الالتزام الكامل بشروط المنصة وضمان حقوق العملاء.</p>
+               </div>
+            </div>
+            
+            <div className="flex md:grid md:grid-cols-3 lg:grid-cols-4 gap-6 overflow-x-auto pb-10 snap-x no-scrollbar -mx-4 px-4 scroll-smooth">
+              {loadingSellers ? (
+                [1, 2, 3, 4].map(i => (
+                  <div key={i} className="min-w-[300px] md:min-w-0 h-80 bg-white rounded-[2.5rem] border border-gray-100 animate-pulse" />
+                ))
+              ) : featuredSellers.length > 0 ? (
+                featuredSellers.map(seller => (
+                  <motion.div 
+                    key={seller.uid} 
+                    className="min-w-[300px] md:min-w-0 snap-center"
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    whileInView={{ opacity: 1, scale: 1 }}
+                    viewport={{ once: true }}
+                  >
+                    <SellerCard seller={seller} />
+                  </motion.div>
+                ))
+              ) : (
+                <div className="col-span-full py-20 text-center bg-white rounded-[3rem] border border-gray-100 w-full shadow-sm">
+                   <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                     <Users className="w-10 h-10 text-blue-200 animate-bounce" />
+                   </div>
+                   <h3 className="font-black text-gray-900 text-2xl italic tracking-tight mb-2">بانتظار انضمامك للنخبة</h3>
+                   <p className="text-gray-400 font-bold text-sm max-w-xs mx-auto mb-8 leading-relaxed opacity-80">وثق حسابك الآن لتظهر في الواجهة الرئيسية وتصل لآلاف العملاء الباحثين عن الأمان.</p>
+                   <button 
+                     onClick={() => navigate('/dashboard')}
+                     className="bg-blue-600 text-white px-10 py-5 rounded-2xl font-black text-sm shadow-2xl shadow-blue-200 hover:scale-105 active:scale-95 transition-all"
+                   >
+                     التوثيق كبائع متميز
+                   </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Trust & Stats Section - COMPACT */}
-      {!user && !isAdmin && (
+      {!user && !showAdminUI && (
         <section className="px-4">
           <div className="bg-gray-900 rounded-[2rem] p-6 text-white relative overflow-hidden">
             <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -307,7 +414,7 @@ export const Home: React.FC = () => {
       )}
 
       {/* How it Works - Horizontal Scroll / Mobile Grid */}
-      {!isAdmin && (
+      {!showAdminUI && (
         <section className="px-4 space-y-6">
           <div className="text-center mb-8">
             <h2 className="text-xl md:text-3xl font-black text-gray-900">كيف نضمن حقك؟</h2>
@@ -344,7 +451,7 @@ export const Home: React.FC = () => {
       )}
 
       {/* Testimonials */}
-      {!isAdmin && (
+      {!showAdminUI && (
         <section className="px-4 py-8">
           <div className="bg-blue-50/50 rounded-3xl p-6 md:p-12 border border-blue-100/50">
             <div className="max-w-4xl mx-auto space-y-6">
@@ -361,7 +468,7 @@ export const Home: React.FC = () => {
       )}
 
       {/* App Download / CTA Final */}
-      {!user && !isAdmin && (
+      {!user && !showAdminUI && (
         <section className="px-4">
           <div className="bg-blue-600 rounded-[2rem] p-6 md:p-12 text-white relative overflow-hidden">
             <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -388,7 +495,7 @@ export const Home: React.FC = () => {
       <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} />
 
       {/* Feedback Form */}
-      {!isAdmin && (
+      {!showAdminUI && (
         <section className="px-4 pt-12">
           <div className="max-w-xl mx-auto">
             <GeneralFeedbackForm />
