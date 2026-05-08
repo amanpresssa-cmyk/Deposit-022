@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MessageCircle, X, Send, Bot, Rocket, Shield, User, Headphones, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { sendAdminNotification } from '../../lib/notificationService';
 import { GoogleGenAI } from "@google/genai";
@@ -32,6 +33,7 @@ export const SupportButton: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isHidden, setIsHidden] = useState(false);
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -143,12 +145,11 @@ export const SupportButton: React.FC = () => {
     
     if (option === 'التحدث مع خدمة العملاء') {
       setTimeout(() => {
-        setChatMode('agent');
-        addMessage('جاري تحويلك لأحد ممثلي الخدمة... يرجى الانتظار.', 'bot');
-        sendAdminNotification('طلب محادثة فورية', `المستخدم ${user?.email || 'زائر'} يرغب في التحدث مع الدعم الفني الآن.`, user?.uid);
+        addMessage('جاري توجيهك لمركز المساعدة لفتح تذكرة دعم رسمية... يرجى الانتظار.', 'bot');
         setTimeout(() => {
-          addMessage('أهلاً بك، أنا "عمر" من فريق الدعم. كيف يمكنني مساعدتك؟ (ملاحظة: هذا النظام قيد التطوير وسيتم الرد عليك قريباً عبر إشعارات المنصة)', 'agent');
-        }, 2000);
+          setIsOpen(false);
+          navigate('/help-center?view=new_ticket');
+        }, 1500);
       }, 600);
     } else {
       getAIResponse(option);

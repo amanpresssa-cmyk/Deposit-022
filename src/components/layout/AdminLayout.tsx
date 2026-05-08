@@ -11,6 +11,7 @@ import {
   LogOut,
   Bell,
   Menu,
+  Terminal,
   X
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
@@ -27,6 +28,7 @@ export const AdminLayout: React.FC = () => {
     { id: 'finance', label: 'العمليات المالية', icon: <Wallet className="w-5 h-5" />, path: '/admin/finance' },
     { id: 'disputes', label: 'إدارة النزاعات', icon: <AlertCircle className="w-5 h-5" />, path: '/admin/disputes' },
     { id: 'support', label: 'تذاكر الدعم', icon: <MessageSquare className="w-5 h-5" />, path: '/admin/support' },
+    { id: 'logs', label: 'سجل النظام', icon: <Terminal className="w-5 h-5" />, path: '/admin/logs' },
     { id: 'settings', label: 'إعدادات المنصة', icon: <Settings className="w-5 h-5" />, path: '/admin/settings' },
   ];
 

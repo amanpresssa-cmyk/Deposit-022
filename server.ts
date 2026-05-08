@@ -2,9 +2,31 @@ import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
+import * as admin from 'firebase-admin';
+import { readFileSync } from "fs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Initialize Firebase Admin
+let db: admin.firestore.Firestore | null = null;
+
+try {
+  // Try to load from env or local file if available
+  // For AI Studio apps, we usually use the project ID from the config
+  const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
+  const firebaseConfig = JSON.parse(readFileSync(configPath, 'utf8'));
+  
+  if (!admin.apps.length) {
+    admin.initializeApp({
+      projectId: firebaseConfig.projectId,
+    });
+  }
+  db = admin.firestore();
+  console.log("[Firebase] Admin SDK initialized successfully");
+} catch (error) {
+  console.warn("[Firebase] Admin SDK initialization failed. Running without DB persistence in server.ts", error);
+}
 
 async function startServer() {
   const app = express();
@@ -36,6 +58,55 @@ async function startServer() {
 
   // --- Payment API Routes ---
   app.use(express.json());
+
+  // Webhook for Geidea Payout Confirmation (Platform Fees)
+  app.post("/api/webhooks/geidea-payout", async (req, res) => {
+    const { payoutId, amount, status, referenceId, timestamp } = req.body;
+    console.log(`[Geidea Webhook] Fee Payout Confirmed: ${amount} SAR (ID: ${payoutId})`);
+
+    const payoutData = {
+      transferId: payoutId || `gd_payout_${Date.now()}`,
+      amount: parseFloat(amount) || 0,
+      currency: 'SAR',
+      status: status || 'Confirmed',
+      geideaReference: referenceId || 'N/A',
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      receivedAt: new Date().toISOString()
+    };
+
+    if (db) {
+      try {
+        // Record the fee transfer
+        await db.collection('fee_transfers').add(payoutData);
+
+        // Record a system log
+        await db.collection('system_logs').add({
+          operationType: 'PAYOUT_CONFIRMATION',
+          message: `تم تأكيد تحويل رسوم المنصة بمبلغ ${amount} ريال من جيديا`,
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          severity: 'INFO',
+          details: payoutData
+        });
+
+        // Send notification to Admin
+        await db.collection('notifications').add({
+          userId: 'ADMIN',
+          title: '💰 تأكيد تحويل رسوم',
+          message: `وصل إشعار من جيديا بتأكيد تحويل رسوم المنصة بمبلغ ${amount} ريال.`,
+          type: 'settlement',
+          priority: 'settlement',
+          isRead: false,
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        console.log(`[Geidea Webhook] Recorded transfer and sent notification.`);
+      } catch (err) {
+        console.error("[Geidea Webhook Error] Failed to write to Firestore:", err);
+      }
+    }
+
+    res.json({ status: 'success', received: true });
+  });
 
   app.post("/api/payment/authorize", async (req, res) => {
     const { orderId, amount, method, provider } = req.body;

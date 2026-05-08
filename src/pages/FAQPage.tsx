@@ -108,7 +108,10 @@ export const FAQPage: React.FC = () => {
            <div className="relative z-10">
               <h3 className="text-2xl font-black mb-4 italic">لم تجد إجابة؟</h3>
               <p className="text-gray-400 font-medium mb-8">فريقنا متاح للرد على كافة استفساراتك بشكل شخصي.</p>
-              <button className="bg-blue-600 text-white px-10 py-4 rounded-2xl font-black hover:bg-blue-700 transition-all shadow-xl shadow-blue-900/50">
+              <button 
+                onClick={() => window.location.href = '/help-center'}
+                className="bg-blue-600 text-white px-10 py-4 rounded-2xl font-black hover:bg-blue-700 transition-all shadow-xl shadow-blue-900/50"
+              >
                  تواصل مع الدعم الفني
               </button>
            </div>

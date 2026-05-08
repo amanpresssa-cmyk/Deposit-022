@@ -16,6 +16,7 @@ import { AdminFinance } from './pages/admin/AdminFinance';
 import { AdminDisputes } from './pages/admin/AdminDisputes';
 import { AdminSupport } from './pages/admin/AdminSupport';
 import { AdminSettings } from './pages/admin/AdminSettings';
+import { SystemLogsPage } from './pages/admin/SystemLogsPage';
 import { useLocation } from 'react-router-dom';
 import { HelpCenterPage } from './pages/HelpCenterPage';
 import { TermsPage } from './pages/TermsPage';
@@ -32,8 +33,11 @@ import { BottomNav } from './components/layout/BottomNav';
 import { InstallPWAHint } from './components/layout/InstallPWAHint';
 import { ProductTour } from './components/layout/ProductTour';
 import { motion, AnimatePresence } from 'motion/react';
-import { Shield, X } from 'lucide-react';
+import { Shield, X, Ban, LogOut } from 'lucide-react';
 import { FloatingScrollToTop } from './components/ui/FloatingScrollToTop';
+import { signOut } from 'firebase/auth';
+import { auth } from './lib/firebase';
+import { toast } from 'sonner';
 
 import { PhoneVerification } from './components/PhoneVerification';
 
@@ -86,6 +90,71 @@ class ErrorBoundary extends Component<any, any> {
   }
 }
 
+function BlockedUserOverlay({ reason }: { reason?: string }) {
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      window.location.href = '/';
+    } catch (error) {
+      toast.error('حدث خطأ أثناء تسجيل الخروج');
+    }
+  };
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="fixed inset-0 z-[1000] bg-gray-900 flex items-center justify-center p-6 text-right"
+      dir="rtl"
+    >
+      <motion.div 
+        initial={{ scale: 0.9, y: 20 }}
+        animate={{ scale: 1, y: 0 }}
+        className="bg-white rounded-[2.5rem] p-10 max-w-lg w-full shadow-2xl relative overflow-hidden"
+      >
+        <div className="absolute top-0 right-0 w-32 h-32 bg-red-50 rounded-bl-[5rem] -mr-8 -mt-8 opacity-50"></div>
+        
+        <div className="relative">
+          <div className="w-20 h-20 bg-red-100 text-red-600 rounded-3xl flex items-center justify-center mb-8 shadow-xl shadow-red-100/50">
+            <Ban className="w-10 h-10" />
+          </div>
+
+          <h2 className="text-3xl font-black text-gray-900 mb-4 leading-tight">حسابك <span className="text-red-600 underline decoration-red-100">محظور</span> حالياً</h2>
+          
+          <div className="bg-red-50/50 border-2 border-red-50 p-6 rounded-3xl mb-8">
+            <p className="text-xs font-black text-red-600 uppercase tracking-widest mb-2">سبب الحظر الرئيسي</p>
+            <p className="text-gray-700 font-bold leading-relaxed">
+              {reason || 'تم تعطيل دخولك للنظام لمخالفة شروط وأحكام منصة "عربون".'}
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <p className="text-gray-400 text-sm font-medium leading-relaxed">
+              إذا كنت تعتقد أن هذا الحظر كان ناتجاً عن خطأ، يرجى التواصل مع فريق الدعم الفني عبر البريد الإلكتروني المخصص للمنازعات.
+            </p>
+            
+            <div className="pt-4 flex flex-col sm:flex-row gap-4">
+              <button 
+                onClick={handleLogout}
+                className="flex-1 bg-gray-900 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-black transition-all shadow-xl shadow-gray-200"
+              >
+                <LogOut className="w-4 h-4" />
+                تسجيل الخروج
+              </button>
+              <a 
+                href="mailto:support@arbon.sa"
+                className="flex-1 bg-white text-gray-900 border-2 border-gray-100 py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-gray-50 transition-all"
+              >
+                مراسلة الدعم
+              </a>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 function MainLayout({ children, isAdmin }: { children: React.ReactNode, isAdmin: boolean }) {
   const location = useLocation();
   const isAdminRoute = location.pathname.startsWith('/admin');
@@ -94,6 +163,8 @@ function MainLayout({ children, isAdmin }: { children: React.ReactNode, isAdmin:
     return <div className="min-h-screen bg-gray-50">{children}</div>;
   }
 
+  // If user is admin, we might want to hide regular user elements even on non-admin routes
+  // or redirect them to admin dashboard if they hit user pages
   return (
     <>
       <Navbar />
@@ -103,10 +174,14 @@ function MainLayout({ children, isAdmin }: { children: React.ReactNode, isAdmin:
         </AnimatePresence>
       </main>
       <Footer />
-      <BottomNav />
-      <InstallPWAHint />
-      <ProductTour />
-      <SupportButton />
+      {!isAdmin && (
+        <>
+          <BottomNav />
+          <InstallPWAHint />
+          <ProductTour />
+          <SupportButton />
+        </>
+      )}
     </>
   );
 }
@@ -143,6 +218,7 @@ export default function App() {
         <NotificationProvider>
           <Toaster position="top-center" richColors />
           <div className="min-h-screen bg-[#f8fafc] font-sans antialiased rtl relative" dir="rtl">
+            {profile?.isBlocked && !isAdmin && <BlockedUserOverlay reason={profile.blockReason} />}
             <AnimatePresence>
               {error && (
                 <motion.div
@@ -192,10 +268,10 @@ export default function App() {
             <MainLayout isAdmin={!!isAdmin}>
                 <Routes>
                   <Route path="/" element={<Home />} />
-                  <Route path="/search" element={<SearchPage />} />
+                  <Route path="/search" element={isAdmin ? <Navigate to="/admin" /> : <SearchPage />} />
                   <Route
                     path="/dashboard"
-                    element={user ? <Dashboard /> : <Navigate to="/" />}
+                    element={user ? (isAdmin ? <Navigate to="/admin" /> : <Dashboard />) : <Navigate to="/" />}
                   />
                   
                   {/* Admin Protected Routes with professional layout */}
@@ -206,6 +282,7 @@ export default function App() {
                       <Route path="finance" element={<AdminFinance />} />
                       <Route path="disputes" element={<AdminDisputes />} />
                       <Route path="support" element={<AdminSupport />} />
+                      <Route path="logs" element={<SystemLogsPage />} />
                       <Route path="settings" element={<AdminSettings />} />
                     </Route>
                   )}
@@ -220,15 +297,15 @@ export default function App() {
                   />
                   <Route
                     path="/settings"
-                    element={user ? <SettingsPage /> : <Navigate to="/" />}
+                    element={user ? (isAdmin ? <Navigate to="/admin" /> : <SettingsPage />) : <Navigate to="/" />}
                   />
                   <Route
                     path="/profile"
-                    element={user ? <UserProfilePage /> : <Navigate to="/" />}
+                    element={user ? (isAdmin ? <Navigate to="/admin" /> : <UserProfilePage />) : <Navigate to="/" />}
                   />
                   <Route
                     path="/create-order"
-                    element={user ? <CreateOrderPage /> : <Navigate to="/" />}
+                    element={user ? (isAdmin ? <Navigate to="/admin" /> : <CreateOrderPage />) : <Navigate to="/" />}
                   />
                   <Route path="/help-center" element={<HelpCenterPage />} />
                   <Route path="/terms" element={<TermsPage />} />

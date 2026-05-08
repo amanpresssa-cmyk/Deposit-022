@@ -201,6 +201,18 @@ export const SellerProfilePage: React.FC = () => {
             </div>
 
             <div className="flex flex-wrap gap-4 pb-4">
+              {seller.websiteUrl && (
+                <a 
+                  href={seller.websiteUrl.startsWith('http') ? seller.websiteUrl : `https://${seller.websiteUrl}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-white text-blue-600 border-2 border-blue-100 px-8 py-4 rounded-2xl font-bold text-lg hover:bg-blue-50 transition-all flex items-center gap-2 shadow-sm"
+                >
+                  <Globe className="w-6 h-6" />
+                  زيارة الموقع الإلكتروني
+                </a>
+              )}
+              
               <button 
                 onClick={handleChat}
                 className="bg-white text-gray-900 border-2 border-gray-100 px-8 py-4 rounded-2xl font-bold text-lg hover:bg-gray-50 transition-all flex items-center gap-2 shadow-sm"

@@ -10,6 +10,8 @@
         "email": { "type": "string" },
         "phoneNumber": { "type": "string" },
         "photoURL": { "type": "string" },
+        "isBlocked": { "type": "boolean" },
+        "blockReason": { "type": "string" },
         "rating": { "type": "number" },
         "reviewsCount": { "type": "number" },
         "isVerified": { "type": "boolean" },
@@ -149,6 +151,42 @@
       },
       "required": ["inviterId", "inviteeId", "status", "createdAt"]
     },
+    "SupportTicket": {
+      "title": "Support Ticket",
+      "description": "User request for support or assistance",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "title": { "type": "string" },
+        "type": { "type": "string", "enum": ["complaint", "inquiry", "live_chat", "technical"] },
+        "category": { "type": "string", "enum": ["general", "payment", "seller", "technical", "suggestion"] },
+        "priority": { "type": "string", "enum": ["low", "medium", "high", "urgent"] },
+        "status": { "type": "string", "enum": ["open", "in_progress", "waiting_for_user", "resolved", "closed"] },
+        "lastMessagePreview": { "type": "string" },
+        "lastMessageSenderId": { "type": "string" },
+        "lastMessageAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "type", "category", "status", "createdAt"]
+    },
+    "SupportMessage": {
+      "title": "Support Message",
+      "description": "Messages within a support ticket conversation",
+      "type": "object",
+      "properties": {
+        "ticketId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "senderRole": { "type": "string", "enum": ["user", "admin"] },
+        "text": { "type": "string" },
+        "attachments": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ticketId", "senderId", "senderRole", "text", "createdAt"]
+    },
     "SystemLog": {
       "title": "System Log",
       "description": "Technical logs and error records",
@@ -164,6 +202,20 @@
         "url": { "type": "string" }
       },
       "required": ["error", "timestamp"]
+    },
+    "FeeTransfer": {
+      "title": "Fee Transfer",
+      "description": "Confirmation of platform fees transferred by Geidea",
+      "type": "object",
+      "properties": {
+        "transferId": { "type": "string" },
+        "amount": { "type": "number" },
+        "currency": { "type": "string" },
+        "status": { "type": "string" },
+        "geideaReference": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["amount", "status", "createdAt"]
     }
   },
   "firestore": {
@@ -203,9 +255,21 @@
       "schema": "Referral",
       "description": "User referral tracking"
     },
+    "support_tickets": {
+      "schema": "SupportTicket",
+      "description": "Collection of support requests"
+    },
+    "support_tickets/{ticketId}/messages": {
+      "schema": "SupportMessage",
+      "description": "Threaded messages for a support ticket"
+    },
     "system_logs": {
       "schema": "SystemLog",
       "description": "Technical error logs"
+    },
+    "fee_transfers": {
+      "schema": "FeeTransfer",
+      "description": "Log of confirmed platform fee payouts from Geidea"
     }
   }
 }

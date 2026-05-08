@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   HelpCircle, 
@@ -13,38 +13,69 @@ import {
   ChevronLeft,
   LifeBuoy,
   MessageCircle,
-  AlertCircle
+  AlertCircle,
+  History,
+  Plus
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { db } from '../lib/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, onSnapshot, orderBy } from 'firebase/firestore';
+import { SupportChat } from '../components/support/SupportChat';
 
 export const HelpCenterPage: React.FC = () => {
   const { user, profile } = useAuth();
   const [complaintType, setComplaintType] = useState('general');
+  const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [activeView, setActiveView] = useState<'faq' | 'new_ticket' | 'my_tickets'>('faq');
+  const [myTickets, setMyTickets] = useState<any[]>([]);
+  const [selectedTicket, setSelectedTicket] = useState<any>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const view = params.get('view');
+    if (view && ['faq', 'new_ticket', 'my_tickets'].includes(view)) {
+      setActiveView(view as any);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, 'support_tickets'), where('userId', '==', user.uid), orderBy('createdAt', 'desc'));
+    const unsub = onSnapshot(q, (snapshot) => {
+      setMyTickets(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+    return unsub;
+  }, [user]);
 
   const handleSubmitComplaint = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim()) return;
+    if (!message.trim() || !title.trim()) return;
 
     setIsSubmitting(true);
     try {
       await addDoc(collection(db, 'support_tickets'), {
         userId: user?.uid || 'anonymous',
+        userName: profile?.displayName || 'زائر',
         userEmail: user?.email || 'anonymous',
+        title: title,
         type: 'complaint',
         category: complaintType,
-        message: message,
         status: 'open',
+        priority: 'medium',
         createdAt: serverTimestamp(),
-        userName: profile?.displayName || 'زائر'
+        updatedAt: serverTimestamp()
       });
       setIsSubmitted(true);
+      setTitle('');
       setMessage('');
+      setTimeout(() => {
+        setIsSubmitted(false);
+        setActiveView('my_tickets');
+      }, 2000);
     } catch (error) {
       console.error('Error submitting ticket:', error);
     } finally {
@@ -88,14 +119,42 @@ export const HelpCenterPage: React.FC = () => {
             مركز الدعم والمساعدة
           </motion.div>
           <h1 className="text-4xl md:text-6xl font-black text-white tracking-tight mb-6">كيف يمكننا مساعدتك؟</h1>
-          <p className="text-blue-100 text-lg font-medium max-w-2xl mx-auto leading-relaxed">
-            فريقنا متاح خلال أوقات الدوام (9 ص - 6 م) للإجابة على استفساراتك وحل مشكلاتك التقنية والمالية بكل سرعة واحترافية.
-          </p>
+          
+          <div className="flex flex-wrap justify-center gap-3 mt-10">
+            {[
+              { id: 'faq', label: 'الأسئلة الشائعة', icon: HelpCircle },
+              { id: 'new_ticket', label: 'فتح تذكرة جديدة', icon: Plus },
+              { id: 'my_tickets', label: 'تذاكري السابقة', icon: History }
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveView(tab.id as any)}
+                className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black text-sm transition-all ${
+                  activeView === tab.id 
+                  ? 'bg-white text-blue-600 shadow-xl' 
+                  : 'bg-white/10 text-white hover:bg-white/20'
+                }`}
+              >
+                <tab.icon className="w-4 h-4" />
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 -mt-24 relative z-20">
-        <div className="grid lg:grid-cols-3 gap-8">
+      <div className="max-w-6xl mx-auto px-4 -mt-24 relative z-20 pb-20">
+        {selectedTicket ? (
+          <div className="max-w-3xl mx-auto">
+             <SupportChat 
+               ticket={selectedTicket} 
+               currentUserId={user?.uid || ''} 
+               currentUserRole="user"
+               onClose={() => setSelectedTicket(null)} 
+             />
+          </div>
+        ) : (
+          <div className="grid lg:grid-cols-3 gap-8">
           
           {/* Quick Contact Cards */}
           <div className="lg:col-span-1 space-y-6">
@@ -148,105 +207,200 @@ export const HelpCenterPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Complaint Form Section */}
+          {/* Content Section */}
           <div className="lg:col-span-2">
-            <div className="bg-white rounded-[3rem] p-8 md:p-12 shadow-xl shadow-blue-900/5 border border-gray-100">
-               <div className="flex items-center gap-4 mb-10">
-                  <div className="w-14 h-14 bg-red-50 rounded-2xl flex items-center justify-center text-red-600">
-                     <AlertCircle className="w-8 h-8" />
-                  </div>
-                  <div className="text-right">
-                     <h2 className="text-2xl font-black text-gray-900 italic">تقديم بلاغ أو شكوى</h2>
-                     <p className="text-sm text-gray-400 font-medium">نسعى جاهدين لحل كافة النزاعات بأسرع وقت ممكن.</p>
-                  </div>
-               </div>
-
-               {isSubmitted ? (
-                 <motion.div 
-                   initial={{ opacity: 0, scale: 0.9 }}
-                   animate={{ opacity: 1, scale: 1 }}
-                   className="text-center py-12"
-                 >
-                    <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center text-green-600 mx-auto mb-6">
-                       <CheckCircle2 className="w-10 h-10" />
+            <AnimatePresence mode="wait">
+              {activeView === 'new_ticket' && (
+                <motion.div 
+                  key="new_ticket"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="bg-white rounded-[3rem] p-8 md:p-12 shadow-xl shadow-blue-900/5 border border-gray-100"
+                >
+                  <div className="flex items-center gap-4 mb-10">
+                    <div className="w-14 h-14 bg-red-50 rounded-2xl flex items-center justify-center text-red-600">
+                      <AlertCircle className="w-8 h-8" />
                     </div>
-                    <h3 className="text-2xl font-black text-gray-900 mb-2">تم استلام طلبك بنجاح</h3>
-                    <p className="text-gray-500 font-medium mb-8">رقم الطلب الخاص بك هو: #{Math.floor(Math.random() * 10000)}</p>
-                    <button 
-                      onClick={() => setIsSubmitted(false)}
-                      className="px-8 py-3 bg-blue-600 text-white rounded-2xl font-black text-sm hover:bg-blue-700 transition-all"
-                    >
-                      إرسال بلاغ آخر
-                    </button>
-                 </motion.div>
-               ) : (
-                 <form onSubmit={handleSubmitComplaint} className="space-y-6">
-                    <div className="grid md:grid-cols-2 gap-6">
-                       <div className="space-y-2">
+                    <div className="text-right">
+                      <h2 className="text-2xl font-black text-gray-900 italic">تقديم بلاغ أو شكوى</h2>
+                      <p className="text-sm text-gray-400 font-medium">نسعى جاهدين لحل كافة النزاعات بأسرع وقت ممكن.</p>
+                    </div>
+                  </div>
+
+                  {isSubmitted ? (
+                    <div className="text-center py-12">
+                      <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center text-green-600 mx-auto mb-6">
+                        <CheckCircle2 className="w-10 h-10" />
+                      </div>
+                      <h3 className="text-2xl font-black text-gray-900 mb-2">تم استلام طلبك بنجاح</h3>
+                      <p className="text-gray-500 font-medium mb-8">سيقوم فريق الدعم بمراجعة طلبك والرد عليك قريباً.</p>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleSubmitComplaint} className="space-y-6">
+                      <div className="space-y-2">
+                        <label className="text-xs font-black text-gray-500 block mr-1 text-right">عنوان الطلب</label>
+                        <input 
+                          type="text"
+                          value={title}
+                          onChange={(e) => setTitle(e.target.value)}
+                          className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 font-bold text-right outline-none focus:ring-4 focus:ring-blue-50 transition-all"
+                          placeholder="مثلاً: مشكلة في سحب الرصيد"
+                          required
+                        />
+                      </div>
+
+                      <div className="grid md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
                           <label className="text-xs font-black text-gray-500 block mr-1 text-right">نوع البلاغ</label>
                           <select 
                             value={complaintType}
                             onChange={(e) => setComplaintType(e.target.value)}
                             className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 font-bold text-right outline-none focus:ring-4 focus:ring-blue-50 transition-all appearance-none"
                           >
-                             <option value="general">استفسار عام</option>
-                             <option value="payment">مشكلة في الدفع / السحب</option>
-                             <option value="seller">بلاغ ضد بائع</option>
-                             <option value="technical">مشكلة تقنية في الموقع</option>
-                             <option value="suggestion">اقتراح لتطوير المنصة</option>
+                            <option value="general">استفسار عام</option>
+                            <option value="payment">مشكلة في الدفع / السحب</option>
+                            <option value="seller">بلاغ ضد بائع</option>
+                            <option value="technical">مشكلة تقنية في الموقع</option>
+                            <option value="suggestion">اقتراح لتطوير المنصة</option>
                           </select>
-                       </div>
-                       <div className="space-y-2">
+                        </div>
+                        <div className="space-y-2">
                           <label className="text-xs font-black text-gray-500 block mr-1 text-right">درجة الأهمية</label>
                           <div className="flex bg-gray-50 p-1.5 rounded-2xl border border-gray-100">
-                             {['عادي', 'عاجل'].map((p) => (
-                               <button
-                                 key={p}
-                                 type="button"
-                                 className={`flex-1 py-2.5 rounded-xl text-xs font-black transition-all ${p === 'عادي' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-400'}`}
-                               >
-                                 {p}
-                               </button>
-                             ))}
+                            {['عادي', 'عاجل'].map((p) => (
+                              <button
+                                key={p}
+                                type="button"
+                                className={`flex-1 py-2.5 rounded-xl text-xs font-black transition-all ${p === 'عادي' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-400'}`}
+                              >
+                                {p}
+                              </button>
+                            ))}
                           </div>
-                       </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-xs font-black text-gray-500 block mr-1 text-right">وصف المشكلة بالتفصيل</label>
+                        <textarea 
+                          rows={6}
+                          value={message}
+                          onChange={(e) => setMessage(e.target.value)}
+                          className="w-full bg-gray-50 border border-gray-100 rounded-3xl p-6 font-medium text-right outline-none focus:ring-4 focus:ring-blue-50 transition-all leading-relaxed"
+                          placeholder="يرجى كتابة كافة التفاصيل لمساعدتنا في حل المشكلة بشكل أسرع..."
+                          required
+                        />
+                      </div>
+
+                      <button 
+                        type="submit"
+                        disabled={isSubmitting}
+                        className="w-full py-5 bg-gray-900 text-white rounded-3xl font-black text-lg flex items-center justify-center gap-3 hover:bg-gray-800 transition-all shadow-2xl shadow-gray-200 disabled:opacity-50"
+                      >
+                        {isSubmitting ? (
+                          <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <>
+                            <Send className="w-5 h-5 -rotate-45" />
+                            إرسال الطلب الآن
+                          </>
+                        )}
+                      </button>
+                    </form>
+                  )}
+                </motion.div>
+              )}
+
+              {activeView === 'my_tickets' && (
+                <motion.div 
+                  key="my_tickets"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="space-y-4"
+                >
+                  <div className="bg-white rounded-[2.5rem] p-8 shadow-xl shadow-blue-900/5 border border-gray-100 mb-6">
+                    <h2 className="text-2xl font-black text-gray-900 mb-2">تذاكري السابقة</h2>
+                    <p className="text-gray-400 font-medium">هنا يمكنك متابعة حالة طلباتك والرد على استفسارات فريق الدعم.</p>
+                  </div>
+
+                  {myTickets.length === 0 ? (
+                    <div className="bg-white rounded-[2.5rem] p-20 text-center border border-gray-100">
+                      <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <History className="w-10 h-10 text-gray-200" />
+                      </div>
+                      <h3 className="text-xl font-black text-gray-900">لا توجد تذاكر حالياً</h3>
+                      <p className="text-gray-400 mt-2">عندما تقوم بفتح تذكرة دعم جديدة، ستظهر هنا.</p>
                     </div>
-
-                    <div className="space-y-2">
-                      <label className="text-xs font-black text-gray-500 block mr-1 text-right">وصف المشكلة</label>
-                      <textarea 
-                        rows={6}
-                        value={message}
-                        onChange={(e) => setMessage(e.target.value)}
-                        className="w-full bg-gray-50 border border-gray-100 rounded-3xl p-6 font-medium text-right outline-none focus:ring-4 focus:ring-blue-50 transition-all leading-relaxed"
-                        placeholder="يرجى كتابة كافة التفاصيل لمساعدتنا في حل المشكلة بشكل أسرع..."
-                      />
+                  ) : (
+                    <div className="grid gap-4">
+                      {myTickets.map(ticket => (
+                        <button
+                          key={ticket.id}
+                          onClick={() => setSelectedTicket(ticket)}
+                          className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm hover:shadow-md transition-all text-right group flex items-start justify-between gap-4"
+                        >
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <h4 className="font-black text-gray-900 text-lg group-hover:text-blue-600 transition-colors uppercase italic tracking-tight">{ticket.title}</h4>
+                              <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase ${
+                                ticket.status === 'open' ? 'bg-orange-100 text-orange-700' :
+                                ticket.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
+                                ticket.status === 'waiting_for_user' ? 'bg-red-100 text-red-700' :
+                                'bg-green-100 text-green-700'
+                              }`}>
+                                {ticket.status === 'open' ? 'جديد' :
+                                 ticket.status === 'in_progress' ? 'قيد المعالجة' :
+                                 ticket.status === 'waiting_for_user' ? 'بانتظار ردك' :
+                                 'مكتمل'}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-400 font-bold mb-4">{new Date(ticket.createdAt?.toDate?.()).toLocaleString('ar-SA')}</p>
+                            <div className="flex items-center gap-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                               <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> آخر تحديث: {ticket.updatedAt ? new Date(ticket.updatedAt.toDate?.()).toLocaleDateString('ar-SA') : 'منذ قليل'}</span>
+                               <span className="bg-gray-100 px-2 py-0.5 rounded">#{ticket.category}</span>
+                            </div>
+                          </div>
+                          <ChevronLeft className="w-5 h-5 text-gray-300 group-hover:text-blue-600 transition-colors" />
+                        </button>
+                      ))}
                     </div>
+                  )}
+                </motion.div>
+              )}
 
-                    <button 
-                      type="submit"
-                      disabled={isSubmitting}
-                      className="w-full py-5 bg-gray-900 text-white rounded-3xl font-black text-lg flex items-center justify-center gap-3 hover:bg-gray-800 transition-all shadow-2xl shadow-gray-200 disabled:opacity-50"
-                    >
-                      {isSubmitting ? (
-                        <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        <>
-                          <Send className="w-5 h-5 -rotate-45" />
-                          إرسال الطلب الآن
-                        </>
-                      )}
-                    </button>
-
-                    <p className="text-[10px] text-gray-400 text-center font-medium mt-4">
-                      بالضغط على إرسال، فإنك توافق على سياسة الاستخدام وخصوصية البيانات في التعامل مع الشكاوى.
-                    </p>
-                 </form>
-               )}
-            </div>
+              {activeView === 'faq' && (
+                <motion.div 
+                  key="faq"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="space-y-6"
+                >
+                  <div className="bg-white rounded-[3rem] p-8 md:p-12 shadow-xl shadow-blue-900/5 border border-gray-100">
+                    <h2 className="text-2xl font-black text-gray-900 mb-8 pr-2 border-r-4 border-blue-600">الأسئلة الشائعة</h2>
+                    {/* FAQ Items (Existing logic can go here) */}
+                    <div className="space-y-4">
+                      {[
+                        { q: 'كيف أضمن حقي عند الشراء؟', a: 'يتم احتجاز المبلغ في المنصة ولا يتم تحويله للبائع إلا بعد تأكيد استلامك للخدمة وموافقتك.' },
+                        { q: 'ما هي عمولة المنصة؟', a: 'تتراوح عمولتنا بين 2% إلى 5% حسب حجم الصفقة ونوع الخدمة المقدمة.' },
+                        { q: 'كم تستغرق عملية سحب الرصيد؟', a: 'تتم معالجة طلبات السحب خلال 24 ساعة عمل كحد أقصى لتصل إلى حسابك البنكي.' }
+                      ].map((faq, i) => (
+                        <div key={i} className="p-6 bg-gray-50 rounded-[2rem] border border-gray-100 text-right">
+                           <h4 className="font-black text-gray-900 mb-2">{faq.q}</h4>
+                           <p className="text-sm text-gray-500 font-medium leading-relaxed">{faq.a}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
         </div>
+        )}
 
         {/* Live Chat Floating Window (Mockup for now) */}
         <AnimatePresence>

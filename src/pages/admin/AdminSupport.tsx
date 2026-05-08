@@ -1,17 +1,26 @@
 import React, { useEffect, useState } from 'react';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, serverTimestamp, where } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { MessageSquare, AlertCircle, Clock, ExternalLink, CheckCircle2, MessageCircle } from 'lucide-react';
+import { MessageSquare, AlertCircle, Clock, ExternalLink, CheckCircle2, MessageCircle, ArrowRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { Link } from 'react-router-dom';
+import { SupportChat } from '../../components/support/SupportChat';
 
 export const AdminSupport: React.FC = () => {
   const [supportTickets, setSupportTickets] = useState<any[]>([]);
   const [alerts, setAlerts] = useState<any[]>([]);
+  const [selectedTicket, setSelectedTicket] = useState<any>(null);
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterCategory, setFilterCategory] = useState<string>('all');
 
   useEffect(() => {
-    const unsubSupport = onSnapshot(query(collection(db, 'support_tickets'), orderBy('createdAt', 'desc')), (snapshot) => {
+    let q = query(collection(db, 'support_tickets'), orderBy('createdAt', 'desc'));
+    
+    // Note: In Firestore, filtering by one field and ordering by another requires an index.
+    // To keep it simple, we'll fetch all and filter client-side for now, or use multiple snapshots.
+    // Actually, client-side filtering is fine for admin support if ticket count isn't millions.
+    const unsubSupport = onSnapshot(q, (snapshot) => {
       setSupportTickets(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
@@ -28,7 +37,25 @@ export const AdminSupport: React.FC = () => {
 
   return (
     <div className="space-y-12 animate-in fade-in duration-500">
-      {/* Critical Alerts Sector */}
+      {selectedTicket ? (
+        <div className="max-w-4xl mx-auto space-y-6">
+          <button 
+            onClick={() => setSelectedTicket(null)}
+            className="flex items-center gap-2 text-gray-500 hover:text-gray-900 font-black transition-all mb-4"
+          >
+            <ArrowRight className="w-5 h-5" />
+            العودة للطلبات
+          </button>
+          <SupportChat 
+            ticket={selectedTicket}
+            currentUserId="ADMIN"
+            currentUserRole="admin"
+            onClose={() => setSelectedTicket(null)}
+          />
+        </div>
+      ) : (
+        <>
+          {/* Critical Alerts Sector */}
       {alerts.length > 0 && (
         <section className="space-y-4">
            <div className="flex items-center gap-2">
@@ -62,16 +89,48 @@ export const AdminSupport: React.FC = () => {
 
       {/* Support Tickets Sector */}
       <section className="space-y-6">
-        <div className="flex items-center gap-2">
-           <MessageSquare className="w-5 h-5 text-blue-600" />
-           <h2 className="text-xl font-black text-gray-900">طلبات الدعم والشكاوى المباشرة</h2>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm">
+           <div className="flex items-center gap-2">
+              <MessageSquare className="w-5 h-5 text-blue-600" />
+              <h2 className="text-xl font-black text-gray-900">طلبات الدعم والشكاوى المباشرة</h2>
+           </div>
+           <div className="flex flex-wrap gap-2">
+              <select 
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="bg-gray-50 border border-gray-100 rounded-xl px-4 py-2 text-xs font-black text-gray-500 outline-none"
+              >
+                <option value="all">كل الحالات</option>
+                <option value="open">جديد</option>
+                <option value="in_progress">قيد المعالجة</option>
+                <option value="waiting_for_user">بانتظار رد</option>
+                <option value="resolved">محلول</option>
+              </select>
+              <select 
+                value={filterCategory}
+                onChange={(e) => setFilterCategory(e.target.value)}
+                className="bg-gray-50 border border-gray-100 rounded-xl px-4 py-2 text-xs font-black text-gray-500 outline-none"
+              >
+                <option value="all">كل التصنيفات</option>
+                <option value="payment">دفع وسحب</option>
+                <option value="seller">بلاغ بائع</option>
+                <option value="technical">تقني</option>
+                <option value="suggestion">اقتراح</option>
+              </select>
+           </div>
         </div>
 
         <div className="grid grid-cols-1 gap-6">
-           {supportTickets.length === 0 ? (
+           {supportTickets
+             .filter(t => filterStatus === 'all' || t.status === filterStatus)
+             .filter(t => filterCategory === 'all' || t.category === filterCategory)
+             .length === 0 ? (
              <div className="bg-white rounded-[2.5rem] p-20 text-center text-gray-300 font-bold border border-gray-100 italic">لا توجد طلبات دعم حالية</div>
            ) : (
-             supportTickets.map(ticket => (
+             supportTickets
+               .filter(t => filterStatus === 'all' || t.status === filterStatus)
+               .filter(t => filterCategory === 'all' || t.category === filterCategory)
+               .map(ticket => (
                <div key={ticket.id} className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm flex flex-col md:flex-row justify-between gap-8 transition-all hover:shadow-md">
                   <div className="flex-1 flex gap-6">
                     <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm shrink-0 ${
@@ -82,17 +141,17 @@ export const AdminSupport: React.FC = () => {
                     <div className="space-y-4">
                        <div>
                           <div className="flex items-center gap-2 mb-1">
-                             <h4 className="font-black text-lg text-gray-900">{ticket.userName}</h4>
+                             <h4 className="font-black text-lg text-gray-900 border-r-4 border-blue-600 pr-3">{ticket.title || 'بدون عنوان'}</h4>
                              <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase ${
                                ticket.type === 'complaint' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
                              }`}>
                                 {ticket.type === 'complaint' ? 'بلاغ تقني' : 'استفسار'}
                              </span>
                           </div>
-                          <p className="text-xs font-bold text-gray-400">{ticket.userEmail}</p>
+                          <p className="text-xs font-bold text-gray-400 mr-4">بواسطة: {ticket.userName} ({ticket.userEmail})</p>
                        </div>
                        <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100/50 relative">
-                          <p className="text-sm font-medium text-gray-600 leading-relaxed text-right">{ticket.message}</p>
+                          <p className="text-sm font-medium text-gray-600 leading-relaxed text-right">{ticket.lastMessagePreview || ticket.message || 'لا توجد تفاصيل'}</p>
                        </div>
                        <div className="flex items-center gap-4 text-[10px] text-gray-400 font-bold tracking-widest uppercase">
                           <div className="flex items-center gap-1"><Clock className="w-3 h-3" /> {format(ticket.createdAt?.toDate?.() || new Date(), 'dd MMM HH:mm', { locale: ar })}</div>
@@ -110,16 +169,21 @@ export const AdminSupport: React.FC = () => {
                            {ticket.status === 'open' ? 'قيد المراجعة' : ticket.status === 'resolved' ? 'تم الحل' : 'مكتمل'}
                         </span>
                      </div>
-                     {ticket.status !== 'resolved' && (
-                        <button onClick={() => updateTicketStatus(ticket.id, 'resolved')} className="w-full py-3.5 bg-blue-600 text-white rounded-xl font-black text-xs hover:bg-blue-700 transition-all shadow-xl shadow-blue-100">تحويل لمحلول</button>
-                     )}
-                     <button onClick={() => updateTicketStatus(ticket.id, 'closed')} className="w-full py-3.5 bg-gray-100 text-gray-600 rounded-xl font-black text-xs hover:bg-gray-200 transition-all">إغلاق وتجاهل</button>
+                     <div className="flex gap-2">
+                        {ticket.status !== 'resolved' && (
+                           <button onClick={() => updateTicketStatus(ticket.id, 'resolved')} className="flex-1 py-3.5 bg-blue-50 text-blue-600 rounded-xl font-black text-xs hover:bg-blue-600 hover:text-white transition-all">محلول</button>
+                        )}
+                        <button onClick={() => setSelectedTicket(ticket)} className="flex-1 py-3.5 bg-gray-900 text-white rounded-xl font-black text-xs hover:bg-gray-800 transition-all shadow-xl shadow-gray-200">محادثة</button>
+                     </div>
+                     <button onClick={() => updateTicketStatus(ticket.id, 'closed')} className="w-full py-3.5 bg-gray-100 text-gray-400 rounded-xl font-black text-xs hover:bg-gray-200 transition-all">إغلاق</button>
                   </div>
                </div>
              ))
            )}
         </div>
       </section>
-    </div>
-  );
+      </>
+    )}
+  </div>
+);
 };

@@ -491,7 +491,7 @@ export const SettingsPage: React.FC = () => {
                                 className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 pr-12 focus:bg-white focus:ring-4 focus:ring-blue-50 focus:border-blue-500 outline-none transition-all font-bold appearance-none text-right"
                               >
                                 <option value="">اختر البنك...</option>
-                                <option value="stc_pay">STC Pay</option>
+                                <option value="stc_pay">اس تي سي بنك (STC Bank)</option>
                                 <option value="alrajhi">مصرف الراجحي</option>
                                 <option value="snbe">البنك الأهلي السعودي</option>
                                 <option value="insider">بنك الإنماء</option>

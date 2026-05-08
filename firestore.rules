@@ -257,11 +257,34 @@ service cloud.firestore {
     }
 
     // --- Support Tickets ---
+    function isValidSupportTicket(data) {
+      return data.userId is string && data.userId.size() <= 128
+        && data.title is string && data.title.size() <= 200
+        && data.type in ['complaint', 'inquiry', 'live_chat', 'technical']
+        && data.category in ['general', 'payment', 'seller', 'technical', 'suggestion']
+        && data.status in ['open', 'in_progress', 'waiting_for_user', 'resolved', 'closed']
+        && data.createdAt == request.time;
+    }
+
     match /support_tickets/{ticketId} {
-      allow create: if true; 
+      allow create: if isSignedIn() && isValidSupportTicket(incoming()) && incoming().userId == request.auth.uid;
       allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
-      allow list: if isAdmin();
-      allow update: if isAdmin();
+      allow update: if (isAdmin() && incoming().diff(existing()).affectedKeys().hasAny(['status', 'priority', 'updatedAt'])) ||
+                       (isSignedIn() && isOwner(existing().userId) && incoming().diff(existing()).affectedKeys().hasOnly(['updatedAt', 'lastMessagePreview', 'lastMessageSenderId', 'lastMessageAt']));
+      
+      match /messages/{messageId} {
+        function isValidSupportMessage(data) {
+          return data.ticketId == ticketId
+            && data.senderId == request.auth.uid
+            && data.senderRole in ['user', 'admin']
+            && data.text is string && data.text.size() <= 2000
+            && data.createdAt == request.time;
+        }
+
+        allow read: if isAdmin() || (isSignedIn() && get(/databases/$(database)/documents/support_tickets/$(ticketId)).data.userId == request.auth.uid);
+        allow create: if isSignedIn() && isValidSupportMessage(incoming()) && 
+                        (isAdmin() || get(/databases/$(database)/documents/support_tickets/$(ticketId)).data.userId == request.auth.uid);
+      }
     }
 
     // --- System Logs ---

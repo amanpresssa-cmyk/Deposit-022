@@ -34,8 +34,10 @@ export interface UserProfile {
   idPhotoUrl?: string;
   agreedToTerms?: boolean;
   isBlocked?: boolean;
+  blockReason?: string;
   isFeatured?: boolean;
   isEliteSeller?: boolean;
+  websiteUrl?: string;
   totalSales?: number;
   completedOrdersCount?: number;
   avgResponseTime?: string;

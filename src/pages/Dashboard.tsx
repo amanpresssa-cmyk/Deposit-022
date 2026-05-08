@@ -124,6 +124,7 @@ export const Dashboard: React.FC = () => {
   const [showIdentityVerify, setShowIdentityVerify] = useState(false);
   const [isUpdatingSeller, setIsUpdatingSeller] = useState(false);
   const [newBio, setNewBio] = useState(profile?.bio || '');
+  const [newWebsite, setNewWebsite] = useState(profile?.websiteUrl || '');
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [reviews, setReviews] = useState<any[]>([]);
   const [confidenceScore, setConfidenceScore] = useState(100);
@@ -136,18 +137,26 @@ export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    if (loading || orders.length === 0) return;
     const params = new URLSearchParams(location.search);
     const tab = params.get('tab');
     const orderId = params.get('orderId');
+    const sellerId = params.get('sellerId');
+
     if (tab === 'messages') {
       setActiveTab('messages');
-      if (orderId) setSelectedOrderId(orderId);
+      if (orderId) {
+        setSelectedOrderId(orderId);
+      } else if (sellerId) {
+        const existing = orders.find(o => o.sellerId === sellerId || o.buyerId === sellerId);
+        if (existing) setSelectedOrderId(existing.id);
+      }
     } else if (tab === 'services') {
       setActiveTab('services');
     } else if (tab === 'notifications') {
       setActiveTab('notifications');
     }
-  }, [location.search]);
+  }, [location.search, loading, orders.length]);
 
   useEffect(() => {
     if (!user) return;
@@ -271,6 +280,7 @@ export const Dashboard: React.FC = () => {
       await updateDoc(userRef, { 
         isSeller: true,
         bio: newBio || 'معقب محترف في منصة عربون، أقدم خدمات احترافية بضمان مالي.',
+        websiteUrl: newWebsite,
         specialties: specialties,
         trustLevel: (profile?.trustLevel || 0),
         updatedAt: serverTimestamp()
@@ -546,8 +556,24 @@ export const Dashboard: React.FC = () => {
                     value={newBio}
                     onChange={(e) => setNewBio(e.target.value)}
                     rows={3}
+                    placeholder="اكتب نبذة عن خبراتك ومهاراتك..."
                     className="w-full px-5 py-4 rounded-2xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-right font-medium"
                   />
+                  
+                  <div className="space-y-2">
+                    <label className="text-sm font-black text-gray-800 flex items-center gap-2">
+                      <Globe className="w-4 h-4 text-gray-400" />
+                      رابط موقعك الإلكتروني الشخصي (اختياري)
+                    </label>
+                    <input 
+                      type="text"
+                      value={newWebsite}
+                      onChange={(e) => setNewWebsite(e.target.value)}
+                      placeholder="example.com"
+                      className="w-full px-5 py-4 rounded-2xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-right font-medium"
+                      dir="ltr"
+                    />
+                  </div>
                   <div className="flex justify-end">
                     <button onClick={() => handleUpdateProfile(profile?.specialties || ['عام'])} className="bg-blue-600 text-white px-8 py-3 rounded-xl font-black shadow-lg shadow-blue-100">
                       حفظ التغييرات

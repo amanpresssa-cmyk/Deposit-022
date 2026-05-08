@@ -125,8 +125,12 @@ export const Navbar: React.FC = () => {
               لوحة الإدارة
             </Link>
           )}
-          <Link to="/search" className="text-sm font-bold text-gray-600 hover:text-blue-600 transition-colors">تصفح الخدمات</Link>
-          <Link to="/how-it-works" className="text-sm font-bold text-gray-600 hover:text-blue-600 transition-colors">كيف يعمل؟</Link>
+          {!isAdmin && (
+            <>
+              <Link to="/search" className="text-sm font-bold text-gray-600 hover:text-blue-600 transition-colors">تصفح الخدمات</Link>
+              <Link to="/how-it-works" className="text-sm font-bold text-gray-600 hover:text-blue-600 transition-colors">كيف يعمل؟</Link>
+            </>
+          )}
         </div>
 
               <div className="flex items-center gap-2 md:gap-4">
@@ -292,36 +296,41 @@ export const Navbar: React.FC = () => {
               </div>
 
               <div className="hidden md:flex items-center gap-3">
-                <Link 
-                  to="/dashboard" 
-                  className="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
-                  title="لوحة التحكم"
-                >
-                  <LayoutDashboard className="w-6 h-6" />
-                </Link>
-                
-                <Link 
-                  to="/settings" 
-                  className="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
-                  title="الإعدادات"
-                >
-                  <Settings className="w-6 h-6" />
-                </Link>
-                
-                <div className="h-10 w-[1px] bg-gray-100 mx-1"></div>
+                {!isAdmin && (
+                  <>
+                    <Link 
+                      to="/dashboard" 
+                      className="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
+                      title="لوحة التحكم"
+                    >
+                      <LayoutDashboard className="w-6 h-6" />
+                    </Link>
+                    
+                    <Link 
+                      to="/settings" 
+                      className="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
+                      title="الإعدادات"
+                    >
+                      <Settings className="w-6 h-6" />
+                    </Link>
+                    
+                    <div className="h-10 w-[1px] bg-gray-100 mx-1"></div>
+                  </>
+                )}
 
                 <motion.button 
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  onClick={() => navigate('/dashboard')}
+                  onClick={() => navigate(isAdmin ? '/admin' : '/dashboard')}
                   className="flex items-center gap-3 bg-gray-50 p-1.5 pr-4 rounded-2xl hover:bg-gray-100 transition-all border border-gray-100 group"
                 >
                   <div className="text-right hidden sm:block">
-                    <p className="text-xs font-black text-gray-900 group-hover:text-blue-600 transition-colors uppercase tracking-tight">{profile?.displayName}</p>
-                    <p className="text-[10px] font-bold text-gray-400">%{profile?.trustLevel || 10} ثقة</p>
+                    <p className="text-xs font-black text-gray-900 group-hover:text-blue-600 transition-colors uppercase tracking-tight">{profile?.displayName || (isAdmin ? 'المدير العام' : 'مستخدم جديد')}</p>
+                    {!isAdmin && <p className="text-[10px] font-bold text-gray-400">%{profile?.trustLevel || 10} ثقة</p>}
+                    {isAdmin && <p className="text-[10px] font-bold text-red-500">حساب إداري</p>}
                   </div>
                   <img 
-                    src={user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile?.displayName || '')}&background=random`} 
+                    src={user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile?.displayName || 'Admin')}&background=random`} 
                     alt="" 
                     className="w-10 h-10 rounded-xl object-cover border-2 border-white shadow-sm"
                     referrerPolicy="no-referrer"
