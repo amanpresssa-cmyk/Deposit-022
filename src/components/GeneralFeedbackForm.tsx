@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { Send, Star, MessageSquare, ShieldCheck } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Send, Star, MessageSquare, ShieldCheck, Clock } from 'lucide-react';
 import { motion } from 'motion/react';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp, query, where, orderBy, limit, getDocs, Timestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../hooks/useAuth';
 
@@ -11,10 +11,54 @@ export const GeneralFeedbackForm: React.FC = () => {
   const [rating, setRating] = useState(5);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [hasRecentFeedback, setHasRecentFeedback] = useState(false);
+  const [nextSubmissionDate, setNextSubmissionDate] = useState<Date | null>(null);
+  const [checkingStatus, setCheckingStatus] = useState(true);
+
+  useEffect(() => {
+    const checkFeedbackStatus = async () => {
+      if (!user) {
+        setCheckingStatus(false);
+        return;
+      }
+
+      try {
+        const q = query(
+          collection(db, 'platform_feedback'),
+          where('userId', '==', user.uid),
+          orderBy('createdAt', 'desc'),
+          limit(1)
+        );
+
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+          const lastFeedback = querySnapshot.docs[0].data();
+          const createdAt = lastFeedback.createdAt as Timestamp;
+          
+          if (createdAt) {
+            const lastDate = createdAt.toDate();
+            const sevenDaysLater = new Date(lastDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+            const now = new Date();
+
+            if (now < sevenDaysLater) {
+              setHasRecentFeedback(true);
+              setNextSubmissionDate(sevenDaysLater);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Error checking feedback status:', err);
+      } finally {
+        setCheckingStatus(false);
+      }
+    };
+
+    checkFeedbackStatus();
+  }, [user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!comment || loading) return;
+    if (!comment || loading || hasRecentFeedback) return;
     
     setLoading(true);
     try {
@@ -31,12 +75,53 @@ export const GeneralFeedbackForm: React.FC = () => {
       });
       setSuccess(true);
       setComment('');
+      
+      // Update local state to reflect new submission
+      setHasRecentFeedback(true);
+      setNextSubmissionDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
   };
+
+  if (checkingStatus) {
+    return (
+      <div className="bg-gray-900 rounded-[2rem] p-12 text-white flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  if (hasRecentFeedback && !success) {
+    return (
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-gray-900 rounded-[2rem] p-8 md:p-12 text-white border border-gray-800 relative overflow-hidden"
+      >
+        <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/5 rounded-full blur-[40px] -mr-16 -mt-16"></div>
+        <div className="relative z-10 text-center space-y-6">
+          <div className="w-16 h-16 md:w-20 md:h-20 bg-blue-600/10 rounded-3xl flex items-center justify-center mx-auto mb-4">
+            <Clock className="w-8 h-8 md:w-10 md:h-10 text-blue-400" />
+          </div>
+          <div className="space-y-3">
+            <h3 className="text-xl md:text-3xl font-black">نشكرك على مشاركتك الدائمة!</h3>
+            <p className="text-slate-400 text-sm md:text-lg max-w-xl mx-auto leading-relaxed italic">
+              لقد قمت بإرسال رأيك بالفعل. يمكنك إضافة تعليق جديد كل أسبوع للمساهمة في تحسين المنصة.
+            </p>
+          </div>
+          {nextSubmissionDate && (
+             <div className="inline-flex items-center gap-3 px-6 py-3 bg-white/5 rounded-2xl border border-white/10 text-blue-400 text-xs md:text-sm font-bold">
+               <ShieldCheck className="w-4 h-4" />
+               متاح لك التعليق القادم في: {nextSubmissionDate.toLocaleDateString('ar-SA')}
+             </div>
+          )}
+        </div>
+      </motion.div>
+    );
+  }
 
   if (success) {
     return (
@@ -48,12 +133,9 @@ export const GeneralFeedbackForm: React.FC = () => {
         <ShieldCheck className="w-12 h-12 md:w-16 md:h-16 mx-auto mb-4 md:mb-6 text-green-200" />
         <h3 className="text-xl md:text-3xl font-black mb-2 md:mb-4">شكراً لمساهمتك!</h3>
         <p className="text-green-100 text-sm md:text-lg mb-6 md:mb-8">رأيك يهمنا ويساعدنا في تطوير منصة عربون للأفضل.</p>
-        <button 
-          onClick={() => setSuccess(false)}
-          className="bg-white text-green-600 px-6 py-3 md:px-8 md:py-4 rounded-xl font-bold hover:bg-green-50 transition-all text-sm md:text-base"
-        >
-          إرسال رأي آخر
-        </button>
+        <div className="text-xs font-bold bg-white/20 p-3 rounded-xl inline-block">
+          تم استلام رأيك بنجاح. يمكنك إضافة تعليق جديد في غضون أسبوع.
+        </div>
       </motion.div>
     );
   }
@@ -94,7 +176,7 @@ export const GeneralFeedbackForm: React.FC = () => {
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               placeholder="شاركنا رأيك هنا..."
-              className="w-full bg-slate-800/50 border border-slate-700 rounded-2xl md:rounded-[2rem] pr-12 md:pr-16 pl-4 md:pl-6 py-4 md:py-6 text-sm md:text-lg outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all min-h-[100px] md:min-h-[150px]"
+              className="w-full bg-slate-800/50 border border-slate-700 rounded-xl md:rounded-[2rem] pr-12 md:pr-16 pl-4 md:pl-6 py-4 md:py-6 text-sm md:text-lg outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all min-h-[120px] md:min-h-[150px]"
             />
           </div>
 

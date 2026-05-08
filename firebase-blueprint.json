@@ -30,6 +30,9 @@
         "freeFeeTransactions": { "type": "number" },
         "userShortId": { "type": "string" },
         "emailConsent": { "type": "boolean" },
+        "pushNotificationsEnabled": { "type": "boolean" },
+        "orderNotificationsEnabled": { "type": "boolean" },
+        "systemAlertsEnabled": { "type": "boolean" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["uid", "email", "createdAt"]
@@ -119,6 +122,13 @@
         "priority": { "type": "string", "enum": ["normal", "settlement", "urgent"] },
         "orderId": { "type": "string" },
         "isRead": { "type": "boolean" },
+        "action": { 
+          "type": "object",
+          "properties": {
+            "label": { "type": "string" },
+            "url": { "type": "string" }
+          }
+        },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "title", "message", "type", "isRead", "createdAt"]
@@ -219,6 +229,14 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["amount", "status", "createdAt"]
+    },
+    "AppSettings": {
+      "title": "App Settings",
+      "description": "Platform-wide configuration partitioned by document ID",
+      "type": "object",
+      "properties": {
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
     }
   },
   "firestore": {
@@ -273,6 +291,10 @@
     "fee_transfers": {
       "schema": "FeeTransfer",
       "description": "Log of confirmed platform fee payouts from Geidea"
+    },
+    "app_settings": {
+      "schema": "AppSettings",
+      "description": "Collection of system configuration documents (key-value structure)"
     }
   }
 }

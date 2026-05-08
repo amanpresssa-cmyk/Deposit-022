@@ -46,6 +46,9 @@ export const SettingsPage: React.FC = () => {
     phoneNumber: profile?.phoneNumber || '',
     theme: profile?.theme || 'light',
     notificationsEnabled: profile?.notificationsEnabled !== false,
+    pushNotificationsEnabled: profile?.pushNotificationsEnabled !== false,
+    orderNotificationsEnabled: profile?.orderNotificationsEnabled !== false,
+    systemAlertsEnabled: profile?.systemAlertsEnabled !== false,
     emailNotifications: profile?.emailNotifications !== false,
     payoutBank: profile?.payoutBank || '',
     payoutIban: profile?.payoutIban || '',
@@ -329,6 +332,51 @@ export const SettingsPage: React.FC = () => {
                              <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all shadow-sm ${formData.notificationsEnabled ? 'right-1' : 'right-7'}`} />
                           </button>
                         </div>
+
+                        <div className="p-6 bg-gray-50 rounded-[2rem] flex items-center justify-between border border-gray-100 group hover:bg-white hover:shadow-lg hover:shadow-blue-50/50 transition-all">
+                          <div className="flex gap-4">
+                            <div className="bg-blue-100 p-4 rounded-[1.5rem] text-blue-600 shrink-0 group-hover:scale-110 transition-transform">
+                              <Smartphone className="w-6 h-6" />
+                            </div>
+                            <div className="text-right">
+                              <p className="font-black text-gray-900">إشعارات الدفع (Push Notifications)</p>
+                              <p className="text-xs text-gray-400 mt-1 font-medium italic">استلام تنبيهات فورية للطلبات الجديدة وتحديثات النظام</p>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={() => setFormData({...formData, pushNotificationsEnabled: !formData.pushNotificationsEnabled})}
+                            className={`w-14 h-8 rounded-full transition-all relative ${formData.pushNotificationsEnabled ? 'bg-blue-600' : 'bg-gray-300'}`}
+                          >
+                             <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all shadow-sm ${formData.pushNotificationsEnabled ? 'right-1' : 'right-7'}`} />
+                          </button>
+                        </div>
+
+                        {formData.pushNotificationsEnabled && (
+                          <motion.div 
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            className="mr-6 space-y-3"
+                          >
+                            <div className="flex items-center justify-between p-4 bg-gray-50/50 rounded-2xl">
+                              <span className="text-xs font-bold text-gray-600">تنبيهات الطلبات الجديدة</span>
+                              <button 
+                                onClick={() => setFormData({...formData, orderNotificationsEnabled: !formData.orderNotificationsEnabled})}
+                                className={`w-10 h-6 rounded-full transition-all relative ${formData.orderNotificationsEnabled ? 'bg-blue-500' : 'bg-gray-300'}`}
+                              >
+                                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${formData.orderNotificationsEnabled ? 'right-1' : 'right-5'}`} />
+                              </button>
+                            </div>
+                            <div className="flex items-center justify-between p-4 bg-gray-50/50 rounded-2xl">
+                              <span className="text-xs font-bold text-gray-600">تنبيهات النظام العامة</span>
+                              <button 
+                                onClick={() => setFormData({...formData, systemAlertsEnabled: !formData.systemAlertsEnabled})}
+                                className={`w-10 h-6 rounded-full transition-all relative ${formData.systemAlertsEnabled ? 'bg-blue-500' : 'bg-gray-300'}`}
+                              >
+                                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${formData.systemAlertsEnabled ? 'right-1' : 'right-5'}`} />
+                              </button>
+                            </div>
+                          </motion.div>
+                        )}
 
                         <div className="p-6 bg-gray-50 rounded-[2rem] flex items-center justify-between border border-gray-100 group hover:bg-white hover:shadow-lg hover:shadow-blue-50/50 transition-all">
                           <div className="flex gap-4">

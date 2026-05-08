@@ -297,6 +297,8 @@ export const Dashboard: React.FC = () => {
   const completedOrdersCount = sellerOrders.filter(o => o.status === 'completed').length;
   const failedOrdersCount = sellerOrders.filter(o => o.status === 'disputed' || o.status === 'cancelled').length;
 
+  const activeOrdersCount = orders.filter(o => o.status !== 'completed' && o.status !== 'cancelled').length;
+
   const activeConversations = orders.filter(o => o.status !== 'completed' && o.status !== 'cancelled');
   const archivedConversations = orders.filter(o => o.status === 'completed' || o.status === 'cancelled');
 
@@ -443,8 +445,16 @@ export const Dashboard: React.FC = () => {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
-            className="space-y-8"
+            className="space-y-6 md:space-y-8"
           >
+            {/* Mobile Stats Grid - 2x2 system */}
+            <div className="grid grid-cols-2 md:hidden gap-3 mb-2">
+               <StatCard title="المعاملات" value={activeOrdersCount} icon={Clock} color="blue" />
+               <StatCard title="المنجزة" value={completedOrdersCount} icon={CheckCircle2} color="green" />
+               <StatCard title="متعثرة" value={failedOrdersCount} icon={AlertCircle} color="red" />
+               <StatCard title="مؤشر الثقة" value={`${confidenceScore}%`} icon={ShieldCheck} color="indigo" highlight />
+            </div>
+
             {!profile?.isVerified && (
               <div className="grid md:grid-cols-3 gap-8">
                 <div className="md:col-span-2">
@@ -790,53 +800,53 @@ export const Dashboard: React.FC = () => {
                   )}
                </div>
 
-               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
                   {/* Rating Criteria */}
-                  <div className={`p-6 rounded-2xl border transition-all ${profile?.rating >= 4.75 ? 'bg-green-50 border-green-100' : 'bg-gray-50 border-gray-100'}`}>
-                    <div className="flex justify-between items-center mb-4">
-                      <Star className={`w-6 h-6 ${profile?.rating >= 4.75 ? 'text-green-600 fill-current' : 'text-gray-300'}`} />
-                      <span className={`text-xs font-black ${profile?.rating >= 4.75 ? 'text-green-600' : 'text-gray-400'}`}>
+                  <div className={`p-4 md:p-6 rounded-2xl border transition-all ${profile?.rating >= 4.75 ? 'bg-green-50 border-green-100' : 'bg-gray-50 border-gray-100'}`}>
+                    <div className="flex justify-between items-center mb-3 md:mb-4">
+                      <Star className={`w-5 h-5 md:w-6 md:h-6 ${profile?.rating >= 4.75 ? 'text-green-600 fill-current' : 'text-gray-300'}`} />
+                      <span className={`text-[8px] md:text-xs font-black ${profile?.rating >= 4.75 ? 'text-green-600' : 'text-gray-400'}`}>
                         {profile?.rating >= 4.75 ? 'مكتمل' : 'مطلوب 4.8'}
                       </span>
                     </div>
-                    <p className="text-gray-500 text-xs font-bold mb-1">التقييم الحالي</p>
-                    <p className="text-xl font-black text-gray-900">{profile?.rating?.toFixed(1) || '0.0'}</p>
+                    <p className="text-gray-500 text-[10px] md:text-xs font-bold mb-1">التقييم</p>
+                    <p className="text-lg md:text-xl font-black text-gray-900">{profile?.rating?.toFixed(1) || '0.0'}</p>
                   </div>
 
                   {/* Completed Orders Criteria */}
-                  <div className={`p-6 rounded-2xl border transition-all ${(profile?.completedOrdersCount || 0) >= 5 ? 'bg-green-50 border-green-100' : 'bg-gray-50 border-gray-100'}`}>
-                    <div className="flex justify-between items-center mb-4">
-                      <CheckCircle2 className={`w-6 h-6 ${ (profile?.completedOrdersCount || 0) >= 5 ? 'text-green-600' : 'text-gray-300'}`} />
-                      <span className={`text-xs font-black ${(profile?.completedOrdersCount || 0) >= 5 ? 'text-green-600' : 'text-gray-400'}`}>
+                  <div className={`p-4 md:p-6 rounded-2xl border transition-all ${(profile?.completedOrdersCount || 0) >= 5 ? 'bg-green-50 border-green-100' : 'bg-gray-50 border-gray-100'}`}>
+                    <div className="flex justify-between items-center mb-3 md:mb-4">
+                      <CheckCircle2 className={`w-5 h-5 md:w-6 md:h-6 ${ (profile?.completedOrdersCount || 0) >= 5 ? 'text-green-600' : 'text-gray-300'}`} />
+                      <span className={`text-[8px] md:text-xs font-black ${(profile?.completedOrdersCount || 0) >= 5 ? 'text-green-600' : 'text-gray-400'}`}>
                         {(profile?.completedOrdersCount || 0) >= 5 ? 'مكتمل' : 'مطلوب 5'}
                       </span>
                     </div>
-                    <p className="text-gray-500 text-xs font-bold mb-1">عمليات مكتملة</p>
-                    <p className="text-xl font-black text-gray-900">{profile?.completedOrdersCount || 0}</p>
+                    <p className="text-gray-500 text-[10px] md:text-xs font-bold mb-1">منجز</p>
+                    <p className="text-lg md:text-xl font-black text-gray-900">{profile?.completedOrdersCount || 0}</p>
                   </div>
 
                   {/* Verification Criteria */}
-                  <div className={`p-6 rounded-2xl border transition-all ${profile?.isVerified ? 'bg-green-50 border-green-100' : 'bg-gray-50 border-gray-100'}`}>
-                    <div className="flex justify-between items-center mb-4">
-                      <ShieldCheck className={`w-6 h-6 ${profile?.isVerified ? 'text-green-600' : 'text-gray-300'}`} />
-                      <span className={`text-xs font-black ${profile?.isVerified ? 'text-green-600' : 'text-gray-400'}`}>
-                        {profile?.isVerified ? 'مكتمل' : 'غير موثق'}
+                  <div className={`p-4 md:p-6 rounded-2xl border transition-all ${profile?.isVerified ? 'bg-green-50 border-green-100' : 'bg-gray-50 border-gray-100'}`}>
+                    <div className="flex justify-between items-center mb-3 md:mb-4">
+                      <ShieldCheck className={`w-5 h-5 md:w-6 md:h-6 ${profile?.isVerified ? 'text-green-600' : 'text-gray-300'}`} />
+                      <span className={`text-[8px] md:text-xs font-black ${profile?.isVerified ? 'text-green-600' : 'text-gray-400'}`}>
+                        {profile?.isVerified ? 'موثق' : 'غير موثق'}
                       </span>
                     </div>
-                    <p className="text-gray-500 text-xs font-bold mb-1">توثيق الهوية</p>
-                    <p className="text-xl font-black text-gray-900">{profile?.isVerified ? 'موثق ✅' : 'نقص البيانات'}</p>
+                    <p className="text-gray-500 text-[10px] md:text-xs font-bold mb-1">الهوية</p>
+                    <p className="text-lg md:text-xl font-black text-gray-900 truncate">{profile?.isVerified ? 'موثق ✅' : 'نقص البيانات'}</p>
                   </div>
 
                   {/* Response Time Criteria */}
-                  <div className={`p-6 rounded-2xl border transition-all ${profile?.avgResponseTime === 'خلال دقائق' ? 'bg-green-50 border-green-100' : 'bg-gray-50 border-gray-100'}`}>
-                    <div className="flex justify-between items-center mb-4">
-                      <Clock className={`w-6 h-6 ${profile?.avgResponseTime === 'خلال دقائق' ? 'text-green-600' : 'text-gray-300'}`} />
-                      <span className={`text-xs font-black ${profile?.avgResponseTime === 'خلال دقائق' ? 'text-green-600' : 'text-gray-400'}`}>
-                        {profile?.avgResponseTime === 'خلال دقائق' ? 'مكتمل' : 'مطلوب دقائق'}
+                  <div className={`p-4 md:p-6 rounded-2xl border transition-all ${profile?.avgResponseTime === 'خلال دقائق' ? 'bg-green-50 border-green-100' : 'bg-gray-50 border-gray-100'}`}>
+                    <div className="flex justify-between items-center mb-3 md:mb-4">
+                      <Clock className={`w-5 h-5 md:w-6 md:h-6 ${profile?.avgResponseTime === 'خلال دقائق' ? 'text-green-600' : 'text-gray-300'}`} />
+                      <span className={`text-[8px] md:text-xs font-black ${profile?.avgResponseTime === 'خلال دقائق' ? 'text-green-600' : 'text-gray-400'}`}>
+                        {profile?.avgResponseTime === 'خلال دقائق' ? 'مكتمل' : 'مطلوب'}
                       </span>
                     </div>
-                    <p className="text-gray-500 text-xs font-bold mb-1">سرعة الرد</p>
-                    <p className="text-xl font-black text-gray-900 truncate">{profile?.avgResponseTime || 'خلال ساعات'}</p>
+                    <p className="text-gray-500 text-[10px] md:text-xs font-bold mb-1">الرد</p>
+                    <p className="text-lg md:text-xl font-black text-gray-900 truncate">{profile?.avgResponseTime || 'ساعات'}</p>
                   </div>
                </div>
             </div>
@@ -853,11 +863,11 @@ export const Dashboard: React.FC = () => {
                   <p>• خصم 5 نقاط عند التأخر في الرد أو إلغاء الطلبات.</p>
                </div>
             </div>
-            <div className="grid md:grid-cols-4 gap-6">
-              <StatCard title="طلبات جارية" value={orders.filter(o => o.status !== 'completed' && o.status !== 'cancelled').length} icon={Clock} color="blue" />
-              <StatCard title="إنجازات ناجحة" value={completedOrdersCount} icon={CheckCircle2} color="green" />
-              <StatCard title="عمليات متعثرة" value={failedOrdersCount} icon={AlertCircle} color="red" />
-              <StatCard title="ثقة الرقابة" value={`${confidenceScore}%`} icon={ShieldCheck} color="indigo" highlight />
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+              <StatCard title="المعاملات" value={activeOrdersCount} icon={Clock} color="blue" />
+              <StatCard title="المنجزة" value={completedOrdersCount} icon={CheckCircle2} color="green" />
+              <StatCard title="متعثرة" value={failedOrdersCount} icon={AlertCircle} color="red" />
+              <StatCard title="مؤشر الثقة" value={`${confidenceScore}%`} icon={ShieldCheck} color="indigo" highlight />
             </div>
           </motion.div>
         )}
@@ -906,13 +916,13 @@ const ServiceGuide: React.FC = () => (
 );
 
 const StatCard: React.FC<{ title: string, value: string | number, icon: any, color: string, highlight?: boolean }> = ({ title, value, icon: Icon, color, highlight }) => (
-  <div className={`p-6 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4 ${highlight ? 'bg-gray-900 text-white' : 'bg-white'}`}>
-    <div className={`p-3 rounded-xl ${highlight ? 'bg-white/10 text-blue-400' : `bg-${color}-50 text-${color}-500`}`}>
-      <Icon className="w-6 h-6" />
+  <div className={`p-4 md:p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center md:items-start text-center md:text-right gap-3 md:gap-4 ${highlight ? 'bg-gray-950 text-white' : 'bg-white'}`}>
+    <div className={`p-2.5 md:p-3 rounded-xl shrink-0 ${highlight ? 'bg-white/10 text-blue-400' : `bg-${color}-50 text-${color}-500`}`}>
+      <Icon className="w-5 h-5 md:w-6 md:h-6" />
     </div>
-    <div>
-      <p className={`text-sm font-medium ${highlight ? 'text-gray-400' : 'text-gray-500'}`}>{title}</p>
-      <p className="text-2xl font-black">{value}</p>
+    <div className="flex-1 w-full">
+      <p className={`text-[10px] md:text-sm font-black uppercase tracking-widest leading-none mb-1 ${highlight ? 'text-gray-400' : 'text-gray-500'}`}>{title}</p>
+      <p className="text-xl md:text-2xl font-black">{value}</p>
     </div>
   </div>
 );

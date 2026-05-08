@@ -29,10 +29,14 @@ export const AdminOverview: React.FC = () => {
     pendingVerifications: 0,
     totalUsers: 0,
     totalTickets: 0,
+    totalReviews: 0,
+    totalFeedback: 0,
     recentTransactions: [] as any[],
     chartData: [] as { name: string, value: number }[],
     allTx: [] as any[], // Keep all transactions to re-calculate chart locally
-    disputeCount: 0
+    disputeCount: 0,
+    systemStatus: 'connected' as 'connected' | 'degraded' | 'offline',
+    lastActivity: new Date()
   });
 
   useEffect(() => {
@@ -60,9 +64,12 @@ export const AdminOverview: React.FC = () => {
         totalFees: fees, 
         activeEscrows: active,
         recentTransactions: allTx.slice(0, 10),
-        allTx: allTx
+        allTx: allTx,
+        lastActivity: new Date(),
+        systemStatus: 'connected'
       }));
     }, (error) => {
+      setStats(prev => ({ ...prev, systemStatus: 'degraded' }));
       handleFirestoreError(error, OperationType.GET, 'transactions');
     });
 
@@ -77,6 +84,18 @@ export const AdminOverview: React.FC = () => {
       }));
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'users');
+    });
+
+    // Reviews count
+    const reviewsQ = collection(db, 'reviews');
+    const unsubReviews = onSnapshot(reviewsQ, (snapshot) => {
+      setStats(prev => ({ ...prev, totalReviews: snapshot.size }));
+    });
+
+    // Feedback count
+    const feedbackQ = collection(db, 'platform_feedback');
+    const unsubFeedback = onSnapshot(feedbackQ, (snapshot) => {
+      setStats(prev => ({ ...prev, totalFeedback: snapshot.size }));
     });
 
     // Support Tickets count for space estimation
@@ -98,15 +117,17 @@ export const AdminOverview: React.FC = () => {
       unsubUsers();
       unsubDisputes();
       unsubTickets();
+      unsubReviews();
+      unsubFeedback();
     };
   }, [isAdmin]);
 
   // Calculate System Usage Percentage (Proxy for Used Space)
   // Assuming a free-tier limit of 50,000 documents total for major collections
-  const totalDocs = stats.totalUsers + stats.allTx.length + stats.totalTickets;
+  const totalDocs = stats.totalUsers + stats.allTx.length + stats.totalTickets + stats.totalReviews + stats.totalFeedback;
   const usageLimit = 50000;
   const usagePercentage = Math.min(Math.round((totalDocs / usageLimit) * 100), 100);
-  const usedSpaceGB = (totalDocs * 0.0001).toFixed(2); // Mocking GB based on doc count
+  const usedSpaceGB = (totalDocs * 0.00015).toFixed(2); // Increased multiplier to reflect more collections
 
   useEffect(() => {
     if (stats.allTx.length === 0) return;
@@ -226,32 +247,32 @@ export const AdminOverview: React.FC = () => {
       </div>
 
       {/* Main Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         {mainStats.map((s, idx) => (
           <Link 
             key={idx} 
             to={s.link || '#'}
-            className="bg-white p-6 rounded-3xl border border-gray-50 shadow-sm relative overflow-hidden group hover:shadow-xl transition-all duration-500 cursor-help flex flex-col"
+            className="bg-white p-4 md:p-6 rounded-2xl md:rounded-3xl border border-gray-50 shadow-sm relative overflow-hidden group hover:shadow-xl transition-all duration-500 cursor-help flex flex-col"
           >
              <div className="absolute inset-0 bg-blue-600 opacity-0 group-hover:opacity-[0.02] transition-opacity" />
              <div className="absolute -top-12 -right-12 w-32 h-32 bg-gray-50 rounded-full group-hover:scale-150 transition-transform duration-700 opacity-50" />
              <div className="relative z-10 flex-1">
-                <div className="flex justify-between items-start mb-4">
-                   <div className="w-12 h-12 rounded-2xl bg-gray-950 text-white flex items-center justify-center shadow-xl shadow-gray-200 group-hover:bg-blue-600 transition-colors">
-                      {React.cloneElement(s.icon as React.ReactElement, { className: 'w-5 h-5' })}
+                <div className="flex justify-between items-start mb-3 md:mb-4">
+                   <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-gray-950 text-white flex items-center justify-center shadow-lg shadow-gray-100 group-hover:bg-blue-600 transition-colors">
+                      {React.cloneElement(s.icon as React.ReactElement, { className: 'w-4 h-4 md:w-5 md:h-5' })}
                    </div>
-                   <div className="flex items-center gap-1 text-[10px] font-black text-green-600 bg-green-50/50 px-2 py-1 rounded-lg">
-                      <ArrowUpRight className="w-3 h-3" />
+                   <div className="flex items-center gap-1 text-[8px] md:text-[10px] font-black text-green-600 bg-green-50/50 px-2 py-1 rounded-lg">
+                      <ArrowUpRight className="w-2.5 h-2.5 md:w-3 md:h-3" />
                       {s.trend}
                    </div>
                 </div>
                 <div>
-                   <p className="text-gray-400 font-bold text-[10px] uppercase mb-1 tracking-widest">{s.label}</p>
-                   <p className="text-2xl font-black text-gray-900 tabular-nums">{s.value}</p>
+                   <p className="text-gray-400 font-bold text-[8px] md:text-[10px] uppercase mb-0.5 md:mb-1 tracking-wider md:tracking-widest">{s.label}</p>
+                   <p className="text-lg md:text-2xl font-black text-gray-900 tabular-nums leading-tight">{s.value}</p>
                 </div>
                 
-                {/* Info Tooltip Overlay */}
-                <div className="mt-4 pt-4 border-t border-gray-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                {/* Info Tooltip Overlay (Hidden on small mobile) */}
+                <div className="mt-4 pt-4 border-t border-gray-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 hidden sm:block">
                    <p className="text-[9px] font-black text-gray-400 leading-relaxed italic">{s.info}</p>
                 </div>
              </div>
@@ -331,21 +352,21 @@ export const AdminOverview: React.FC = () => {
                <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/10 rounded-full blur-3xl -mr-32 -mt-32" />
                <div className="relative z-10">
                   <h3 className="text-lg font-black italic mb-6">إجراءات <span className="text-blue-400">سريعة</span></h3>
-                  <div className="grid grid-cols-1 gap-3">
+                  <div className="grid grid-cols-2 lg:grid-cols-1 gap-3">
                      {quickActions.map((a, i) => (
                         <Link 
                            key={i}
                            to={a.link}
-                           className="flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-2xl transition-all border border-white/5 hover:border-white/10 group"
+                           className="flex flex-col md:flex-row items-center md:items-center gap-3 md:gap-4 p-3 md:p-4 bg-white/5 hover:bg-white/10 rounded-2xl transition-all border border-white/5 hover:border-white/10 group text-center md:text-right"
                         >
-                           <div className={`w-10 h-10 rounded-xl flex items-center justify-center bg-gray-900 group-hover:scale-110 transition-transform ${a.color === 'blue' ? 'text-blue-400' : a.color === 'red' ? 'text-red-400' : a.color === 'green' ? 'text-green-400' : 'text-purple-400'}`}>
-                              {React.cloneElement(a.icon as React.ReactElement, { className: 'w-5 h-5' })}
+                           <div className={`w-9 h-9 md:w-10 md:h-10 rounded-xl flex items-center justify-center bg-gray-900 group-hover:scale-110 transition-transform shrink-0 ${a.color === 'blue' ? 'text-blue-400' : a.color === 'red' ? 'text-red-400' : a.color === 'green' ? 'text-green-400' : 'text-purple-400'}`}>
+                              {React.cloneElement(a.icon as React.ReactElement, { className: 'w-4 h-4 md:w-5 md:h-5' })}
                            </div>
-                           <div className="flex-1">
-                              <p className="text-[11px] font-black">{a.label}</p>
-                              <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">{a.desc}</p>
+                           <div className="flex-1 min-w-0">
+                              <p className="text-[10px] md:text-[11px] font-black truncate">{a.label}</p>
+                              <p className="text-[8px] md:text-[9px] font-bold text-gray-500 uppercase tracking-widest truncate">{a.desc}</p>
                            </div>
-                           <ArrowUpRight className="w-4 h-4 text-gray-700 group-hover:text-white transition-colors" />
+                           <ArrowUpRight className="hidden md:block w-4 h-4 text-gray-700 group-hover:text-white transition-colors" />
                         </Link>
                      ))}
                   </div>
@@ -411,13 +432,15 @@ export const AdminOverview: React.FC = () => {
             <div className="grid grid-cols-2 gap-4 mb-8">
                <div className="p-5 bg-gray-50 rounded-3xl border border-gray-100 flex flex-col items-center justify-center text-center">
                   <Activity className="w-6 h-6 text-blue-600 mb-2" />
-                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">سرعة الاستجابة</p>
-                  <p className="text-lg font-black text-gray-900">42ms</p>
+                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">نشاط الخادم</p>
+                  <p className="text-lg font-black text-gray-900">{stats.recentTransactions.length > 5 ? 'مرتفع' : 'مستقر'}</p>
                </div>
                <div className="p-5 bg-gray-50 rounded-3xl border border-gray-100 flex flex-col items-center justify-center text-center">
-                  <CheckCircle2 className="w-6 h-6 text-green-500 mb-2" />
+                  <div className={`w-2 h-2 rounded-full mb-3 animate-pulse ${stats.systemStatus === 'connected' ? 'bg-green-500' : 'bg-yellow-500'}`} />
                   <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">حالة القواعد</p>
-                  <p className="text-lg font-black text-gray-900 uppercase">متصل</p>
+                  <p className={`text-lg font-black uppercase ${stats.systemStatus === 'connected' ? 'text-green-600' : 'text-orange-600'}`}>
+                     {stats.systemStatus === 'connected' ? 'متصل' : 'مستقر'}
+                  </p>
                </div>
             </div>
 

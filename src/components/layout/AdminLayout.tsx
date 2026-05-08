@@ -23,11 +23,24 @@ import { motion, AnimatePresence } from 'motion/react';
 export const AdminLayout: React.FC = () => {
   const { profile, logout } = useAuth();
   const navigate = useNavigate();
-  const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = React.useState(window.innerWidth > 1024);
   const [openMenus, setOpenMenus] = React.useState<Record<string, boolean>>({
     finance: false,
     system: false
   });
+
+  // Handle window resize to auto-close/open sidebar
+  React.useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth <= 1024) {
+        setIsSidebarOpen(false);
+      } else {
+        setIsSidebarOpen(true);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const toggleMenu = (id: string) => {
     setOpenMenus(prev => ({ ...prev, [id]: !prev[id] }));
@@ -90,12 +103,12 @@ export const AdminLayout: React.FC = () => {
     <div className="min-h-screen bg-gray-50 flex rtl" dir="rtl">
       {/* Mobile Menu Backdrop */}
       <AnimatePresence>
-        {!isSidebarOpen && (
+        {isSidebarOpen && (
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={() => setIsSidebarOpen(true)}
+            onClick={() => setIsSidebarOpen(false)}
             className="fixed inset-0 bg-black/20 z-40 lg:hidden backdrop-blur-sm"
           />
         )}
@@ -226,9 +239,9 @@ export const AdminLayout: React.FC = () => {
           <div className="flex items-center gap-3">
             <button 
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="p-1.5 hover:bg-gray-100 rounded-lg transition-all text-gray-500"
+              className="p-2.5 md:p-1.5 hover:bg-gray-100 rounded-xl md:rounded-lg transition-all text-gray-500 active:scale-95"
             >
-              {isSidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+              {isSidebarOpen ? <X className="w-5 h-5 md:w-4 md:h-4" /> : <Menu className="w-5 h-5 md:w-4 md:h-4" />}
             </button>
             <div className="hidden sm:block">
               <h1 className="text-xs font-black text-gray-900">لوحة الإدارة</h1>

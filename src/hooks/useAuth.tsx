@@ -139,6 +139,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
             await setDoc(userRef, newProfile);
             setProfile(newProfile);
+
+            // Send welcome notification
+            await sendNotification(
+              user.uid,
+              '👋 أهلاً بك في منصة عربون!',
+              'نحن سعداء بانضمامك إلينا. يمكنك الآن تصفح الصفقات والبدء في التعامل بأمان تام.',
+              'system',
+              'normal',
+              undefined,
+              undefined,
+              { label: 'استكمال الملف الشخصي', url: '/settings' }
+            );
           } else {
             const data = userSnap.data() as UserProfile;
             // Ensure admin flag is set if email matches
@@ -297,6 +309,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           };
           await setDoc(userRef, newProfile);
           setProfile(newProfile);
+
+          // Send welcome notification
+          await sendNotification(
+            result.user.uid,
+            '👋 أهلاً بك في منصة عربون!',
+            'نحن سعداء بانضمامك إلينا. يمكنك الآن تصفح الصفقات والبدء في التعامل بأمان تام.',
+            'system',
+            'normal',
+            undefined,
+            undefined,
+            { label: 'استكمال الملف الشخصي', url: '/settings' }
+          );
         } else {
           await updateDoc(userRef, { 
             phoneNumber: result.user.phoneNumber,

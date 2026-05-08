@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { Search, PlusCircle, LayoutDashboard, User, ShieldCheck, Bell, X, CreditCard, AlertTriangle, Clock, CheckCircle2, MessageSquare, Settings, Sparkles, ChevronRight } from 'lucide-react';
+import { Search, PlusCircle, LayoutDashboard, User, ShieldCheck, Bell, X, CreditCard, AlertTriangle, Clock, CheckCircle2, MessageSquare, Settings, Sparkles, ChevronRight, Menu, LogOut, HelpCircle, FileText, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { collection, query, where, orderBy, onSnapshot, limit, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -16,6 +16,7 @@ export const Navbar: React.FC = () => {
   const { notifications, unreadCount } = useNotifications();
   const navigate = useNavigate();
   const [showNotifications, setShowNotifications] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [activeFilter, setActiveFilter] = useState<'all' | 'urgent' | 'settlement' | 'normal'>('all');
 
   const [announcement, setAnnouncement] = useState<any>(null);
@@ -111,14 +112,24 @@ export const Navbar: React.FC = () => {
         )}
       
       <div className="max-w-7xl mx-auto px-4 h-16 md:h-20 flex items-center justify-between gap-2">
-        <Link to="/" className="flex items-center gap-1.5 md:gap-2 group shrink-0">
-          <img 
-            src="https://i.imgur.com/OYaLVgI.png" 
-            alt="عربون" 
-            className="h-7 md:h-10 w-auto object-contain flex-shrink-0" 
-          />
-          <span className="text-[9px] md:text-[10px] font-black text-blue-600 tracking-widest uppercase border-r border-gray-100 pr-2 hidden sm:block">وساطة مالية</span>
-        </Link>
+        <div className="flex items-center gap-3">
+          {/* Mobile Menu Toggle */}
+          <button 
+            onClick={() => setIsMenuOpen(true)}
+            className="md:hidden p-2 text-gray-500 hover:bg-gray-50 rounded-xl transition-all"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+          
+          <Link to="/" className="flex items-center gap-1.5 md:gap-2 group shrink-0">
+            <img 
+              src="https://i.imgur.com/OYaLVgI.png" 
+              alt="عربون" 
+              className="h-7 md:h-10 w-auto object-contain flex-shrink-0" 
+            />
+            <span className="text-[9px] md:text-[10px] font-black text-blue-600 tracking-widest uppercase border-r border-gray-100 pr-2 hidden sm:block">وساطة مالية</span>
+          </Link>
+        </div>
 
         {/* Desktop Menu */}
         <div className="hidden md:flex items-center gap-6">
@@ -355,6 +366,124 @@ export const Navbar: React.FC = () => {
         </div>
       </div>
       </nav>
+
+      {/* Mobile Drawer Menu */}
+      <AnimatePresence>
+        {isMenuOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMenuOpen(false)}
+              className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] md:hidden"
+            />
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed top-0 right-0 bottom-0 w-[80%] max-w-sm bg-white z-[101] md:hidden flex flex-col shadow-2xl"
+              dir="rtl"
+            >
+              <div className="p-6 border-b border-gray-50 flex items-center justify-between">
+                <Link to="/" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-2">
+                  <img src="https://i.imgur.com/OYaLVgI.png" alt="عربون" className="h-8 w-auto" />
+                  <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">وساطة آمنة</span>
+                </Link>
+                <button 
+                  onClick={() => setIsMenuOpen(false)}
+                  className="w-10 h-10 flex items-center justify-center bg-gray-50 rounded-full text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6 space-y-8">
+                {/* Auth Section */}
+                {user ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-4 bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                      <img 
+                        src={user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile?.displayName || 'User')}&background=random`} 
+                        alt="" 
+                        className="w-12 h-12 rounded-xl object-cover"
+                      />
+                      <div className="flex-1 overflow-hidden">
+                        <p className="text-sm font-black text-gray-900 truncate">{profile?.displayName || 'مستخدم'}</p>
+                        <p className="text-[10px] font-bold text-gray-400">%{profile?.trustLevel || 10} ثقة</p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <p className="text-sm font-bold text-gray-500">مرحباً بك في عربون</p>
+                    <button 
+                      onClick={() => { login(); setIsMenuOpen(false); }}
+                      className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 shadow-xl shadow-blue-100"
+                    >
+                      <User className="w-5 h-5" />
+                      تسجيل الدخول
+                    </button>
+                  </div>
+                )}
+
+                {/* Primary Nav */}
+                <div className="space-y-2">
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4">التنقل السريع</p>
+                  <Link to="/" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 transition-all font-bold text-gray-700 bg-gray-50/50">
+                    <LayoutDashboard className="w-5 h-5 text-blue-600" />
+                    <span>الرئيسية</span>
+                  </Link>
+                  <Link to="/search" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 transition-all font-bold text-gray-700">
+                    <Search className="w-5 h-5 text-blue-600" />
+                    <span>تصفح الصفقات</span>
+                  </Link>
+                  {user && (
+                    <Link to="/dashboard" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 transition-all font-bold text-gray-700">
+                      <CheckCircle2 className="w-5 h-5 text-blue-600" />
+                      <span>طلباتي النشطة</span>
+                    </Link>
+                  )}
+                </div>
+
+                {/* Info Nav */}
+                <div className="space-y-2">
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4">الدعم والمعلومات</p>
+                  <Link to="/how-it-works" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 transition-all font-bold text-gray-600">
+                    <Info className="w-5 h-5" />
+                    <span>كيف يعمل؟</span>
+                  </Link>
+                  <Link to="/help-center" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 transition-all font-bold text-gray-600">
+                    <HelpCircle className="w-5 h-5" />
+                    <span>مركز المساعدة</span>
+                  </Link>
+                  <Link to="/faq" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 transition-all font-bold text-gray-600">
+                    <MessageSquare className="w-5 h-5" />
+                    <span>الأسئلة الشائعة</span>
+                  </Link>
+                  <Link to="/terms" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 transition-all font-bold text-gray-600">
+                    <FileText className="w-5 h-5" />
+                    <span>الشروط والأحكام</span>
+                  </Link>
+                </div>
+              </div>
+
+              {user && (
+                <div className="p-6 border-t border-gray-50">
+                  <button 
+                    onClick={() => { logout(); setIsMenuOpen(false); }}
+                    className="w-full flex items-center justify-center gap-3 p-4 rounded-2xl font-black text-red-500 hover:bg-red-50 transition-all"
+                  >
+                    <LogOut className="w-5 h-5" />
+                    خروج من النظام
+                  </button>
+                </div>
+              )}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

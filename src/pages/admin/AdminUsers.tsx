@@ -48,7 +48,16 @@ export const AdminUsers: React.FC = () => {
           rating: 4,
           trustLevel: 80
         });
-        await sendNotification(uid, 'تهانينا! تم توثيق حسابك', 'تم مراجعة بياناتك بنجاح وأصبح حسابك الآن موثقاً في منصة عربون.', 'system', 'normal');
+        await sendNotification(
+          uid, 
+          '✅ تهانينا! حسابك الآن موثق بالكامل', 
+          'لقد تم التحقق من هويتك بنجاح. يمكنك الآن بدء تداول كميات كبيرة واستخدام كافة مميزات المنصة الاحترافية.', 
+          'system', 
+          'urgent',
+          undefined,
+          undefined,
+          { label: 'ابدأ تداول الآن', url: '/dashboard' }
+        );
       } else {
         await updateDoc(userRef, {
           verificationStatus: 'rejected',
