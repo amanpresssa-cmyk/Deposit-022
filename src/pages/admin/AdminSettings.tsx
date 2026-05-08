@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
+import { useAuth } from '../../hooks/useAuth';
+import { handleFirestoreError, OperationType } from '../../lib/firestoreUtils';
 import { 
   ShieldCheck, 
   Image as ImageIcon, 
@@ -23,6 +25,9 @@ import { motion, AnimatePresence } from 'motion/react';
 type SettingsTab = 'ui' | 'finance' | 'security' | 'support';
 
 export const AdminSettings: React.FC = () => {
+  const { profile, user } = useAuth();
+  const isAdmin = user?.email === 'khyratfarmdates@gmail.com' || profile?.isAdmin;
+
   const [activeTab, setActiveTab] = useState<SettingsTab>('ui');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
@@ -35,16 +40,18 @@ export const AdminSettings: React.FC = () => {
   const [support, setSupport] = useState({ email: '', phone: '', address: '', whatsapp: '' });
 
   useEffect(() => {
+    if (!isAdmin) return;
+
     const unsubs = [
-      onSnapshot(doc(db, 'app_settings', 'home_card'), d => d.exists() && setHomeCard(d.data() as any)),
-      onSnapshot(doc(db, 'app_settings', 'announcement'), d => d.exists() && setAnnouncement(d.data() as any)),
-      onSnapshot(doc(db, 'app_settings', 'finance'), d => d.exists() && setFinance(d.data() as any)),
-      onSnapshot(doc(db, 'app_settings', 'security'), d => d.exists() && setSecurity(d.data() as any)),
-      onSnapshot(doc(db, 'app_settings', 'support'), d => d.exists() && setSupport(d.data() as any)),
+      onSnapshot(doc(db, 'app_settings', 'home_card'), d => d.exists() && setHomeCard(d.data() as any), (err) => handleFirestoreError(err, OperationType.GET, 'app_settings/home_card')),
+      onSnapshot(doc(db, 'app_settings', 'announcement'), d => d.exists() && setAnnouncement(d.data() as any), (err) => handleFirestoreError(err, OperationType.GET, 'app_settings/announcement')),
+      onSnapshot(doc(db, 'app_settings', 'finance'), d => d.exists() && setFinance(d.data() as any), (err) => handleFirestoreError(err, OperationType.GET, 'app_settings/finance')),
+      onSnapshot(doc(db, 'app_settings', 'security'), d => d.exists() && setSecurity(d.data() as any), (err) => handleFirestoreError(err, OperationType.GET, 'app_settings/security')),
+      onSnapshot(doc(db, 'app_settings', 'support'), d => d.exists() && setSupport(d.data() as any), (err) => handleFirestoreError(err, OperationType.GET, 'app_settings/support')),
     ];
     setLoading(false);
     return () => unsubs.forEach(u => u());
-  }, []);
+  }, [isAdmin]);
 
   const saveSettings = async (path: string, data: any) => {
     setSaving(path);

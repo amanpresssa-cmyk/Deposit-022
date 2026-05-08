@@ -33,7 +33,7 @@ import { BottomNav } from './components/layout/BottomNav';
 import { InstallPWAHint } from './components/layout/InstallPWAHint';
 import { ProductTour } from './components/layout/ProductTour';
 import { motion, AnimatePresence } from 'motion/react';
-import { Shield, X, Ban, LogOut } from 'lucide-react';
+import { Shield, X, Ban, LogOut, Phone, MessageCircle } from 'lucide-react';
 import { FloatingScrollToTop } from './components/ui/FloatingScrollToTop';
 import { signOut } from 'firebase/auth';
 import { auth } from './lib/firebase';
@@ -90,7 +90,7 @@ class ErrorBoundary extends Component<any, any> {
   }
 }
 
-function BlockedUserOverlay({ reason }: { reason?: string }) {
+function BlockedUserOverlay({ reason, showSupport = true }: { reason?: string, showSupport?: boolean }) {
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -130,23 +130,49 @@ function BlockedUserOverlay({ reason }: { reason?: string }) {
 
           <div className="space-y-4">
             <p className="text-gray-400 text-sm font-medium leading-relaxed">
-              إذا كنت تعتقد أن هذا الحظر كان ناتجاً عن خطأ، يرجى التواصل مع فريق الدعم الفني عبر البريد الإلكتروني المخصص للمنازعات.
+              {showSupport 
+                ? 'إذا كنت تعتقد أن هذا الحظر كان ناتجاً عن خطأ، يمكنك التواصل مباشرة مع المدير العام للمنصة لمراجعة طلبك.'
+                : 'إذا كنت تعتقد أن هذا الحظر كان ناتجاً عن خطأ، يرجى تقديم تظلم عبر القنوات الرسمية فور توفرها.'
+              }
             </p>
             
-            <div className="pt-4 flex flex-col sm:flex-row gap-4">
+            <div className={`pt-4 grid grid-cols-1 ${showSupport ? 'sm:grid-cols-2' : ''} gap-4`}>
               <button 
                 onClick={handleLogout}
-                className="flex-1 bg-gray-900 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-black transition-all shadow-xl shadow-gray-200"
+                className="w-full bg-gray-900 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-black transition-all shadow-xl shadow-gray-200"
               >
                 <LogOut className="w-4 h-4" />
                 تسجيل الخروج
               </button>
-              <a 
-                href="mailto:support@arbon.sa"
-                className="flex-1 bg-white text-gray-900 border-2 border-gray-100 py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-gray-50 transition-all"
-              >
-                مراسلة الدعم
-              </a>
+              
+              {showSupport && (
+                <>
+                  <a 
+                    href="https://wa.me/966500000000"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full bg-green-500 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-green-600 transition-all shadow-xl shadow-green-100"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    تواصل عبر واتساب
+                  </a>
+
+                  <a 
+                    href="tel:+966500000000"
+                    className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-blue-700 transition-all shadow-xl shadow-blue-100"
+                  >
+                    <Phone className="w-4 h-4" />
+                    اتصال هاتفي
+                  </a>
+
+                  <a 
+                    href="mailto:support@arbon.sa"
+                    className="w-full bg-white text-gray-400 border-2 border-gray-50 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-gray-50 transition-all"
+                  >
+                    المراسلة الرسمية
+                  </a>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -218,7 +244,12 @@ export default function App() {
         <NotificationProvider>
           <Toaster position="top-center" richColors />
           <div className="min-h-screen bg-[#f8fafc] font-sans antialiased rtl relative" dir="rtl">
-            {profile?.isBlocked && !isAdmin && <BlockedUserOverlay reason={profile.blockReason} />}
+            {profile?.isBlocked && !isAdmin && (
+              <BlockedUserOverlay 
+                reason={profile.blockReason} 
+                showSupport={profile.showSupportOnBlock !== false} 
+              />
+            )}
             <AnimatePresence>
               {error && (
                 <motion.div

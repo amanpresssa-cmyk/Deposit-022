@@ -12,6 +12,7 @@
         "photoURL": { "type": "string" },
         "isBlocked": { "type": "boolean" },
         "blockReason": { "type": "string" },
+        "showSupportOnBlock": { "type": "boolean" },
         "rating": { "type": "number" },
         "reviewsCount": { "type": "number" },
         "isVerified": { "type": "boolean" },
@@ -27,6 +28,7 @@
         "referralCode": { "type": "string" },
         "referredBy": { "type": "string" },
         "freeFeeTransactions": { "type": "number" },
+        "userShortId": { "type": "string" },
         "emailConsent": { "type": "boolean" },
         "createdAt": { "type": "string", "format": "date-time" }
       },

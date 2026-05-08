@@ -1,11 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
+import { useAuth } from '../../hooks/useAuth';
+import { handleFirestoreError, OperationType } from '../../lib/firestoreUtils';
 import { Wallet, Activity, TrendingUp, ArrowDownLeft, ArrowUpRight, Search, ShieldCheck } from 'lucide-react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 
 export const AdminFinance: React.FC = () => {
+  const { profile, user } = useAuth();
+  const isAdmin = user?.email === 'khyratfarmdates@gmail.com' || profile?.isAdmin;
+
   const [transactions, setTransactions] = useState<any[]>([]);
   const [feeTransfers, setFeeTransfers] = useState<any[]>([]);
   const [stats, setStats] = useState({
@@ -15,6 +20,8 @@ export const AdminFinance: React.FC = () => {
   });
 
   useEffect(() => {
+    if (!isAdmin) return;
+
     // Listen to escrow transactions
     const txQ = query(collection(db, 'transactions'), orderBy('createdAt', 'desc'));
     const unsubTx = onSnapshot(txQ, (snapshot) => {
@@ -25,6 +32,8 @@ export const AdminFinance: React.FC = () => {
       const f = txs.reduce((acc, tx: any) => acc + (Number(tx.fee) || 0), 0);
       
       setStats(prev => ({ ...prev, volume: v, fees: f }));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'transactions');
     });
 
     // Listen to confirmed fee transfers from Geidea
@@ -35,13 +44,15 @@ export const AdminFinance: React.FC = () => {
       
       const confirmed = payouts.reduce((acc, p: any) => acc + (Number(p.amount) || 0), 0);
       setStats(prev => ({ ...prev, confirmedFees: confirmed }));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'fee_transfers');
     });
 
     return () => {
       unsubTx();
       unsubPayout();
     };
-  }, []);
+  }, [isAdmin]);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">

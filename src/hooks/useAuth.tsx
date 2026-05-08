@@ -41,6 +41,11 @@ const generateReferralCode = (uid: string) => {
   return uid.slice(0, 6).toUpperCase() + Math.floor(Math.random() * 1000);
 };
 
+// Helper to generate a 4-digit numeric ID
+const generateShortId = () => {
+  return Math.floor(1000 + Math.random() * 9000).toString();
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -99,6 +104,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               isSeller: false,
               isAdmin: user.email === 'khyratfarmdates@gmail.com',
               trustLevel: 10,
+              userShortId: generateShortId(),
               verificationStatus: 'none',
               referralCode: generateReferralCode(user.uid),
               referredBy: '',
@@ -143,6 +149,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (!data.referralCode) {
               const code = generateReferralCode(user.uid);
               await updateDoc(userRef, { referralCode: code });
+            }
+            // Add short ID if missing for old users
+            if (!data.userShortId) {
+              const shortId = generateShortId();
+              await updateDoc(userRef, { userShortId: shortId });
             }
             setProfile(data);
             
@@ -277,6 +288,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             isSeller: false,
             isAdmin: false,
             trustLevel: 10,
+            userShortId: generateShortId(),
             verificationStatus: 'none',
             referralCode: generateReferralCode(result.user.uid),
             referredBy: '',

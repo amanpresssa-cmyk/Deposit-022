@@ -1,20 +1,29 @@
 import React, { useEffect, useState } from 'react';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
+import { useAuth } from '../../hooks/useAuth';
+import { handleFirestoreError, OperationType } from '../../lib/firestoreUtils';
 import { AlertCircle, Scale, Clock, MessageCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 
 export const AdminDisputes: React.FC = () => {
+  const { profile, user } = useAuth();
+  const isAdmin = user?.email === 'khyratfarmdates@gmail.com' || profile?.isAdmin;
+
   const [disputes, setDisputes] = useState<any[]>([]);
 
   useEffect(() => {
+    if (!isAdmin) return;
+
     const q = query(collection(db, 'disputes'), orderBy('createdAt', 'desc'));
     const unsub = onSnapshot(q, (snapshot) => {
       setDisputes(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'disputes');
     });
     return () => unsub();
-  }, []);
+  }, [isAdmin]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">

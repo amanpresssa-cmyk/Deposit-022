@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, orderBy, onSnapshot, where, limit } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
+import { useAuth } from '../../hooks/useAuth';
+import { handleFirestoreError, OperationType } from '../../lib/firestoreUtils';
 import { 
   History, 
   Search, 
@@ -38,6 +40,9 @@ const OP_ICONS = {
 };
 
 export const SystemLogsPage: React.FC = () => {
+  const { profile, user } = useAuth();
+  const isAdmin = user?.email === 'khyratfarmdates@gmail.com' || profile?.isAdmin;
+
   const [logs, setLogs] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [filterSeverity, setFilterSeverity] = useState('ALL');
@@ -50,6 +55,8 @@ export const SystemLogsPage: React.FC = () => {
   });
 
   useEffect(() => {
+    if (!isAdmin) return;
+
     let q = query(collection(db, 'system_logs'), orderBy('timestamp', 'desc'), limit(100));
 
     if (filterSeverity !== 'ALL') {
@@ -71,10 +78,12 @@ export const SystemLogsPage: React.FC = () => {
       
       setStats(s);
       setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'system_logs');
     });
 
     return () => unsub();
-  }, [filterSeverity]);
+  }, [filterSeverity, isAdmin]);
 
   const getSimpleExplanation = (log: any) => {
     const type = log.operationType;

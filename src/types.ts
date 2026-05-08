@@ -35,6 +35,7 @@ export interface UserProfile {
   agreedToTerms?: boolean;
   isBlocked?: boolean;
   blockReason?: string;
+  showSupportOnBlock?: boolean;
   isFeatured?: boolean;
   isEliteSeller?: boolean;
   websiteUrl?: string;
@@ -44,6 +45,7 @@ export interface UserProfile {
   referralCode?: string;
   referredBy?: string;
   freeFeeTransactions?: number;
+  userShortId?: string;
   emailConsent?: boolean;
   twoFactorEnabled?: boolean;
   isOnline?: boolean;

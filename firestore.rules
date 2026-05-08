@@ -256,6 +256,12 @@ service cloud.firestore {
       allow create, update: if isAdmin();
     }
 
+    // --- Fee Transfers (Geidea) ---
+    match /fee_transfers/{transferId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
     // --- Support Tickets ---
     function isValidSupportTicket(data) {
       return data.userId is string && data.userId.size() <= 128

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, serverTimestamp, where } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
+import { useAuth } from '../../hooks/useAuth';
+import { handleFirestoreError, OperationType } from '../../lib/firestoreUtils';
 import { MessageSquare, AlertCircle, Clock, ExternalLink, CheckCircle2, MessageCircle, ArrowRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
@@ -8,6 +10,9 @@ import { Link } from 'react-router-dom';
 import { SupportChat } from '../../components/support/SupportChat';
 
 export const AdminSupport: React.FC = () => {
+  const { profile, user } = useAuth();
+  const isAdmin = user?.email === 'khyratfarmdates@gmail.com' || profile?.isAdmin;
+
   const [supportTickets, setSupportTickets] = useState<any[]>([]);
   const [alerts, setAlerts] = useState<any[]>([]);
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
@@ -15,6 +20,8 @@ export const AdminSupport: React.FC = () => {
   const [filterCategory, setFilterCategory] = useState<string>('all');
 
   useEffect(() => {
+    if (!isAdmin) return;
+
     let q = query(collection(db, 'support_tickets'), orderBy('createdAt', 'desc'));
     
     // Note: In Firestore, filtering by one field and ordering by another requires an index.
@@ -22,14 +29,18 @@ export const AdminSupport: React.FC = () => {
     // Actually, client-side filtering is fine for admin support if ticket count isn't millions.
     const unsubSupport = onSnapshot(q, (snapshot) => {
       setSupportTickets(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'support_tickets');
     });
 
     const unsubAlerts = onSnapshot(query(collection(db, 'notifications'), where('userId', '==', 'ADMIN'), orderBy('createdAt', 'desc')), (snapshot) => {
       setAlerts(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'notifications/ADMIN');
     });
 
     return () => { unsubSupport(); unsubAlerts(); };
-  }, []);
+  }, [isAdmin]);
 
   const updateTicketStatus = async (id: string, status: string) => {
     await updateDoc(doc(db, 'support_tickets', id), { status, updatedAt: serverTimestamp() });
