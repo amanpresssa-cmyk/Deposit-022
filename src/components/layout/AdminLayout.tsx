@@ -12,6 +12,9 @@ import {
   Bell,
   Menu,
   Terminal,
+  Zap,
+  ChevronDown,
+  ChevronRight,
   X
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
@@ -21,15 +24,66 @@ export const AdminLayout: React.FC = () => {
   const { profile, logout } = useAuth();
   const navigate = useNavigate();
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
+  const [openMenus, setOpenMenus] = React.useState<Record<string, boolean>>({
+    finance: false,
+    system: false
+  });
 
-  const menuItems = [
-    { id: 'overview', label: 'نظرة عامة', icon: <LayoutDashboard className="w-5 h-5" />, path: '/admin' },
-    { id: 'users', label: 'المستخدمين والتوثيق', icon: <Users className="w-5 h-5" />, path: '/admin/users' },
-    { id: 'finance', label: 'العمليات المالية', icon: <Wallet className="w-5 h-5" />, path: '/admin/finance' },
-    { id: 'disputes', label: 'إدارة النزاعات', icon: <AlertCircle className="w-5 h-5" />, path: '/admin/disputes' },
-    { id: 'support', label: 'تذاكر الدعم', icon: <MessageSquare className="w-5 h-5" />, path: '/admin/support' },
-    { id: 'logs', label: 'سجل النظام', icon: <Terminal className="w-5 h-5" />, path: '/admin/logs' },
-    { id: 'settings', label: 'إعدادات المنصة', icon: <Settings className="w-5 h-5" />, path: '/admin/settings' },
+  const toggleMenu = (id: string) => {
+    setOpenMenus(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const sections = [
+    { 
+      type: 'single',
+      id: 'overview', 
+      label: 'نظرة عامة', 
+      icon: <LayoutDashboard className="w-5 h-5" />, 
+      path: '/admin' 
+    },
+    { 
+      type: 'single',
+      id: 'users', 
+      label: 'المستخدمين والتوثيق', 
+      icon: <Users className="w-5 h-5" />, 
+      path: '/admin/users' 
+    },
+    {
+      type: 'group',
+      id: 'finance',
+      label: 'الإدارة المالية',
+      icon: <Wallet className="w-5 h-5" />,
+      items: [
+        { id: 'transactions', label: 'سجل التداولات', path: '/admin/transactions' },
+        { id: 'revenue', label: 'إحصائيات الأرباح', path: '/admin/revenue' },
+        { id: 'settlements', label: 'التسويات البنكية', path: '/admin/settlements' },
+      ]
+    },
+    { 
+      type: 'single',
+      id: 'disputes', 
+      label: 'إدارة النزاعات', 
+      icon: <AlertCircle className="w-5 h-5" />, 
+      path: '/admin/disputes' 
+    },
+    { 
+      type: 'single',
+      id: 'support', 
+      label: 'تذاكر الدعم', 
+      icon: <MessageSquare className="w-5 h-5" />, 
+      path: '/admin/support' 
+    },
+    {
+      type: 'group',
+      id: 'system',
+      label: 'النظام والإعدادات',
+      icon: <Settings className="w-5 h-5" />,
+      items: [
+        { id: 'logs', label: 'سجل النظام', path: '/admin/logs' },
+        { id: 'settings', label: 'إعدادات المنصة', path: '/admin/settings' },
+        { id: 'logout', label: 'خروج من النظام', path: '#', onClick: () => logout(), isAction: true },
+      ]
+    }
   ];
 
   return (
@@ -72,26 +126,85 @@ export const AdminLayout: React.FC = () => {
 
           {/* Navigation */}
           <nav className="flex-1 p-3 space-y-1.5 overflow-y-auto no-scrollbar">
-            {menuItems.map((item) => (
-              <NavLink
-                key={item.id}
-                to={item.path}
-                end={item.path === '/admin'}
-                className={({ isActive }) => `
-                  flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-bold text-xs transition-all group
-                  ${isActive 
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-100' 
-                    : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'}
-                `}
-              >
-                <div className="shrink-0">{React.cloneElement(item.icon as React.ReactElement, { className: 'w-4 h-4' })}</div>
-                {isSidebarOpen && <span className="whitespace-nowrap">{item.label}</span>}
-              </NavLink>
+            {sections.map((section) => (
+              <div key={section.id} className="space-y-1">
+                {section.type === 'single' ? (
+                  <NavLink
+                    to={section.path!}
+                    end={section.path === '/admin'}
+                    className={({ isActive }) => `
+                      flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-bold text-xs transition-all group
+                      ${isActive 
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-100' 
+                        : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'}
+                    `}
+                  >
+                    <div className="shrink-0">{React.cloneElement(section.icon as React.ReactElement, { className: 'w-4 h-4' })}</div>
+                    {isSidebarOpen && <span className="whitespace-nowrap">{section.label}</span>}
+                  </NavLink>
+                ) : (
+                  <div className="space-y-1">
+                    <button
+                      onClick={() => toggleMenu(section.id)}
+                      className={`
+                        w-full flex items-center justify-between gap-2.5 px-3 py-2.5 rounded-xl font-bold text-xs transition-all group
+                        ${openMenus[section.id] 
+                          ? 'bg-gray-50 text-blue-600' 
+                          : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'}
+                      `}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div className="shrink-0">{React.cloneElement(section.icon as React.ReactElement, { className: 'w-4 h-4' })}</div>
+                        {isSidebarOpen && <span className="whitespace-nowrap">{section.label}</span>}
+                      </div>
+                      {isSidebarOpen && (
+                        openMenus[section.id] ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />
+                      )}
+                    </button>
+                    
+                    <AnimatePresence>
+                      {openMenus[section.id] && isSidebarOpen && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          className="overflow-hidden bg-gray-50/50 rounded-xl mr-4"
+                        >
+                          {section.items?.map((item) => (
+                            item.isAction ? (
+                              <button
+                                key={item.id}
+                                onClick={item.onClick}
+                                className="w-full flex items-center gap-2 px-4 py-2.5 text-[10px] font-bold text-red-400 hover:text-red-600 hover:bg-red-50 transition-all text-right"
+                              >
+                                <LogOut className="w-3 h-3" />
+                                <span>{item.label}</span>
+                              </button>
+                            ) : (
+                              <NavLink
+                                key={item.id}
+                                to={item.path!}
+                                className={({ isActive }) => `
+                                  flex items-center gap-2 px-4 py-2.5 text-[10px] font-bold transition-all
+                                  ${isActive ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'}
+                                `}
+                              >
+                                <div className="w-1.5 h-1.5 rounded-full bg-current opacity-30" />
+                                <span>{item.label}</span>
+                              </NavLink>
+                            )
+                          ))}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                )}
+              </div>
             ))}
           </nav>
 
-          {/* Bottom Profile/Actions */}
-          <div className="p-3 border-t border-gray-50 space-y-2">
+          {/* Bottom Profile Area */}
+          <div className="p-3 border-t border-gray-50">
             {isSidebarOpen && (
               <div className="bg-gray-50 rounded-xl p-3 flex items-center gap-2">
                 <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 text-xs font-black">
@@ -102,16 +215,6 @@ export const AdminLayout: React.FC = () => {
                 </div>
               </div>
             )}
-            <button 
-              onClick={() => logout()}
-              className={`
-                flex items-center gap-2.5 px-3 py-2.5 w-full rounded-xl font-bold text-xs text-red-600 
-                hover:bg-red-50 transition-all border border-transparent hover:border-red-100
-              `}
-            >
-              <LogOut className="w-4 h-4" />
-              {isSidebarOpen && <span>تسجيل الخروج</span>}
-            </button>
           </div>
         </div>
       </aside>

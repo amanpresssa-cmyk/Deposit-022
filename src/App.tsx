@@ -15,6 +15,9 @@ import { AdminUsers } from './pages/admin/AdminUsers';
 import { AdminFinance } from './pages/admin/AdminFinance';
 import { AdminDisputes } from './pages/admin/AdminDisputes';
 import { AdminSupport } from './pages/admin/AdminSupport';
+import { AdminTransactions } from './pages/admin/AdminTransactions';
+import { AdminRevenue } from './pages/admin/AdminRevenue';
+import { AdminSettlements } from './pages/admin/AdminSettlements';
 import { AdminSettings } from './pages/admin/AdminSettings';
 import { SystemLogsPage } from './pages/admin/SystemLogsPage';
 import { useLocation } from 'react-router-dom';
@@ -311,6 +314,9 @@ export default function App() {
                       <Route index element={<AdminOverview />} />
                       <Route path="users" element={<AdminUsers />} />
                       <Route path="finance" element={<AdminFinance />} />
+                      <Route path="transactions" element={<AdminTransactions />} />
+                      <Route path="revenue" element={<AdminRevenue />} />
+                      <Route path="settlements" element={<AdminSettlements />} />
                       <Route path="disputes" element={<AdminDisputes />} />
                       <Route path="support" element={<AdminSupport />} />
                       <Route path="logs" element={<SystemLogsPage />} />

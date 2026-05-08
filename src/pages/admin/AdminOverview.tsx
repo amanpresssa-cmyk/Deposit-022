@@ -150,7 +150,7 @@ export const AdminOverview: React.FC = () => {
   const quickActions = [
     { label: 'توثيق الحسابات', desc: `${stats.pendingVerifications} طلب جديد`, link: '/admin/users', icon: <ShieldCheck />, color: 'blue' },
     { label: 'النزاعات النشطة', desc: `${stats.disputeCount} قضية معلقة`, link: '/admin/disputes', icon: <AlertTriangle />, color: 'red' },
-    { label: 'العمليات المالية', desc: 'إدارة السحوبات والودائع', link: '/admin/finance', icon: <Wallet />, color: 'green' },
+    { label: 'سجل التداولات', desc: 'إدارة العمليات المالية', link: '/admin/transactions', icon: <Wallet />, color: 'green' },
     { label: 'دعم العملاء', desc: 'تذاكر المساعدة', link: '/admin/support', icon: <MessageSquare />, color: 'purple' },
   ];
 
@@ -161,7 +161,8 @@ export const AdminOverview: React.FC = () => {
       icon: <TrendingUp />, 
       trend: 'مباشر', 
       color: 'blue',
-      info: 'مجموع المبالغ التي تم تداولها عبر المنصة منذ التأسيس.'
+      link: '/admin/transactions',
+      info: 'مجموع المبالغ المتداولة عبر المنصة. انقر لعرض سجل التداولات المالي المفصل.'
     },
     { 
       label: 'صافي أرباح العمولات', 
@@ -169,7 +170,8 @@ export const AdminOverview: React.FC = () => {
       icon: <Zap />, 
       trend: 'مباشر', 
       color: 'yellow',
-      info: 'حصيلة الرسوم المستقطعة من العمليات كأرباح للمنصة.'
+      link: '/admin/revenue',
+      info: 'حصيلة الرسوم المستقطعة كأرباح للمنصة. انقر لتحليل إحصائيات الدخل والأرباح.'
     },
     { 
       label: 'المستخدمين النشطين', 
@@ -177,7 +179,8 @@ export const AdminOverview: React.FC = () => {
       icon: <UsersIcon />, 
       trend: 'مباشر', 
       color: 'indigo',
-      info: 'عدد الحسابات المسجلة والفعالة حالياً في النظام.'
+      link: '/admin/users',
+      info: 'عدد الحسابات المسجلة والفعالة حالياً في النظام. انقر لإدارة الأعضاء.'
     },
     { 
       label: 'العمليات في الضمان', 
@@ -185,7 +188,8 @@ export const AdminOverview: React.FC = () => {
       icon: <Clock />, 
       trend: 'مباشر', 
       color: 'orange',
-      info: 'عدد العمليات الجارية التي لم تسلم مبالغها للبائعين بعد.'
+      link: '/admin/orders',
+      info: 'عدد العمليات الجارية التي لم تسلم مبالغها للبائعين بعد. انقر لمتابعة حالة الطلبات.'
     },
   ];
 
@@ -212,17 +216,26 @@ export const AdminOverview: React.FC = () => {
         
         <div className="flex flex-wrap gap-3">
            <Link to="/admin/settings" className="px-5 py-3 bg-gray-50 text-gray-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-100 transition-all border border-gray-100">إعدادات النظام</Link>
-           <button className="px-5 py-3 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-700 shadow-xl shadow-blue-100 transition-all">تصدير التقرير اليومي</button>
+           <button 
+             onClick={() => window.print()}
+             className="px-5 py-3 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-700 shadow-xl shadow-blue-100 transition-all"
+           >
+             تصدير واجهة العرض
+           </button>
         </div>
       </div>
 
       {/* Main Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {mainStats.map((s, idx) => (
-          <div key={idx} className="bg-white p-6 rounded-3xl border border-gray-50 shadow-sm relative overflow-hidden group hover:shadow-xl transition-all duration-500 cursor-help">
+          <Link 
+            key={idx} 
+            to={s.link || '#'}
+            className="bg-white p-6 rounded-3xl border border-gray-50 shadow-sm relative overflow-hidden group hover:shadow-xl transition-all duration-500 cursor-help flex flex-col"
+          >
              <div className="absolute inset-0 bg-blue-600 opacity-0 group-hover:opacity-[0.02] transition-opacity" />
              <div className="absolute -top-12 -right-12 w-32 h-32 bg-gray-50 rounded-full group-hover:scale-150 transition-transform duration-700 opacity-50" />
-             <div className="relative z-10">
+             <div className="relative z-10 flex-1">
                 <div className="flex justify-between items-start mb-4">
                    <div className="w-12 h-12 rounded-2xl bg-gray-950 text-white flex items-center justify-center shadow-xl shadow-gray-200 group-hover:bg-blue-600 transition-colors">
                       {React.cloneElement(s.icon as React.ReactElement, { className: 'w-5 h-5' })}
@@ -242,9 +255,10 @@ export const AdminOverview: React.FC = () => {
                    <p className="text-[9px] font-black text-gray-400 leading-relaxed italic">{s.info}</p>
                 </div>
              </div>
-          </div>
+          </Link>
         ))}
       </div>
+
 
       {/* Charts & Quick Actions */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
