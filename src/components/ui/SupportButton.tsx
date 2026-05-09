@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MessageCircle, X, Send, Bot, Rocket, Shield, User, Headphones, Loader2 } from 'lucide-react';
+import { MessageCircle, X, Send, Bot, Rocket, Shield, User, Headphones, Loader2, Mail, Phone } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
@@ -144,13 +144,21 @@ export const SupportButton: React.FC = () => {
     addMessage(option, 'user');
     
     if (option === 'التحدث مع خدمة العملاء') {
+      setIsTyping(true);
       setTimeout(() => {
-        addMessage('جاري توجيهك لمركز المساعدة لفتح تذكرة دعم رسمية... يرجى الانتظار.', 'bot');
-        setTimeout(() => {
-          setIsOpen(false);
-          navigate('/help-center?view=new_ticket');
-        }, 1500);
-      }, 600);
+        if (!user) {
+          setIsTyping(false);
+          addMessage('أهلاً بك.. بما أنك لم تسجل الدخول حالياً، يمكنك التواصل معنا مباشرة عبر القنوات التالية لخدمة أسرع:', 'bot');
+          // We'll show the alternative buttons in the options area by setting a temporary state or just relying on the logic below
+        } else {
+          addMessage('جاري توجيهك لمركز المساعدة لفتح تذكرة دعم رسمية... يرجى الانتظار.', 'bot');
+          setTimeout(() => {
+            setIsOpen(false);
+            setIsTyping(false);
+            navigate('/help-center?view=new_ticket');
+          }, 1500);
+        }
+      }, 800);
     } else {
       getAIResponse(option);
     }
@@ -167,8 +175,10 @@ export const SupportButton: React.FC = () => {
     if (chatMode === 'bot') {
       await getAIResponse(text);
     } else {
+      setIsTyping(true);
       // In agent mode, we'd normally sync with a backend
       setTimeout(() => {
+        setIsTyping(false);
         addMessage('فهمت، سأقوم بإحالة طلبك لفريق العمل وسيأتيك الرد فور توفره.', 'agent');
       }, 1000);
     }
@@ -244,27 +254,66 @@ export const SupportButton: React.FC = () => {
                 
                 {chatMode === 'bot' && (
                   <div className="grid grid-cols-1 gap-2 pt-4">
-                    <button 
-                      onClick={() => handleBotOption('التحدث مع خدمة العملاء')}
-                      className="flex items-center justify-between p-3 md:p-4 bg-white border border-gray-100 rounded-2xl text-[10px] md:text-xs font-black text-blue-600 hover:border-blue-200 transition-all text-right shadow-sm group"
-                    >
-                      <span>التحدث مع أحد ممثلي الخدمة</span>
-                      <Headphones className="w-4 h-4 opacity-40 group-hover:opacity-100" />
-                    </button>
-                    <button 
-                      onClick={() => handleBotOption('كيف أقوم بطلبي الأول؟')}
-                      className="flex items-center justify-between p-3 md:p-4 bg-white border border-gray-100 rounded-2xl text-[10px] md:text-xs font-black text-gray-700 hover:border-blue-200 transition-all text-right shadow-sm group"
-                    >
-                      <span>كيف أقوم بطلبي الأول؟</span>
-                      <Rocket className="w-4 h-4 opacity-40 group-hover:opacity-100" />
-                    </button>
-                    <button 
-                      onClick={() => handleBotOption('سياسة استخدام عربون')}
-                      className="flex items-center justify-between p-3 md:p-4 bg-white border border-gray-100 rounded-2xl text-[10px] md:text-xs font-black text-gray-700 hover:border-blue-200 transition-all text-right shadow-sm group"
-                    >
-                      <span>سياسة استخدام منصة عربون</span>
-                      <Shield className="w-4 h-4 opacity-40 group-hover:opacity-100" />
-                    </button>
+                    {!user && messages.some(m => m.text.includes('القنوات التالية')) ? (
+                      <>
+                        <a 
+                          href="https://wa.me/966501505813"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-between p-3 md:p-4 bg-green-50 border border-green-100 rounded-2xl text-[10px] md:text-xs font-black text-green-700 hover:bg-green-100 transition-all text-right shadow-sm group"
+                        >
+                          <span>واتساب مباشر</span>
+                          <MessageCircle className="w-4 h-4" />
+                        </a>
+                        <a 
+                          href="mailto:khyratfarmdates@gmail.com"
+                          className="flex items-center justify-between p-3 md:p-4 bg-blue-50 border border-blue-100 rounded-2xl text-[10px] md:text-xs font-black text-blue-700 hover:bg-blue-100 transition-all text-right shadow-sm group"
+                        >
+                          <span>البريد الإلكتروني</span>
+                          <Mail className="w-4 h-4" />
+                        </a>
+                        <a 
+                          href="tel:+966501505813"
+                          className="flex items-center justify-between p-3 md:p-4 bg-gray-50 border border-gray-100 rounded-2xl text-[10px] md:text-xs font-black text-gray-700 hover:bg-gray-100 transition-all text-right shadow-sm group"
+                        >
+                          <span>اتصال هاتفي</span>
+                          <Phone className="w-4 h-4" />
+                        </a>
+                        <button 
+                          onClick={() => {
+                            setIsOpen(false);
+                            navigate('/help-center');
+                          }}
+                          className="mt-2 text-center text-[10px] font-bold text-gray-400 hover:text-blue-600 transition-colors"
+                        >
+                          الذهاب لمركز المساعدة
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button 
+                          onClick={() => handleBotOption('التحدث مع خدمة العملاء')}
+                          className="flex items-center justify-between p-3 md:p-4 bg-white border border-gray-100 rounded-2xl text-[10px] md:text-xs font-black text-blue-600 hover:border-blue-200 transition-all text-right shadow-sm group"
+                        >
+                          <span>التحدث مع أحد ممثلي الخدمة</span>
+                          <Headphones className="w-4 h-4 opacity-40 group-hover:opacity-100" />
+                        </button>
+                        <button 
+                          onClick={() => handleBotOption('كيف أقوم بطلبي الأول؟')}
+                          className="flex items-center justify-between p-3 md:p-4 bg-white border border-gray-100 rounded-2xl text-[10px] md:text-xs font-black text-gray-700 hover:border-blue-200 transition-all text-right shadow-sm group"
+                        >
+                          <span>كيف أقوم بطلبي الأول؟</span>
+                          <Rocket className="w-4 h-4 opacity-40 group-hover:opacity-100" />
+                        </button>
+                        <button 
+                          onClick={() => handleBotOption('سياسة استخدام عربون')}
+                          className="flex items-center justify-between p-3 md:p-4 bg-white border border-gray-100 rounded-2xl text-[10px] md:text-xs font-black text-gray-700 hover:border-blue-200 transition-all text-right shadow-sm group"
+                        >
+                          <span>سياسة استخدام منصة عربون</span>
+                          <Shield className="w-4 h-4 opacity-40 group-hover:opacity-100" />
+                        </button>
+                      </>
+                    )}
                   </div>
                 )}
               </div>

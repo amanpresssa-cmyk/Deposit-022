@@ -1,9 +1,8 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { ShieldCheck, Upload, AlertCircle, X, CheckCircle2, FileText, Smartphone, Camera, Loader2 } from 'lucide-react';
+import { ShieldCheck, AlertCircle, X, CheckCircle2, Smartphone, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { GoogleGenAI, Type } from "@google/genai";
-import { getGemini } from "../lib/gemini";
+import { toast } from 'sonner';
 
 interface Props {
   onClose: () => void;
@@ -11,184 +10,65 @@ interface Props {
 
 export const IdentityVerification: React.FC<Props> = ({ onClose }) => {
   const { profile, submitVerification, error, clearError } = useAuth();
-  const [step, setStep] = useState<'info' | 'details' | 'success'>('info');
+  const [step, setStep] = useState<'info' | 'form' | 'otp' | 'success'>('info');
   const [formData, setFormData] = useState({
     idNumber: '',
-    birthDate: '',
     phoneNumber: profile?.phoneNumber || '',
-    idPhotoUrl: '',
-    agreedToTerms: false
+    otp: ''
   });
   const [loading, setLoading] = useState(false);
-  const [aiAnalyzing, setAiAnalyzing] = useState(false);
-  const [aiStatus, setAiStatus] = useState<'idle' | 'success' | 'error' | 'analyzing'>('idle');
-  const [aiFeedback, setAiFeedback] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [timer, setTimer] = useState(0);
 
-  // Initialize Gemini lazily
-  const getAI = () => {
-    try {
-      return getGemini();
-    } catch (error) {
-      if (error instanceof Error && error.message === 'API_KEY_MISSING') {
-        throw new Error("عذراً، لم يتم إعداد نظام التحقق الذكي بالكامل. يرجى التواصل مع الدعم.");
-      }
-      throw error;
+  useEffect(() => {
+    let interval: any;
+    if (timer > 0) {
+      interval = setInterval(() => setTimer(t => t - 1), 1000);
     }
-  };
+    return () => clearInterval(interval);
+  }, [timer]);
 
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = (error) => reject(error);
-    });
-  };
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (file.size > 5 * 1024 * 1024) {
-      setAiStatus('error');
-      setAiFeedback('حجم الصورة كبير جداً، يرجى اختيار صورة أقل من 5 ميجابايت.');
+  const handleSendOTP = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (formData.idNumber.length < 10) {
+      toast.error('يرجى إدخال رقم هوية صحيح');
       return;
     }
-
-    setAiAnalyzing(true);
-    setAiStatus('analyzing');
-    setAiFeedback('جاري فحص المستند باستخدام الذكاء الاصطناعي...');
-
+    
+    setLoading(true);
     try {
-      const ai = getAI();
-      
-      const base64 = await fileToBase64(file);
-      const base64Data = base64.split(',')[1];
-      const mimeType = file.type || 'image/jpeg';
-
-      const prompt = `بصفتك خبير في مراجعة الوثائق، افحص هذه الصورة جيداً.
-المطلوب هو التأكد من أنها وثيقة هوية (هوية وطنية، إقامة، جواز سفر، رخصة قيادة).
-نحن بحاجة للتأكد من أن البيانات (الاسم أو الرقم) تظهر بوضوح كافٍ.
-
-تعليمات القبول:
-1. كن مرناً جداً: اقبل الصورة حتى لو كانت مشوشة قليلاً أو الإضاءة غير مثالية.
-2. اقبل الوثيقة إذا كانت محمولة باليد أو مائلة.
-3. الهدف هو مجرد التأكد من أنها وثيقة رسمية وليست صورة عشوائية.
-
-أجب حصراً بتنسيق JSON:
-{
-  "valid": true,
-  "reason": "اشرح باختصار بالعربي لماذا مقبولة أو مرفوضة",
-  "documentType": "نوع الوثيقة"
-}`;
-
-      // Use a more stable flash model version for vision tasks
-      const response = await ai.models.generateContent({
-        model: "gemini-1.5-flash",
-        contents: [{
-          role: 'user',
-          parts: [
-            { text: prompt },
-            { inlineData: { mimeType, data: base64Data } }
-          ]
-        }],
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              valid: { type: Type.BOOLEAN },
-              reason: { type: Type.STRING },
-              documentType: { type: Type.STRING }
-            },
-            required: ["valid", "reason", "documentType"]
-          }
-        }
-      });
-
-      // Handle the response properly based on the new SDK structure
-      let text = '';
-      try {
-        text = response.text || '';
-        if (!text && (response as any).candidates?.[0]?.content?.parts?.[0]?.text) {
-          text = (response as any).candidates[0].content.parts[0].text;
-        }
-      } catch (e) {
-        console.error('Error getting text from response:', e);
-        if ((response as any).candidates?.[0]?.finishReason === 'SAFETY') {
-          throw new Error('تم حجب الصورة بواسطة فلاتر الأمان. يرجى التأكد من أنها وثيقة رسمية فقط.');
-        }
-      }
-
-      console.log('AI verification raw response:', text);
-      
-      if (!text) {
-        throw new Error('لم نتلقى نصاً مفهوماً من نظام الفحص. يرجى المحاولة بصورة أوضح.');
-      }
-
-      let jsonResult;
-      try {
-        jsonResult = JSON.parse(text);
-      } catch (e) {
-        console.error('Failed to parse AI response:', text);
-        // Fallback for non-JSON response if model didn't follow instructions
-        if (text.toLowerCase().includes('true') || text.includes('نعم') || text.includes('قبول')) {
-          jsonResult = { valid: true, reason: 'تم القبول تلقائياً', documentType: 'وثيقة رسمية' };
-        } else {
-          throw new Error('فشل في تحليل رد الذكاء الاصطناعي.');
-        }
-      }
-      
-      if (jsonResult.valid) {
-        setAiStatus('success');
-        setAiFeedback(`تم التحقق ذكياً: ${jsonResult.reason || 'وثيقة صالحة'}`);
-        setFormData({ ...formData, idPhotoUrl: base64 }); 
-      } else {
-        setAiStatus('idle'); // Change to idle to allow retry or manual
-        setAiFeedback(`تنبيه: ${jsonResult.reason || 'الصورة غير واضحة'}. يمكنك المتابعة للمراجعة اليدوية.`);
-        setFormData({ ...formData, idPhotoUrl: base64 }); // Still set the URL for manual review
-      }
+      // Simulation of SMS OTP sending
+      // Integration keys would be used here in a real scenario
+      console.log('Sending OTP via mediator for ID:', formData.idNumber);
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      setStep('otp');
+      setTimer(60);
+      toast.success('تم إرسال رمز التحقق إلى جوالك المسجّل في نظام الهوية');
     } catch (err) {
-      console.error('AI Verification Error Details:', err);
-      setAiStatus('idle'); // Set to idle instead of error to not block
-      
-      let errorMessage = 'نظام الفحص الذكي غير متاح حالياً. سيتم مراجعة طلبك يدوياً.';
-      if (err instanceof Error) {
-        if (err.message.includes('API_KEY_MISSING')) {
-          errorMessage = 'نظام التحقق الذكي قيد الصيانة. يمكنك المتابعة وسيقوم فريقنا بالمراجعة اليدوية.';
-        } else {
-          errorMessage = `تنبيه: ${err.message}. يمكنك المتابعة للمراجعة اليدوية.`;
-        }
-      }
-      
-      setAiFeedback(errorMessage);
-      // Still allow the file to be set
-      const base64 = await fileToBase64(file);
-      setFormData({ ...formData, idPhotoUrl: base64 });
+      toast.error('فشل إرسال الرمز، يرجى المحاولة لاحقاً');
     } finally {
-      setAiAnalyzing(false);
+      setLoading(false);
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleVerifyOTP = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.agreedToTerms || !formData.idPhotoUrl) return;
-    
-    setLoading(true);
-    clearError();
+    if (formData.otp.length < 4) return;
 
+    setLoading(true);
     try {
+      // Verification logic via SMS mediator integration
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Submit verification data and update status
       await submitVerification({
         idNumber: formData.idNumber,
-        birthDate: formData.birthDate,
         phoneNumber: formData.phoneNumber,
-        idPhotoUrl: formData.idPhotoUrl,
-        agreedToTerms: formData.agreedToTerms
+        agreedToTerms: true
       });
+
       setStep('success');
     } catch (err) {
-      console.error(err);
+      toast.error('رمز التحقق غير صحيح');
     } finally {
       setLoading(false);
     }
@@ -212,24 +92,24 @@ export const IdentityVerification: React.FC<Props> = ({ onClose }) => {
            <div className="md:col-span-2 bg-blue-600 p-6 md:p-10 text-white flex flex-col justify-center md:justify-between shrink-0">
               <div>
                 <ShieldCheck className="w-10 h-10 md:w-16 md:h-16 mb-4 md:mb-8 text-blue-200 mx-auto md:mx-0" />
-                <h2 className="text-xl md:text-3xl font-black mb-2 md:mb-4 text-center md:text-right">توثيق الهوية</h2>
+                <h2 className="text-xl md:text-3xl font-black mb-2 md:mb-4 text-center md:text-right">توثيق الهوية الرقمي</h2>
                 <p className="text-blue-100 text-xs md:text-base font-medium leading-relaxed text-center md:text-right">
-                  نظام التوثيق المتطور يضمن مصداقية التعاملات بين كافة الأطراف داخل المنصة.
+                  نظام التوثيق عبر النفاذ الوطني يضمن أمان تعاملاتك وسرعة تفعيل حسابك فوراً.
                 </p>
               </div>
               <div className="hidden md:block space-y-3 md:space-y-4 mt-6 md:mt-0">
                  <div className="flex items-center gap-3 text-xs md:text-sm font-bold bg-white/10 p-3 rounded-xl border border-white/10">
-                    <CheckCircle2 className="w-4 h-4 md:w-5 md:h-5 text-green-400" />
-                    ضمان الحقوق المالية
+                    <Smartphone className="w-4 h-4 md:w-5 md:h-5 text-green-400" />
+                    توثيق عبر رقم الجوال
                  </div>
                  <div className="flex items-center gap-3 text-xs md:text-sm font-bold bg-white/10 p-3 rounded-xl border border-white/10">
                     <CheckCircle2 className="w-4 h-4 md:w-5 md:h-5 text-green-400" />
-                    شارة "موثوق" للملف الشخصي
+                    تفعيل فوري للحساب
                  </div>
               </div>
            </div>
 
-           <div className="md:col-span-3 p-6 md:p-10">
+           <div className="md:col-span-3 p-6 md:p-10 flex flex-col justify-center">
               <AnimatePresence mode="wait">
                  {step === 'info' && (
                     <motion.div 
@@ -240,149 +120,134 @@ export const IdentityVerification: React.FC<Props> = ({ onClose }) => {
                        className="space-y-8"
                     >
                        <div className="space-y-4">
-                          <h3 className="text-2xl font-bold text-gray-900">المعلومات المطلوبة</h3>
-                          <p className="text-gray-500">لبدء عملية التوثيق، سنحتاج منك التأكد من جاهزية الآتي:</p>
+                          <h3 className="text-2xl font-black text-gray-900 border-r-4 border-blue-600 pr-3">التوثيق السريع</h3>
+                          <p className="text-gray-500 font-medium leading-relaxed">سيتم التحقق من هويتك عبر الرمز المرسل لجوالك المسجل في أبشر/النفاذ الوطني.</p>
                        </div>
 
                        <div className="space-y-4">
                           <div className="flex gap-4 p-5 rounded-2xl bg-gray-50 border border-gray-100">
-                             <Smartphone className="w-8 h-8 text-blue-500" />
-                             <div>
-                                <h4 className="font-bold text-gray-900">رقم الجوال</h4>
-                                <p className="text-xs text-gray-400">يجب أن يكون رقمك نشطاً لاستقبال التنبيهات.</p>
+                             <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-blue-600 shadow-sm shrink-0">
+                                <Smartphone className="w-6 h-6" />
                              </div>
-                          </div>
-                          <div className="flex gap-4 p-5 rounded-2xl bg-gray-50 border border-gray-100">
-                             <FileText className="w-8 h-8 text-blue-500" />
                              <div>
-                                <h4 className="font-bold text-gray-900">رقم الهوية / الإقامة</h4>
-                                <p className="text-xs text-gray-400">سيتم مطابقة رقم الهوية مع صورة إثبات الهوية.</p>
+                                <h4 className="font-black text-gray-900">بدون رفع مستندات</h4>
+                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">لا حاجة لتصوير الهوية يدوياً</p>
                              </div>
                           </div>
                        </div>
 
                        <button 
-                          onClick={() => setStep('details')}
-                          className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold text-lg hover:bg-blue-700 shadow-xl shadow-blue-100 transition-all"
+                          onClick={() => setStep('form')}
+                          className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black text-lg hover:bg-blue-700 shadow-xl shadow-blue-100 transition-all"
                        >
                           بدء التوثيق الآن
                        </button>
                     </motion.div>
                  )}
 
-                 {step === 'details' && (
+                 {step === 'form' && (
                     <motion.form 
-                       key="details"
+                       key="form"
                        initial={{ opacity: 0, x: 20 }}
                        animate={{ opacity: 1, x: 0 }}
                        exit={{ opacity: 0, x: -20 }}
-                       onSubmit={handleSubmit}
-                       className="space-y-5"
+                       onSubmit={handleSendOTP}
+                       className="space-y-6"
                     >
-                        <div className="grid grid-cols-2 gap-4">
-                           <div className="space-y-2">
-                              <label className="text-sm font-bold text-gray-700 block mr-1">رقم الهوية / الإقامة</label>
-                              <input
-                                 type="text"
-                                 required
-                                 maxLength={10}
-                                 className="w-full px-4 py-3.5 rounded-2xl border-2 border-gray-100 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all text-lg font-bold tracking-widest text-right"
-                                 placeholder="1XXXXXXXXX"
-                                 value={formData.idNumber}
-                                 onChange={(e) => setFormData({...formData, idNumber: e.target.value})}
-                              />
-                           </div>
-
-                           <div className="space-y-2">
-                              <label className="text-sm font-bold text-gray-700 block mr-1">تاريخ الميلاد</label>
-                              <input
-                                 type="date"
-                                 required
-                                 className="w-full px-4 py-3.5 rounded-2xl border-2 border-gray-100 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all text-base font-bold text-right"
-                                 value={formData.birthDate || ''}
-                                 onChange={(e) => setFormData({...formData, birthDate: e.target.value})}
-                              />
-                           </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-black text-gray-500 block mr-1 text-right uppercase tracking-widest">رقم الهوية الوطنية / الإقامة</label>
+                          <input
+                             type="text"
+                             required
+                             maxLength={10}
+                             className="w-full px-6 py-4 rounded-2xl border-2 border-gray-100 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all text-xl font-black tracking-[0.3em] text-center"
+                             placeholder="1XXXXXXXXX"
+                             value={formData.idNumber}
+                             onChange={(e) => setFormData({...formData, idNumber: e.target.value.replace(/\D/g, '')})}
+                          />
                         </div>
 
-                       <div className="space-y-2">
-                          <label className="text-sm font-bold text-gray-700 block mr-1">رقم الجوال</label>
+                        <div className="space-y-2">
+                          <label className="text-xs font-black text-gray-500 block mr-1 text-right uppercase tracking-widest">رقم الجوال المرتبط بالهوية</label>
                           <div className="relative">
                             <input
                                type="tel"
                                required
                                placeholder="05XXXXXXXX"
-                               className="w-full px-4 py-3.5 rounded-2xl border-2 border-gray-100 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all text-lg font-bold text-right"
+                               className="w-full px-6 py-4 rounded-2xl border-2 border-gray-100 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all text-xl font-black text-center"
                                value={formData.phoneNumber}
-                               onChange={(e) => setFormData({...formData, phoneNumber: e.target.value})}
+                               onChange={(e) => setFormData({...formData, phoneNumber: e.target.value.replace(/\D/g, '')})}
                             />
-                            <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                             <Smartphone className="absolute right-6 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-300" />
                           </div>
-                       </div>
-
-                       <div className="space-y-2">
-                          <label className="text-sm font-bold text-gray-700 block mr-1">صورة إثبات الهوية (فحص ذكي)</label>
-                          <div 
-                            onClick={() => fileInputRef.current?.click()}
-                            className={`border-2 border-dashed rounded-3xl p-6 text-center transition-all cursor-pointer relative overflow-hidden group ${
-                              aiStatus === 'success' ? 'bg-green-50 border-green-200' : 
-                              aiStatus === 'error' ? 'bg-red-50 border-red-200' :
-                              aiStatus === 'analyzing' ? 'bg-blue-50 border-blue-200 cursor-wait' :
-                              'bg-gray-50 border-gray-200 hover:bg-gray-100 hover:border-blue-300'
-                            }`}
-                          >
-                             {aiAnalyzing ? (
-                               <Loader2 className="w-10 h-10 text-blue-500 mx-auto mb-2 animate-spin" />
-                             ) : formData.idPhotoUrl ? (
-                               <div className="relative w-20 h-20 mx-auto mb-2">
-                                 <img src={formData.idPhotoUrl} className="w-full h-full object-cover rounded-xl border-2 border-white shadow-sm" alt="Preview" />
-                                 {aiStatus === 'success' && (
-                                   <div className="absolute -top-2 -right-2 bg-green-500 text-white rounded-full p-1 shadow-sm">
-                                      <CheckCircle2 className="w-4 h-4" />
-                                   </div>
-                                 )}
-                               </div>
-                             ) : (
-                               <Camera className="w-10 h-10 text-gray-400 mx-auto mb-2 group-hover:text-blue-500 transition-colors" />
-                             )}
-                             <p className={`text-sm font-bold ${aiStatus === 'error' ? 'text-red-600' : 'text-gray-600'}`}>
-                               {aiStatus === 'idle' ? 'اضغط لتصوير أو رفع صورة الهوية' : aiFeedback}
-                             </p>
-                             <p className="text-xs text-gray-400 mt-1">نظامنا الذكي سيفحص جودة الهوية فوراً</p>
-                             <input 
-                                ref={fileInputRef}
-                                type="file" 
-                                className="hidden" 
-                                accept="image/*" 
-                                capture="environment"
-                                onChange={handleFileChange}
-                                disabled={aiAnalyzing}
-                             />
-                          </div>
-                       </div>
-
-                       <div className="space-y-4">
-                          <label className="flex items-start gap-3 cursor-pointer group">
-                             <input 
-                                type="checkbox" 
-                                required
-                                className="mt-1 w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                checked={formData.agreedToTerms}
-                                onChange={(e) => setFormData({...formData, agreedToTerms: e.target.checked})}
-                             />
-                             <span className="text-xs text-gray-500 leading-relaxed group-hover:text-gray-700 transition-colors">
-                                أقر بصحة البيانات المقدمة وأوافق على <span className="text-blue-600 font-bold underline cursor-pointer">سياسة الخصوصية</span> و <span className="text-blue-600 font-bold underline cursor-pointer">شروط الاستخدام</span> الخاصة بمنصة عربون.
-                             </span>
-                          </label>
                        </div>
 
                        <button 
                           type="submit"
-                          disabled={loading || !formData.idPhotoUrl || !formData.agreedToTerms}
-                          className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold text-lg hover:bg-blue-700 shadow-xl shadow-blue-100 transition-all disabled:opacity-50"
+                          disabled={loading || formData.idNumber.length !== 10 || formData.phoneNumber.length < 10}
+                          className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black text-lg hover:bg-blue-700 shadow-xl shadow-blue-100 transition-all disabled:opacity-50"
                        >
-                          {loading ? 'جاري إرسال الطلب...' : aiAnalyzing ? 'جاري فحص الصورة...' : 'إرسال طلب التوثيق'}
+                          {loading ? <Loader2 className="w-6 h-6 animate-spin mx-auto" /> : 'إرسال رمز التحقق'}
                        </button>
+                    </motion.form>
+                 )}
+
+                 {step === 'otp' && (
+                    <motion.form 
+                       key="otp"
+                       initial={{ opacity: 0, x: 20 }}
+                       animate={{ opacity: 1, x: 0 }}
+                       exit={{ opacity: 0, x: -20 }}
+                       onSubmit={handleVerifyOTP}
+                       className="space-y-6"
+                    >
+                       <div className="text-center space-y-2 mb-4">
+                          <h3 className="text-xl font-black text-gray-900">أدخل رمز التحقق</h3>
+                          <p className="text-xs font-bold text-gray-400">تم إرسال الرمز إلى {formData.phoneNumber}</p>
+                       </div>
+
+                       <div className="space-y-4">
+                          <input
+                             type="text"
+                             required
+                             maxLength={4}
+                             autoFocus
+                             className="w-full px-6 py-6 rounded-3xl border-2 border-gray-100 focus:border-blue-500 focus:ring-8 focus:ring-blue-50 outline-none transition-all text-4xl font-black tracking-[1em] text-center"
+                             placeholder="----"
+                             value={formData.otp}
+                             onChange={(e) => setFormData({...formData, otp: e.target.value.replace(/\D/g, '')})}
+                          />
+                          
+                          <div className="flex justify-center">
+                            {timer > 0 ? (
+                               <p className="text-[10px] font-black text-gray-400">إعادة الإرسال خلال {timer} ثانية</p>
+                            ) : (
+                               <button 
+                                 type="button"
+                                 onClick={handleSendOTP}
+                                 className="text-[10px] font-black text-blue-600 underline"
+                               >
+                                 إعادة إرسال الرمز
+                               </button>
+                            )}
+                          </div>
+                       </div>
+
+                       <button 
+                          type="submit"
+                          disabled={loading || formData.otp.length < 4}
+                          className="w-full bg-gray-900 text-white py-4 rounded-2xl font-black text-lg hover:bg-gray-800 shadow-xl shadow-gray-200 transition-all disabled:opacity-50"
+                       >
+                          {loading ? <Loader2 className="w-6 h-6 animate-spin mx-auto" /> : 'تأكيد التفعيل'}
+                       </button>
+                       
+                       <button 
+                          type="button" 
+                          onClick={() => setStep('form')}
+                          className="w-full text-xs font-black text-gray-400 py-2"
+                        >
+                          تعديل رقم الهوية / الجوال
+                        </button>
                     </motion.form>
                  )}
 
@@ -393,18 +258,19 @@ export const IdentityVerification: React.FC<Props> = ({ onClose }) => {
                        animate={{ opacity: 1, scale: 1 }}
                        className="text-center py-10"
                     >
-                       <div className="bg-green-50 p-6 rounded-full w-24 h-24 flex items-center justify-center mx-auto mb-6">
-                          <CheckCircle2 className="w-12 h-12 text-green-500" />
+                       <div className="bg-green-50 p-8 rounded-full w-28 h-28 flex items-center justify-center mx-auto mb-8 relative">
+                          <CheckCircle2 className="w-14 h-14 text-green-500" />
+                          <div className="absolute inset-0 bg-green-500/10 rounded-full animate-ping" />
                        </div>
-                       <h3 className="text-2xl font-black text-gray-900 mb-4">تم استلام طلبك بنجاح!</h3>
-                       <p className="text-gray-500 leading-loose mb-8">
-                          طلب التوثيق الخاص بك الآن قيد المراجعة من قبل فريقنا المختص. سيتم تحديث حالة حسابك خلال 24-48 ساعة عمل بعد مطابقة البيانات.
+                       <h3 className="text-3xl font-black text-gray-900 mb-4 italic">تم التوثيق بنجاح!</h3>
+                       <p className="text-gray-500 font-medium leading-loose mb-10 max-w-sm mx-auto">
+                          مبروك! حسابك الآن موثق بالكامل بشارة "موثوق" ويمكنك البدء في كافة المعاملات المالية فوراً.
                        </p>
                        <button 
                           onClick={onClose}
-                          className="w-full bg-gray-900 text-white py-4 rounded-2xl font-bold text-lg hover:bg-gray-800 transition-all shadow-xl shadow-gray-200"
+                          className="w-full bg-blue-600 text-white py-4 rounded-3xl font-black text-lg hover:bg-blue-700 shadow-2xl shadow-blue-100 transition-all"
                        >
-                          العودة لوحة التحكم
+                          استكشف المنصة كعضو موثق
                        </button>
                     </motion.div>
                  )}

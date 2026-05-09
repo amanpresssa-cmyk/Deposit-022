@@ -21,6 +21,7 @@ import { useAuth } from '../hooks/useAuth';
 import { db } from '../lib/firebase';
 import { collection, addDoc, serverTimestamp, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { SupportChat } from '../components/support/SupportChat';
+import { toast } from 'sonner';
 
 export const HelpCenterPage: React.FC = () => {
   const { user, profile } = useAuth();
@@ -83,7 +84,10 @@ export const HelpCenterPage: React.FC = () => {
   };
 
   const handleStartChat = async () => {
-     if (!user) return;
+     if (!user) {
+        toast.error('يرجى تسجيل الدخول لبدء محادثة مباشرة مع الدعم. يمكنك استخدام البريد أو الهاتف للتواصل السريع حالياً.');
+        return;
+     }
      setIsSubmitting(true);
      try {
         const docRef = await addDoc(collection(db, 'support_tickets'), {
@@ -113,6 +117,7 @@ export const HelpCenterPage: React.FC = () => {
         setSelectedTicket(newTicket);
      } catch (e) {
         console.error('Error starting live chat:', e);
+        toast.error('حدث خطأ أثناء محاولة بدء المحادثة');
      } finally {
         setIsSubmitting(false);
      }
@@ -142,16 +147,22 @@ export const HelpCenterPage: React.FC = () => {
             {[
               { id: 'faq', label: 'الأسئلة الشائعة', icon: HelpCircle },
               { id: 'new_ticket', label: 'فتح تذكرة جديدة', icon: Plus },
-              { id: 'my_tickets', label: 'تذاكري السابقة', icon: History }
+              { id: 'my_tickets', label: 'تذاكري السابقة', icon: History, protected: true }
             ].map(tab => (
               <button
                 key={tab.id}
-                onClick={() => setActiveView(tab.id as any)}
+                onClick={() => {
+                  if (tab.protected && !user) {
+                    toast.info('يرجى تسجيل الدخول لمشاهدة تذاكارك السابقة');
+                    return;
+                  }
+                  setActiveView(tab.id as any);
+                }}
                 className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black text-sm transition-all ${
                   activeView === tab.id 
                   ? 'bg-white text-blue-600 shadow-xl' 
                   : 'bg-white/10 text-white hover:bg-white/20'
-                }`}
+                } ${tab.protected && !user ? 'opacity-50' : ''}`}
               >
                 <tab.icon className="w-4 h-4" />
                 {tab.label}
@@ -180,6 +191,11 @@ export const HelpCenterPage: React.FC = () => {
                <h3 className="text-xl font-black text-gray-900 mb-8 pr-2 border-r-4 border-blue-600">تواصل مباشر</h3>
                
                <div className="space-y-4">
+                  {!user && (
+                    <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl mb-4">
+                       <p className="text-[10px] font-black text-blue-600 leading-relaxed">أنت تتصفح كزائر.. يمكنك التواصل معنا عبر القنوات التالية أو فتح تذكرة دعم وسنرد عليك قريباً.</p>
+                    </div>
+                  )}
                   <a href="mailto:khyratfarmdates@gmail.com" className="flex items-center gap-4 p-4 rounded-2xl bg-gray-50 hover:bg-blue-50 transition-all group">
                      <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-blue-600 shadow-sm transition-transform group-hover:scale-110">
                         <Mail className="w-6 h-6" />
@@ -202,14 +218,14 @@ export const HelpCenterPage: React.FC = () => {
 
                   <button 
                     onClick={handleStartChat}
-                    className="w-full flex items-center gap-4 p-4 rounded-2xl bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 group"
+                    className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all shadow-lg group ${!user ? 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none' : 'bg-blue-600 text-white hover:bg-blue-700 shadow-blue-100'}`}
                   >
-                     <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center text-white backdrop-blur-sm transition-transform group-hover:scale-110">
+                     <div className={`w-12 h-12 rounded-xl flex items-center justify-center backdrop-blur-sm transition-transform group-hover:scale-110 ${!user ? 'bg-gray-200 text-gray-400' : 'bg-white/20 text-white'}`}>
                         <MessageCircle className="w-6 h-6" />
                      </div>
                      <div className="text-right">
-                        <p className="text-xs text-white/70 font-bold mb-0.5">محادثة مباشرة</p>
-                        <p className="text-sm font-black">ابدأ الدردشة الآن</p>
+                        <p className={`text-xs font-bold mb-0.5 ${!user ? 'text-gray-400' : 'text-white/70'}`}>محادثة مباشرة</p>
+                        <p className="text-sm font-black">{!user ? 'سجل دخولك للدردشة' : 'ابدأ الدردشة الآن'}</p>
                      </div>
                   </button>
                </div>

@@ -28,7 +28,7 @@ interface AuthContextType {
   verify2FA: (confirmationResult: ConfirmationResult, code: string) => Promise<void>;
   updateUserPhone: (phoneNumber: string) => Promise<void>;
   toggle2FA: (enabled: boolean) => Promise<void>;
-  submitVerification: (data: { idNumber: string, birthDate: string, phoneNumber: string, idPhotoUrl: string, agreedToTerms: boolean }) => Promise<void>;
+  submitVerification: (data: { idNumber: string, phoneNumber: string, agreedToTerms: boolean }) => Promise<void>;
   clearError: () => void;
   setProfile: React.Dispatch<React.SetStateAction<UserProfile | null>>;
   setPending2FA: React.Dispatch<React.SetStateAction<boolean>>;
@@ -346,7 +346,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const submitVerification = async (data: { idNumber: string, birthDate: string, phoneNumber: string, idPhotoUrl: string, agreedToTerms: boolean }) => {
+  const submitVerification = async (data: { idNumber: string, phoneNumber: string, agreedToTerms: boolean }) => {
     if (!user) return;
     try {
       const userRef = doc(db, 'users', user.uid);
@@ -359,7 +359,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await sendNotification(
         user.uid,
         'تم استلام طلب التوثيق',
-        'طلب التوثيق الخاص بك قيد المراجعة الآن. سنقوم بإبلاغك بالنتيجة فور الانتهاء.',
+        'طلب التوثيق الخاص بك قيد المراجعة الآن عبر رقم الهوية والجوال. سنقوم بإبلاغك بالنتيجة فور التحقق.',
         'system'
       );
 

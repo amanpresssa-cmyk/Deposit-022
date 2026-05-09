@@ -200,7 +200,16 @@ export const AdminSupport: React.FC = () => {
            </div>
            <div className="grid grid-cols-1 gap-4">
               {alerts.map(alert => (
-                <div key={alert.id} className="bg-white p-6 rounded-3xl border-r-4 border-red-500 shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4">
+                <div 
+                  key={alert.id} 
+                  onClick={() => {
+                    if (alert.ticketId) {
+                      const ticket = supportTickets.find(t => t.id === alert.ticketId);
+                      if (ticket) setSelectedTicket(ticket);
+                    }
+                  }}
+                  className={`bg-white p-6 rounded-3xl border-r-4 border-red-500 shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4 transition-all ${alert.ticketId ? 'cursor-pointer hover:border-blue-200 hover:shadow-md' : ''}`}
+                >
                    <div className="flex items-center gap-4">
                       <div className="w-12 h-12 bg-red-50 rounded-2xl flex items-center justify-center text-red-600">
                          <AlertCircle className="w-6 h-6" />
@@ -210,7 +219,18 @@ export const AdminSupport: React.FC = () => {
                          <p className="text-gray-500 text-sm font-medium">{alert.message}</p>
                       </div>
                    </div>
-                   <div className="flex gap-2">
+                   <div className="flex gap-2" onClick={e => e.stopPropagation()}>
+                     {alert.ticketId && (
+                        <button 
+                          onClick={() => {
+                            const ticket = supportTickets.find(t => t.id === alert.ticketId);
+                            if (ticket) setSelectedTicket(ticket);
+                          }}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-xl font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100"
+                        >
+                           فتح التذكرة
+                        </button>
+                     )}
                      {alert.targetUserId && (
                         <Link to={`/seller/${alert.targetUserId}`} className="px-4 py-2 bg-gray-100 text-gray-600 rounded-xl font-black text-xs hover:bg-gray-200 transition-all">
                            المشكو منه

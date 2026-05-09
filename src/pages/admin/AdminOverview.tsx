@@ -247,12 +247,12 @@ export const AdminOverview: React.FC = () => {
       </div>
 
       {/* Main Stats Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
         {mainStats.map((s, idx) => (
           <Link 
             key={idx} 
             to={s.link || '#'}
-            className="bg-white p-4 md:p-6 rounded-2xl md:rounded-3xl border border-gray-50 shadow-sm relative overflow-hidden group hover:shadow-xl transition-all duration-500 cursor-help flex flex-col"
+            className="bg-white p-3 md:p-6 rounded-2xl md:rounded-3xl border border-gray-50 shadow-sm relative overflow-hidden group hover:shadow-xl transition-all duration-500 cursor-help flex flex-col"
           >
              <div className="absolute inset-0 bg-blue-600 opacity-0 group-hover:opacity-[0.02] transition-opacity" />
              <div className="absolute -top-12 -right-12 w-32 h-32 bg-gray-50 rounded-full group-hover:scale-150 transition-transform duration-700 opacity-50" />
@@ -430,15 +430,15 @@ export const AdminOverview: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-2 gap-4 mb-8">
-               <div className="p-5 bg-gray-50 rounded-3xl border border-gray-100 flex flex-col items-center justify-center text-center">
-                  <Activity className="w-6 h-6 text-blue-600 mb-2" />
-                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">نشاط الخادم</p>
-                  <p className="text-lg font-black text-gray-900">{stats.recentTransactions.length > 5 ? 'مرتفع' : 'مستقر'}</p>
+               <div className="p-4 md:p-5 bg-gray-50 rounded-2xl md:rounded-3xl border border-gray-100 flex flex-col items-center justify-center text-center">
+                  <Activity className="w-5 h-5 md:w-6 md:h-6 text-blue-600 mb-2" />
+                  <p className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">نشاط الخادم</p>
+                  <p className="text-sm md:text-lg font-black text-gray-900">{stats.recentTransactions.length > 5 ? 'مرتفع' : 'مستقر'}</p>
                </div>
-               <div className="p-5 bg-gray-50 rounded-3xl border border-gray-100 flex flex-col items-center justify-center text-center">
+               <div className="p-4 md:p-5 bg-gray-50 rounded-2xl md:rounded-3xl border border-gray-100 flex flex-col items-center justify-center text-center">
                   <div className={`w-2 h-2 rounded-full mb-3 animate-pulse ${stats.systemStatus === 'connected' ? 'bg-green-500' : 'bg-yellow-500'}`} />
-                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">حالة القواعد</p>
-                  <p className={`text-lg font-black uppercase ${stats.systemStatus === 'connected' ? 'text-green-600' : 'text-orange-600'}`}>
+                  <p className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">حالة القواعد</p>
+                  <p className={`text-sm md:text-lg font-black uppercase ${stats.systemStatus === 'connected' ? 'text-green-600' : 'text-orange-600'}`}>
                      {stats.systemStatus === 'connected' ? 'متصل' : 'مستقر'}
                   </p>
                </div>
@@ -449,14 +449,14 @@ export const AdminOverview: React.FC = () => {
                <div className="relative z-10 flex items-center justify-between">
                   <div>
                      <p className="text-[10px] font-black uppercase tracking-[0.2em] mb-1 opacity-70 italic">مستوى استهلاك النظام</p>
-                     <p className="text-2xl font-black">{usedSpaceGB} GB <span className="text-[10px] opacity-60">({usagePercentage}%)</span></p>
+                     <p className="text-2xl font-black">{((stats.totalUsers + stats.allTx.length + stats.totalTickets + stats.totalReviews + stats.totalFeedback) * 0.00015).toFixed(2)} GB <span className="text-[10px] opacity-60">({Math.min(Math.round(((stats.totalUsers + stats.allTx.length + stats.totalTickets + stats.totalReviews + stats.totalFeedback) / 50000) * 100), 100)}%)</span></p>
                   </div>
                   <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center border border-white/30 backdrop-blur-md">
                      <Zap className="w-7 h-7" />
                   </div>
                </div>
                <div className="mt-4 w-full h-1.5 bg-white/20 rounded-full overflow-hidden">
-                  <div className="h-full bg-white rounded-full transition-all duration-1000" style={{ width: `${usagePercentage}%` }} />
+                  <div className="h-full bg-white rounded-full transition-all duration-1000" style={{ width: `${Math.min(Math.round(((stats.totalUsers + stats.allTx.length + stats.totalTickets + stats.totalReviews + stats.totalFeedback) / 50000) * 100), 100)}%` }} />
                </div>
                
                {/* Explanation Overlay */}
