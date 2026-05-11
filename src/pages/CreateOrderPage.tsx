@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { collection, addDoc, serverTimestamp, query, where, getDocs, limit } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, getDocs, limit, getDoc, doc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Shield, ChevronRight, AlertCircle, Search, Smartphone, Mail, CreditCard } from 'lucide-react';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
@@ -32,6 +32,7 @@ export const CreateOrderPage: React.FC = () => {
     const amount = params.get('amount');
     const category = params.get('category');
     const desc = params.get('desc') || params.get('description');
+    const targetId = params.get('targetId');
     
     if (email || phone || title || amount || category || desc) {
       setFormData(prev => ({
@@ -43,6 +44,19 @@ export const CreateOrderPage: React.FC = () => {
         category: category || prev.category,
         description: desc || prev.description
       }));
+    }
+
+    if (targetId) {
+      getDoc(doc(db, 'users', targetId)).then(snap => {
+        if (snap.exists()) {
+          const u = snap.data();
+          setFormData(prev => ({
+            ...prev,
+            targetEmail: u.email || prev.targetEmail,
+            targetPhone: u.phoneNumber || prev.targetPhone
+          }));
+        }
+      });
     }
   }, [location.search]);
 

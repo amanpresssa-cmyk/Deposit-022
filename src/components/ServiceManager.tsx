@@ -18,7 +18,9 @@ export const ServiceManager: React.FC<ServiceManagerProps> = ({ sellerId }) => {
     description: '',
     price: '',
     category: 'تعقيب',
-    deliveryTime: 'يوم واحد'
+    deliveryTime: 'يوم واحد',
+    imageUrl: '',
+    externalUrl: ''
   });
 
   useEffect(() => {
@@ -51,6 +53,8 @@ export const ServiceManager: React.FC<ServiceManagerProps> = ({ sellerId }) => {
         price: Number(formData.price),
         category: formData.category,
         deliveryTime: formData.deliveryTime,
+        imageUrl: formData.imageUrl || null,
+        externalUrl: formData.externalUrl || null,
         isActive: true,
         createdAt: serverTimestamp()
       });
@@ -60,7 +64,9 @@ export const ServiceManager: React.FC<ServiceManagerProps> = ({ sellerId }) => {
         description: '',
         price: '',
         category: 'تعقيب',
-        deliveryTime: 'يوم واحد'
+        deliveryTime: 'يوم واحد',
+        imageUrl: '',
+        externalUrl: ''
       });
     } catch (error) {
       console.error("Error adding service:", error);
@@ -180,6 +186,27 @@ export const ServiceManager: React.FC<ServiceManagerProps> = ({ sellerId }) => {
                 </div>
               </div>
 
+              <div className="grid md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-gray-700 mr-2">رابط صورة الخدمة (اختياري)</label>
+                  <input 
+                    value={formData.imageUrl}
+                    onChange={e => setFormData({...formData, imageUrl: e.target.value})}
+                    placeholder="https://example.com/image.jpg"
+                    className="w-full px-5 py-4 rounded-2xl bg-white border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-left font-mono text-sm"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-gray-700 mr-2">رابط خارجي للمعاينة (اختياري)</label>
+                  <input 
+                    value={formData.externalUrl}
+                    onChange={e => setFormData({...formData, externalUrl: e.target.value})}
+                    placeholder="https://github.com/project"
+                    className="w-full px-5 py-4 rounded-2xl bg-white border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-left font-mono text-sm"
+                  />
+                </div>
+              </div>
+
               <div className="flex gap-4 pt-4">
                 <button 
                   type="submit"
@@ -217,25 +244,48 @@ export const ServiceManager: React.FC<ServiceManagerProps> = ({ sellerId }) => {
             <motion.div 
               layout
               key={service.id}
-              className={`bg-white rounded-[2rem] border p-6 relative group transition-all shadow-sm ${service.isActive === false ? 'opacity-60 border-gray-200 grayscale' : 'hover:border-blue-100 border-gray-100'}`}
+              className={`bg-white rounded-[2rem] border overflow-hidden relative group transition-all shadow-sm ${service.isActive === false ? 'opacity-60 border-gray-200 grayscale' : 'hover:border-blue-100 border-gray-100'}`}
             >
-              <div className="absolute top-4 left-4 flex gap-2">
+              {(service.imageUrl || service.externalUrl) && (
+                <div className="w-full h-40 bg-gray-50 relative overflow-hidden flex items-center justify-center">
+                  {service.imageUrl ? (
+                    <img 
+                      src={service.imageUrl} 
+                      alt={service.title}
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover transition-transform group-hover:scale-105 duration-500"
+                    />
+                  ) : service.externalUrl && (
+                    <div className="w-full h-full p-4 flex flex-col items-center justify-center bg-blue-50/30">
+                       <Tag className="w-8 h-8 text-blue-400 mb-2" />
+                       <span className="text-[10px] font-mono text-blue-500 break-all text-center px-4 line-clamp-2">
+                         {service.externalUrl}
+                       </span>
+                    </div>
+                  )}
+                  {service.isActive === false && (
+                    <div className="absolute inset-0 bg-gray-900/10 backdrop-blur-[2px]" />
+                  )}
+                </div>
+              )}
+
+              <div className="absolute top-4 left-4 flex gap-2 z-10">
                 <button 
                   onClick={() => handleToggleActive(service.id, service.isActive !== false)}
                   title={service.isActive !== false ? 'إيقاف الخدمة' : 'تفعيل الخدمة'}
-                  className={`p-2 rounded-xl transition-colors ${service.isActive !== false ? 'text-blue-600 bg-blue-50 hover:bg-blue-100' : 'text-gray-400 bg-gray-50 hover:bg-gray-100'}`}
+                  className={`p-2 rounded-xl transition-colors backdrop-blur-md ${service.isActive !== false ? 'text-blue-600 bg-white/80 hover:bg-white' : 'text-gray-400 bg-white/80 hover:bg-white'}`}
                 >
                   {service.isActive !== false ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                 </button>
                 <button 
                   onClick={() => handleDelete(service.id)}
-                  className="p-2 text-gray-300 hover:text-red-500 transition-colors bg-gray-50 rounded-xl"
+                  className="p-2 text-gray-300 hover:text-red-500 transition-colors bg-white/80 backdrop-blur-md rounded-xl"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
               
-              <div className="space-y-4">
+              <div className="p-6 space-y-4">
                 <div className="flex items-center gap-2">
                   <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${service.isActive === false ? 'bg-gray-100 text-gray-500' : 'bg-blue-50 text-blue-600'}`}>
                     {service.category}

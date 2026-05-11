@@ -22,6 +22,7 @@ import { db } from '../lib/firebase';
 import { collection, addDoc, serverTimestamp, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { SupportChat } from '../components/support/SupportChat';
 import { toast } from 'sonner';
+import { sendAdminNotification } from '../lib/notificationService';
 
 export const HelpCenterPage: React.FC = () => {
   const { user, profile } = useAuth();
@@ -57,7 +58,7 @@ export const HelpCenterPage: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      await addDoc(collection(db, 'support_tickets'), {
+      const ticketRef = await addDoc(collection(db, 'support_tickets'), {
         userId: user?.uid || 'anonymous',
         userName: profile?.displayName || 'زائر',
         userEmail: user?.email || 'anonymous',
@@ -69,6 +70,15 @@ export const HelpCenterPage: React.FC = () => {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
+
+      // Notify Admin
+      await sendAdminNotification(
+        `تذكرة دعم جديدة: ${title}`,
+        `قام ${profile?.displayName || 'مستخدم'} بفتح تذكرة دعم جديدة بخصوص ${complaintType}`,
+        user?.uid,
+        ticketRef.id
+      );
+
       setIsSubmitted(true);
       setTitle('');
       setMessage('');
@@ -102,6 +112,14 @@ export const HelpCenterPage: React.FC = () => {
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
         });
+
+        // Notify Admin
+        await sendAdminNotification(
+          'طلب محادثة مباشرة جديد',
+          `المستخدم ${profile?.displayName || 'مستخدم'} ينتظر المساعدة في الدردشة المباشرة`,
+          user.uid,
+          docRef.id
+        );
         
         const newTicket = {
             id: docRef.id,
@@ -268,7 +286,78 @@ export const HelpCenterPage: React.FC = () => {
                         <CheckCircle2 className="w-10 h-10" />
                       </div>
                       <h3 className="text-2xl font-black text-gray-900 mb-2">تم استلام طلبك بنجاح</h3>
-                      <p className="text-gray-500 font-medium mb-8">سيقوم فريق الدعم بمراجعة طلبك والرد عليك قريباً.</p>
+                      <p className="text-gray-500 font-medium mb-8">سيقوم فريق الدعم بمراجعة طلبك والرد عليك قريباً عبر بريدك الإلكتروني.</p>
+                      <button 
+                        onClick={() => setIsSubmitted(false)}
+                        className="text-blue-600 font-black text-xs hover:underline"
+                      >
+                        تقديم تذكرة أخرى
+                      </button>
+                    </div>
+                  ) : !user ? (
+                    <div className="text-center py-12 space-y-8">
+                       <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 mx-auto">
+                          <ShieldCheck className="w-10 h-10" />
+                       </div>
+                       <div className="space-y-2">
+                          <h3 className="text-xl font-black text-gray-900">تحتاج مساعدة سريعة؟</h3>
+                          <p className="text-gray-500 font-medium max-w-sm mx-auto">بما أنك زائر حالياً، يمكنك التواصل معنا مباشرة عبر القنوات التالية لضمان رد فوري على استفسارك.</p>
+                       </div>
+                       
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <a 
+                            href="https://wa.me/966501505813"
+                            className="flex items-center justify-between p-6 bg-green-50 border border-green-100 rounded-3xl hover:bg-green-100 transition-all group"
+                          >
+                             <div className="text-right">
+                                <p className="text-[10px] font-black text-green-600 uppercase tracking-widest mb-1">واتساب فوري</p>
+                                <p className="text-sm font-black text-gray-900">تحدث مع المدير الآن</p>
+                             </div>
+                             <MessageCircle className="w-6 h-6 text-green-500" />
+                          </a>
+                          <a 
+                            href="tel:+966501505813"
+                            className="flex items-center justify-between p-6 bg-blue-50 border border-blue-100 rounded-3xl hover:bg-blue-100 transition-all"
+                          >
+                             <div className="text-right">
+                                <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">اتصال هاتفي</p>
+                                <p className="text-sm font-black text-gray-900">اتصل بخدمة العملاء</p>
+                             </div>
+                             <Phone className="w-6 h-6 text-blue-500" />
+                          </a>
+                       </div>
+
+                       <div className="pt-8 border-t border-gray-100">
+                          <p className="text-xs text-gray-400 font-bold mb-4">أو يمكنك ملء النموذج أدناه وسنتصل بك:</p>
+                          <form onSubmit={handleSubmitComplaint} className="space-y-4">
+                             <input 
+                                type="email"
+                                placeholder="بريدك الإلكتروني للرد عليك"
+                                className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 font-bold text-right outline-none focus:ring-4 focus:ring-blue-50"
+                                required
+                             />
+                             <input 
+                                type="text"
+                                value={title}
+                                onChange={(e) => setTitle(e.target.value)}
+                                placeholder="الموضوع"
+                                className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 font-bold text-right outline-none focus:ring-4 focus:ring-blue-50"
+                                required
+                             />
+                             <textarea 
+                                rows={4}
+                                value={message}
+                                onChange={(e) => setMessage(e.target.value)}
+                                placeholder="رسالتك..."
+                                className="w-full bg-gray-50 border border-gray-100 rounded-[2rem] p-6 font-medium text-right outline-none focus:ring-4 focus:ring-blue-50"
+                                required
+                             />
+                             <button className="w-full py-4 bg-gray-900 text-white rounded-2xl font-black text-sm flex items-center justify-center gap-2">
+                                <Send className="w-4 h-4 -rotate-45" />
+                                إرسال الرسالة كزائر
+                             </button>
+                          </form>
+                       </div>
                     </div>
                   ) : (
                     <form onSubmit={handleSubmitComplaint} className="space-y-6">

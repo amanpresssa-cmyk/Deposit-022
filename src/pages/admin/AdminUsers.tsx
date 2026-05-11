@@ -227,10 +227,10 @@ export const AdminUsers: React.FC = () => {
             <table className="w-full text-right">
               <thead>
                 <tr className="bg-gray-50 text-gray-400 text-[9px] font-bold uppercase tracking-widest border-b">
-                  <th className="px-6 py-4">رقم المعرف</th>
+                  <th className="px-6 py-4">رقم المعرف / الهوية</th>
                   <th className="px-6 py-4">المستخدم</th>
                   <th className="px-6 py-4">المكانة</th>
-                  <th className="px-6 py-4">الحالة</th>
+                  <th className="px-6 py-4">حالة التوثيق</th>
                   <th className="px-6 py-4">الإجراءات</th>
                 </tr>
               </thead>
@@ -238,23 +238,28 @@ export const AdminUsers: React.FC = () => {
                 {filteredUsers.map(user => (
                   <tr key={user.uid} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-6 py-4">
-                       <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded-lg font-mono font-black text-[10px]">
-                          #{user.userShortId || '----'}
-                       </span>
+                       <div className="flex flex-col gap-1">
+                          <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded-lg font-mono font-black text-[10px] w-fit">
+                             #{user.userShortId || '----'}
+                          </span>
+                          {user.idNumber && (
+                             <span className="text-[9px] font-bold text-gray-400 tracking-wider">ID: {user.idNumber}</span>
+                          )}
+                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <img src={user.photoURL} className="w-10 h-10 rounded-xl object-cover ring-2 ring-gray-50" />
+                      <Link to={`/seller/${user.uid}`} className="flex items-center gap-3 group/user">
+                        <img src={user.photoURL} className="w-10 h-10 rounded-xl object-cover ring-2 ring-gray-50 group-hover/user:ring-blue-100 transition-all" />
                         <div>
                           <div className="flex items-center gap-1.5">
-                             <p className="font-bold text-gray-900">{user.displayName}</p>
-                             <Link to={`/seller/${user.uid}`} className="text-gray-300 hover:text-blue-600 transition-colors">
+                             <p className="font-bold text-gray-900 group-hover/user:text-blue-600 transition-colors">{user.displayName}</p>
+                             <div className="text-gray-300 group-hover/user:text-blue-600 transition-colors">
                                 <ExternalLink className="w-3 h-3" />
-                             </Link>
+                             </div>
                           </div>
                           <p className="text-[10px] text-gray-400 font-medium">{user.email}</p>
                         </div>
-                      </div>
+                      </Link>
                     </td>
                     <td className="px-6 py-4">
                        <div className="flex flex-col gap-2">
@@ -330,9 +335,9 @@ export const AdminUsers: React.FC = () => {
               {user.isBlocked && <div className="absolute top-0 right-0 w-2 h-full bg-red-600" />}
               
               <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-3">
+                <Link to={`/seller/${user.uid}`} className="flex items-center gap-3 group/user">
                   <div className="relative">
-                    <img src={user.photoURL} className="w-14 h-14 rounded-2xl object-cover ring-4 ring-gray-50" />
+                    <img src={user.photoURL} className="w-14 h-14 rounded-2xl object-cover ring-4 ring-gray-50 group-hover/user:ring-blue-100 transition-all" />
                     <div className="absolute -top-2 -right-2 bg-gray-900 text-white text-[8px] font-black px-1.5 py-0.5 rounded-lg shadow-lg">
                        #{user.userShortId}
                     </div>
@@ -343,10 +348,10 @@ export const AdminUsers: React.FC = () => {
                     )}
                   </div>
                   <div>
-                    <h3 className="font-black text-gray-900 group-hover:text-blue-600 transition-colors">{user.displayName}</h3>
+                    <h3 className="font-black text-gray-900 group-hover/user:text-blue-600 transition-colors">{user.displayName}</h3>
                     <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{user.email}</p>
                   </div>
-                </div>
+                </Link>
                 <Link to={`/seller/${user.uid}`} className="p-2 bg-gray-50 text-gray-400 rounded-xl hover:bg-blue-50 hover:text-blue-600 transition-all">
                   <ExternalLink className="w-4 h-4" />
                 </Link>
@@ -400,18 +405,18 @@ export const AdminUsers: React.FC = () => {
             <motion.div 
               layout
               key={user.uid}
-              className="bg-white p-3 rounded-2xl border border-gray-100 flex items-center justify-between group h-14"
+              className="bg-white p-3 rounded-2xl border border-gray-100 flex items-center justify-between group h-14 hover:border-blue-200 transition-all shadow-sm hover:shadow-md"
             >
-              <div className="flex items-center gap-3">
-                <div className="bg-gray-100 text-gray-400 w-8 h-8 flex items-center justify-center rounded-lg text-[9px] font-black">
+              <Link to={`/seller/${user.uid}`} className="flex items-center gap-3 group/user flex-1">
+                <div className="bg-gray-100 text-gray-400 w-8 h-8 flex items-center justify-center rounded-lg text-[9px] font-black group-hover/user:bg-blue-50 group-hover/user:text-blue-600 transition-all">
                    #{user.userShortId?.slice(-2)}
                 </div>
                 <img src={user.photoURL} className="w-8 h-8 rounded-lg object-cover" />
                 <div>
-                  <p className="text-xs font-black text-gray-900">{user.displayName}</p>
+                  <p className="text-xs font-black text-gray-900 group-hover/user:text-blue-600 transition-colors">{user.displayName}</p>
                   <p className="text-[9px] text-gray-400 font-bold">{user.email}</p>
                 </div>
-              </div>
+              </Link>
 
               <div className="flex items-center gap-4">
                  <div className="flex items-center gap-2">

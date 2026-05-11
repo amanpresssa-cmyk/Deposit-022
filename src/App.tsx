@@ -1,5 +1,5 @@
 import React, { Component, ReactNode, useEffect, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
+import { Routes, Route, Navigate, Link } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { Home } from './pages/Home';
 import { Dashboard } from './pages/Dashboard';
@@ -134,7 +134,7 @@ function BlockedUserOverlay({ reason, showSupport = true }: { reason?: string, s
           <div className="space-y-4">
             <p className="text-gray-400 text-sm font-medium leading-relaxed">
               {showSupport 
-                ? 'إذا كنت تعتقد أن هذا الحظر كان ناتجاً عن خطأ، يمكنك التواصل مباشرة مع المدير العام للمنصة لمراجعة طلبك.'
+                ? 'إذا كنت تعتقد أن هذا الحظر كان ناتجاً عن خطأ أو تود الاستفسار، يمكنك التواصل مباشرة مع الإدارة العامة للمنصة عبر الوسائل الرسمية المتاحة أدناه.'
                 : 'إذا كنت تعتقد أن هذا الحظر كان ناتجاً عن خطأ، يرجى تقديم تظلم عبر القنوات الرسمية فور توفرها.'
               }
             </p>
@@ -142,7 +142,7 @@ function BlockedUserOverlay({ reason, showSupport = true }: { reason?: string, s
             <div className={`pt-4 grid grid-cols-1 ${showSupport ? 'sm:grid-cols-2' : ''} gap-4`}>
               <button 
                 onClick={handleLogout}
-                className="w-full bg-gray-900 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-black transition-all shadow-xl shadow-gray-200"
+                className="w-full bg-gray-900 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-black transition-all shadow-xl shadow-gray-200 order-last sm:order-none"
               >
                 <LogOut className="w-4 h-4" />
                 تسجيل الخروج
@@ -151,7 +151,7 @@ function BlockedUserOverlay({ reason, showSupport = true }: { reason?: string, s
               {showSupport && (
                 <>
                   <a 
-                    href="https://wa.me/966500000000"
+                    href="https://wa.me/966501505813"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="w-full bg-green-500 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-green-600 transition-all shadow-xl shadow-green-100"
@@ -161,7 +161,7 @@ function BlockedUserOverlay({ reason, showSupport = true }: { reason?: string, s
                   </a>
 
                   <a 
-                    href="tel:+966500000000"
+                    href="tel:+966501505813"
                     className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-blue-700 transition-all shadow-xl shadow-blue-100"
                   >
                     <Phone className="w-4 h-4" />
@@ -169,10 +169,10 @@ function BlockedUserOverlay({ reason, showSupport = true }: { reason?: string, s
                   </a>
 
                   <a 
-                    href="mailto:support@arbon.sa"
+                    href="mailto:khyratfarmdates@gmail.com"
                     className="w-full bg-white text-gray-400 border-2 border-gray-50 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-gray-50 transition-all"
                   >
-                    المراسلة الرسمية
+                    ارسال بريد إلكتروني
                   </a>
                 </>
               )}
@@ -217,7 +217,9 @@ function MainLayout({ children, isAdmin }: { children: React.ReactNode, isAdmin:
 
 export default function App() {
   const { user, profile, loading, error, pending2FA, clearError } = useAuth();
+  const location = useLocation();
   const isAdmin = user?.email === 'khyratfarmdates@gmail.com' || profile?.isAdmin;
+  const isViewingAsUser = new URLSearchParams(location.search).get('view') === 'site';
 
   if (loading) {
     return (
@@ -240,7 +242,7 @@ export default function App() {
   }
 
   return (
-    <Router>
+    <>
       <ScrollToTop />
       <FloatingScrollToTop />
       <ErrorBoundary>
@@ -305,7 +307,7 @@ export default function App() {
                   <Route path="/search" element={isAdmin ? <Navigate to="/admin" /> : <SearchPage />} />
                   <Route
                     path="/dashboard"
-                    element={user ? (isAdmin ? <Navigate to="/admin" /> : <Dashboard />) : <Navigate to="/" />}
+                    element={user ? (isAdmin && !isViewingAsUser ? <Navigate to="/admin" /> : <Dashboard />) : <Navigate to="/" />}
                   />
                   
                   {/* Admin Protected Routes with professional layout */}
@@ -334,15 +336,15 @@ export default function App() {
                   />
                   <Route
                     path="/settings"
-                    element={user ? (isAdmin ? <Navigate to="/admin" /> : <SettingsPage />) : <Navigate to="/" />}
+                    element={user ? (isAdmin && !isViewingAsUser ? <Navigate to="/admin" /> : <SettingsPage />) : <Navigate to="/" />}
                   />
                   <Route
                     path="/profile"
-                    element={user ? (isAdmin ? <Navigate to="/admin" /> : <UserProfilePage />) : <Navigate to="/" />}
+                    element={user ? (isAdmin && !isViewingAsUser ? <Navigate to="/admin" /> : <UserProfilePage />) : <Navigate to="/" />}
                   />
                   <Route
                     path="/create-order"
-                    element={user ? (isAdmin ? <Navigate to="/admin" /> : <CreateOrderPage />) : <Navigate to="/" />}
+                    element={user ? (isAdmin && !isViewingAsUser ? <Navigate to="/admin" /> : <CreateOrderPage />) : <Navigate to="/" />}
                   />
                   <Route path="/help-center" element={<HelpCenterPage />} />
                   <Route path="/terms" element={<TermsPage />} />
@@ -355,6 +357,6 @@ export default function App() {
           </div>
         </NotificationProvider>
       </ErrorBoundary>
-    </Router>
+    </>
   );
 }

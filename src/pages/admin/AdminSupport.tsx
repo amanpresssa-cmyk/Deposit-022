@@ -219,24 +219,35 @@ export const AdminSupport: React.FC = () => {
                          <p className="text-gray-500 text-sm font-medium">{alert.message}</p>
                       </div>
                    </div>
-                   <div className="flex gap-2" onClick={e => e.stopPropagation()}>
-                     {alert.ticketId && (
-                        <button 
-                          onClick={() => {
-                            const ticket = supportTickets.find(t => t.id === alert.ticketId);
-                            if (ticket) setSelectedTicket(ticket);
-                          }}
-                          className="px-4 py-2 bg-blue-600 text-white rounded-xl font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100"
-                        >
-                           فتح التذكرة
-                        </button>
-                     )}
-                     {alert.targetUserId && (
-                        <Link to={`/seller/${alert.targetUserId}`} className="px-4 py-2 bg-gray-100 text-gray-600 rounded-xl font-black text-xs hover:bg-gray-200 transition-all">
-                           المشكو منه
-                        </Link>
-                     )}
-                   </div>
+                    <div className="flex gap-2" onClick={e => e.stopPropagation()}>
+                      {alert.ticketId ? (
+                         <button 
+                           onClick={() => {
+                             const ticket = supportTickets.find(t => t.id === alert.ticketId);
+                             if (ticket) setSelectedTicket(ticket);
+                             else {
+                               // If not found in current snapshot, we should probably fetch it or inform
+                               alert('عذراً، لم يتم العثور على التذكرة حالياً');
+                             }
+                           }}
+                           className="px-4 py-2 bg-blue-600 text-white rounded-xl font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 flex items-center gap-2"
+                         >
+                            <MessageSquare className="w-3 h-3" />
+                            فتح التذكرة
+                         </button>
+                      ) : alert.targetUserId && (
+                         <Link to={`/seller/${alert.targetUserId}`} className="px-4 py-2 bg-gray-100 text-gray-600 rounded-xl font-black text-xs hover:bg-gray-200 transition-all">
+                            {alert.title?.includes('بلاغ') ? 'المشكو منه' : 'ملف المستخدم'}
+                         </Link>
+                      )}
+                      
+                      {/* Only show seller link as secondary if ticketId is present */}
+                      {alert.ticketId && alert.targetUserId && (
+                         <Link to={`/seller/${alert.targetUserId}`} className="px-4 py-2 bg-gray-100 text-gray-400 rounded-xl font-black text-[10px] hover:text-gray-600 transition-all">
+                            ملف العميل
+                         </Link>
+                      )}
+                    </div>
                 </div>
               ))}
            </div>

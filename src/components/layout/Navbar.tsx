@@ -154,11 +154,11 @@ export const Navbar: React.FC = () => {
               <div className="relative">
                 <button 
                   onClick={() => setShowNotifications(!showNotifications)}
-                  className="p-2.5 text-gray-400 hover:bg-gray-50 rounded-xl transition-all relative"
+                  className="p-2.5 text-gray-400 hover:bg-gray-50 rounded-xl transition-all relative z-10"
                 >
-                  <Bell className="w-6 h-6" />
+                  <Bell className="w-6 h-6 pointer-events-none" />
                   {unreadCount > 0 && (
-                    <span className="absolute top-2.5 right-2.5 w-5 h-5 bg-red-500 text-white text-[10px] font-black flex items-center justify-center rounded-full border-2 border-white animate-bounce">
+                    <span className="absolute top-2.5 right-2.5 w-5 h-5 bg-red-500 text-white text-[10px] font-black flex items-center justify-center rounded-full border-2 border-white animate-bounce pointer-events-none">
                       {unreadCount}
                     </span>
                   )}

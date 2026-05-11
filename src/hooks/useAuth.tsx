@@ -352,18 +352,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const userRef = doc(db, 'users', user.uid);
       await updateDoc(userRef, {
         ...data,
-        verificationStatus: 'pending',
+        verificationStatus: 'verified',
+        isVerified: true,
         updatedAt: serverTimestamp()
       });
       
       await sendNotification(
         user.uid,
-        'تم استلام طلب التوثيق',
-        'طلب التوثيق الخاص بك قيد المراجعة الآن عبر رقم الهوية والجوال. سنقوم بإبلاغك بالنتيجة فور التحقق.',
-        'system'
+        '✅ تهانينا! اكتمل توثيق حسابك',
+        'لقد تم التحقق من هويتك آلياً عبر نظام النفاذ الوطني. حسابك الآن يحمل شارة التوثيق ويمكنك استخدام كافة مميزات المنصة.',
+        'system',
+        'urgent'
       );
 
-      setProfile(prev => prev ? { ...prev, ...data, verificationStatus: 'pending' } : null);
+      setProfile(prev => prev ? { ...prev, ...data, verificationStatus: 'verified', isVerified: true } : null);
     } catch (err: any) {
       console.error('Submit verification error:', err);
       setError('فشل إرسال طلب التوثيق. يرجى التأكد من اتصالك بالإنترنت واكتمال بياناتك.');

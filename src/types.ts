@@ -8,6 +8,7 @@ export interface Service {
   deliveryTime: string;
   isActive?: boolean;
   imageUrl?: string;
+  externalUrl?: string;
   createdAt: any;
 }
 

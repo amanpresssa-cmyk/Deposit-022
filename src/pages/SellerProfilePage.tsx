@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { doc, getDoc, collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { UserProfile, Service, Review } from '../types';
+import { UserProfile, Service, Review, Order } from '../types';
 import { useAuth } from '../hooks/useAuth';
 import { motion } from 'motion/react';
 import { 
@@ -26,6 +26,8 @@ export const SellerProfilePage: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const navigate = useNavigate();
 
+  const [orders, setOrders] = useState<Order[]>([]);
+
   useEffect(() => {
     const fetchSellerData = async () => {
       if (!sellerId) return;
@@ -33,6 +35,15 @@ export const SellerProfilePage: React.FC = () => {
         const sellerSnap = await getDoc(doc(db, 'users', sellerId));
         if (sellerSnap.exists()) {
           setSeller(sellerSnap.data() as UserProfile);
+        }
+
+        // Fetch user's orders to see if they've traded with this seller
+        if (user) {
+          const q1 = query(collection(db, 'orders'), where('buyerId', '==', user.uid), where('sellerId', '==', sellerId));
+          const q2 = query(collection(db, 'orders'), where('buyerId', '==', sellerId), where('sellerId', '==', user.uid));
+          const [s1, s2] = await Promise.all([getDocs(q1), getDocs(q2)]);
+          const userOrders = [...s1.docs, ...s2.docs].map(d => ({ id: d.id, ...d.data() } as Order));
+          setOrders(userOrders);
         }
 
         // Fetch services
@@ -110,13 +121,20 @@ export const SellerProfilePage: React.FC = () => {
 
   const handleChat = () => {
     if (!seller) return;
-    // Navigate to chat/messages (assuming a messages tab in dashboard or new route)
-    navigate(`/dashboard?tab=messages&sellerId=${sellerId}`);
+    // Check if we have an existing order with this seller
+    const existingOrder = orders.find(o => o.sellerId === sellerId || o.buyerId === sellerId);
+    
+    if (existingOrder) {
+      navigate(`/dashboard?tab=messages&orderId=${existingOrder.id}`);
+    } else {
+      // If no order, redirect to create order to initiate contact/negotiation
+      navigate(`/create-order?email=${encodeURIComponent(seller.email || '')}&title=${encodeURIComponent('مناقشة مشروع جديد')}`);
+    }
   };
 
   const handleOrder = (service?: Service) => {
     if (!seller) return;
-    let url = `/create-order?email=${encodeURIComponent(seller.email || '')}`;
+    let url = `/create-order?email=${encodeURIComponent(seller.email || '')}&targetId=${sellerId}`;
     if (service) {
       url += `&title=${encodeURIComponent(service.title)}&amount=${service.price}&category=${encodeURIComponent(service.category)}`;
     }
@@ -217,7 +235,7 @@ export const SellerProfilePage: React.FC = () => {
                 onClick={handleChat}
                 className="bg-white text-gray-900 border-2 border-gray-100 px-8 py-4 rounded-2xl font-bold text-lg hover:bg-gray-50 transition-all flex items-center gap-2 shadow-sm"
               >
-                <MessageCircle className="w-6 h-6 text-blue-600" />
+                <MessageCircle className="w-6 h-6 text-blue-600 pointer-events-none" />
                 تواصل مع البائع
               </button>
               
@@ -225,7 +243,7 @@ export const SellerProfilePage: React.FC = () => {
                 onClick={handleOrder}
                 className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold text-lg hover:bg-blue-700 transition-all flex items-center gap-2 shadow-xl shadow-blue-100"
               >
-                <Briefcase className="w-6 h-6" />
+                <Briefcase className="w-6 h-6 pointer-events-none" />
                 اطلب خدمة الآن
               </button>
             </div>
@@ -266,15 +284,27 @@ export const SellerProfilePage: React.FC = () => {
                           onClick={() => handleOrder(service)}
                           className="bg-white rounded-3xl border border-gray-100 overflow-hidden hover:border-blue-100 transition-all group cursor-pointer"
                         >
-                          <div className="h-40 bg-gray-50 relative overflow-hidden">
+                          <div className="h-40 bg-gray-50 relative overflow-hidden flex items-center justify-center">
                              {service.imageUrl ? (
-                               <img src={service.imageUrl} className="w-full h-full object-cover" />
+                               <img 
+                                 src={service.imageUrl} 
+                                 className="w-full h-full object-cover transition-transform group-hover:scale-105 duration-500" 
+                                 referrerPolicy="no-referrer"
+                                 alt=""
+                               />
+                             ) : service.externalUrl ? (
+                               <div className="w-full h-full p-4 flex flex-col items-center justify-center bg-blue-50/30">
+                                 <ExternalLink className="w-8 h-8 text-blue-400 mb-2" />
+                                 <span className="text-[10px] font-mono text-blue-500 break-all text-center px-4 line-clamp-2">
+                                   {service.externalUrl}
+                                 </span>
+                               </div>
                              ) : (
                                <div className="w-full h-full flex items-center justify-center text-gray-300">
                                  <Briefcase className="w-12 h-12" />
                                </div>
                              )}
-                             <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-md px-3 py-1 rounded-xl font-bold text-blue-600">
+                             <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-md px-3 py-1 rounded-xl font-bold text-blue-600 shadow-sm z-10 transition-transform group-hover:scale-105">
                                {service.price} ر.س
                              </div>
                           </div>
@@ -365,28 +395,30 @@ export const SellerProfilePage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="bg-white rounded-[2.5rem] p-8 border border-gray-100 shadow-sm">
-                   <h3 className="font-bold text-xl text-gray-900 mb-6 flex items-center gap-2">
-                    <Briefcase className="w-6 h-6 text-gray-400" />
-                    إحصائيات العمل
-                  </h3>
-                  <div className="space-y-6">
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-500 font-medium">إجمالي المبيعات</span>
-                      <span className="font-black text-gray-900">{stats.total}+</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-500 font-medium">نسبة النجاح</span>
-                      <span className="font-black text-gray-900">
-                        {stats.total > 0 ? Math.round((stats.completed / (stats.completed + stats.failed || 1)) * 100) : 100}%
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-500 font-medium">مشاريع مكتملة</span>
-                      <span className="font-black text-gray-900">{stats.completed}</span>
+                {stats.completed >= 5 && (
+                  <div className="bg-white rounded-[2.5rem] p-8 border border-gray-100 shadow-sm">
+                    <h3 className="font-bold text-xl text-gray-900 mb-6 flex items-center gap-2">
+                      <Briefcase className="w-6 h-6 text-gray-400 pointer-events-none" />
+                      إحصائيات العمل
+                    </h3>
+                    <div className="space-y-6">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-500 font-medium">إجمالي المبيعات</span>
+                        <span className="font-black text-gray-900">{stats.total}+</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-500 font-medium">نسبة النجاح</span>
+                        <span className="font-black text-gray-900">
+                          {stats.total > 0 ? Math.round((stats.completed / (stats.completed + stats.failed || 1)) * 100) : 100}%
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-500 font-medium">مشاريع مكتملة</span>
+                        <span className="font-black text-gray-900">{stats.completed}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
                 <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-[2.5rem] p-8 text-white shadow-xl">
                    <h3 className="font-bold text-xl mb-6 flex items-center gap-2">

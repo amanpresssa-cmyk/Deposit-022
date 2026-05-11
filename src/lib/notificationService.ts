@@ -104,7 +104,8 @@ export const sendNotification = async (
   priority: NotificationPriority = 'normal',
   orderId?: string,
   targetUserId?: string,
-  action?: { label: string; url: string; }
+  action?: { label: string; url: string; },
+  ticketId?: string
 ) => {
   try {
     await addDoc(collection(db, 'notifications'), {
@@ -115,6 +116,7 @@ export const sendNotification = async (
       priority,
       orderId: orderId || null,
       targetUserId: targetUserId || null,
+      ticketId: ticketId || null,
       action: action || null,
       isRead: false,
       createdAt: serverTimestamp()
@@ -175,7 +177,8 @@ export const recordAuditLog = async (data: {
 export const sendAdminNotification = async (
   title: string,
   message: string,
-  targetUserId?: string
+  targetUserId?: string,
+  ticketId?: string
 ) => {
   try {
     await addDoc(collection(db, 'notifications'), {
@@ -184,6 +187,7 @@ export const sendAdminNotification = async (
       message,
       type: 'emergency',
       targetUserId: targetUserId || null,
+      ticketId: ticketId || null,
       isRead: false,
       createdAt: serverTimestamp()
     });
