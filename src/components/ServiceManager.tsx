@@ -3,7 +3,8 @@ import { collection, addDoc, query, where, orderBy, onSnapshot, deleteDoc, doc, 
 import { db } from '../lib/firebase';
 import { Service } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
-import { Briefcase, Plus, Trash2, Clock, DollarSign, Tag, Save, X, Eye, EyeOff } from 'lucide-react';
+import { Briefcase, Plus, Trash2, Clock, DollarSign, Tag, Save, X, Eye, EyeOff, Image as ImageIcon, Link as LinkIcon, Upload } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface ServiceManagerProps {
   sellerId: string;
@@ -13,6 +14,7 @@ export const ServiceManager: React.FC<ServiceManagerProps> = ({ sellerId }) => {
   const [services, setServices] = useState<Service[]>([]);
   const [isAdding, setIsAdding] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -40,6 +42,24 @@ export const ServiceManager: React.FC<ServiceManagerProps> = ({ sellerId }) => {
 
     return () => unsubscribe();
   }, [sellerId]);
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 500 * 1024) {
+      toast.error('حجم الصورة كبير جداً. يرجى اختيار صورة أقل من 500 كيلوبايت لضمان سرعة التصفح.');
+      return;
+    }
+
+    setUploadingImage(true);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setFormData(prev => ({ ...prev, imageUrl: reader.result as string }));
+      setUploadingImage(false);
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -144,66 +164,76 @@ export const ServiceManager: React.FC<ServiceManagerProps> = ({ sellerId }) => {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700 mr-2">وصف الخدمة</label>
-                <textarea 
-                  required
-                  value={formData.description}
-                  onChange={e => setFormData({...formData, description: e.target.value})}
-                  placeholder="اشرح ما ستقوم به بالتفصيل..."
-                  rows={4}
-                  className="w-full px-5 py-4 rounded-2xl bg-white border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-right"
-                />
-              </div>
-
               <div className="grid md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-gray-700 mr-2">السعر يبدأ من (ر.س)</label>
-                  <div className="relative">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-700 mr-2 flex items-center gap-2">
+                       <Upload className="w-4 h-4 text-blue-500" />
+                       صورة الخدمة (اختياري)
+                    </label>
+                    <div className="relative">
+                      <input 
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        className="hidden"
+                        id="service-image-upload"
+                      />
+                      <label 
+                        htmlFor="service-image-upload"
+                        className="flex flex-col items-center justify-center w-full h-32 bg-white border-2 border-dashed border-gray-100 rounded-2xl cursor-pointer hover:border-blue-200 hover:bg-blue-50/10 transition-all overflow-hidden group"
+                      >
+                         {formData.imageUrl ? (
+                           <img src={formData.imageUrl} className="w-full h-full object-cover transition-transform group-hover:scale-110" />
+                         ) : (
+                           <div className="flex flex-col items-center gap-2 py-4">
+                              <ImageIcon className="w-8 h-8 text-gray-300" />
+                              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">رفع صورة (بحد أقصى 500KB)</p>
+                           </div>
+                         )}
+                         {uploadingImage && (
+                           <div className="absolute inset-0 bg-white/80 flex items-center justify-center">
+                              <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                           </div>
+                         )}
+                      </label>
+                      {formData.imageUrl && (
+                        <button 
+                          type="button"
+                          onClick={() => setFormData({...formData, imageUrl: ''})}
+                          className="absolute -top-2 -left-2 bg-red-100 text-red-600 p-1.5 rounded-xl shadow-lg hover:bg-red-200 transition-all border border-red-200"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-700 mr-2 flex items-center gap-2">
+                       <LinkIcon className="w-4 h-4 text-blue-500" />
+                       رابط فيديو أو معاينة خارجي
+                    </label>
                     <input 
-                      required
-                      type="number"
-                      value={formData.price}
-                      onChange={e => setFormData({...formData, price: e.target.value})}
-                      placeholder="500"
-                      className="w-full px-12 py-4 rounded-2xl bg-white border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-right font-bold"
+                      value={formData.externalUrl}
+                      onChange={e => setFormData({...formData, externalUrl: e.target.value})}
+                      placeholder="https://example.com/demo"
+                      className="w-full px-5 py-4 rounded-2xl bg-white border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-left font-mono text-sm"
                     />
-                    <DollarSign className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-gray-700 mr-2">مدة التسليم المتوقعة</label>
-                  <div className="relative">
-                    <input 
-                      required
-                      value={formData.deliveryTime}
-                      onChange={e => setFormData({...formData, deliveryTime: e.target.value})}
-                      placeholder="مثال: يومين"
-                      className="w-full px-12 py-4 rounded-2xl bg-white border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-right"
-                    />
-                    <Clock className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  </div>
-                </div>
-              </div>
 
-              <div className="grid md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-gray-700 mr-2">رابط صورة الخدمة (اختياري)</label>
-                  <input 
-                    value={formData.imageUrl}
-                    onChange={e => setFormData({...formData, imageUrl: e.target.value})}
-                    placeholder="https://example.com/image.jpg"
-                    className="w-full px-5 py-4 rounded-2xl bg-white border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-left font-mono text-sm"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-gray-700 mr-2">رابط خارجي للمعاينة (اختياري)</label>
-                  <input 
-                    value={formData.externalUrl}
-                    onChange={e => setFormData({...formData, externalUrl: e.target.value})}
-                    placeholder="https://github.com/project"
-                    className="w-full px-5 py-4 rounded-2xl bg-white border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-left font-mono text-sm"
-                  />
+                <div className="space-y-6">
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-700 mr-2">وصف الخدمة</label>
+                    <textarea 
+                      required
+                      value={formData.description}
+                      onChange={e => setFormData({...formData, description: e.target.value})}
+                      placeholder="اشرح ما ستقوم به بالتفصيل..."
+                      rows={6}
+                      className="w-full px-5 py-4 rounded-2xl bg-white border border-gray-100 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-right"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -247,19 +277,22 @@ export const ServiceManager: React.FC<ServiceManagerProps> = ({ sellerId }) => {
               className={`bg-white rounded-[2rem] border overflow-hidden relative group transition-all shadow-sm ${service.isActive === false ? 'opacity-60 border-gray-200 grayscale' : 'hover:border-blue-100 border-gray-100'}`}
             >
               {(service.imageUrl || service.externalUrl) && (
-                <div className="w-full h-40 bg-gray-50 relative overflow-hidden flex items-center justify-center">
+                <div className="w-full h-48 bg-gray-50 relative overflow-hidden flex items-center justify-center">
                   {service.imageUrl ? (
                     <img 
                       src={service.imageUrl} 
                       alt={service.title}
                       referrerPolicy="no-referrer"
-                      className="w-full h-full object-cover transition-transform group-hover:scale-105 duration-500"
+                      className="w-full h-full object-cover transition-transform group-hover:scale-105 duration-700"
                     />
                   ) : service.externalUrl && (
-                    <div className="w-full h-full p-4 flex flex-col items-center justify-center bg-blue-50/30">
-                       <Tag className="w-8 h-8 text-blue-400 mb-2" />
-                       <span className="text-[10px] font-mono text-blue-500 break-all text-center px-4 line-clamp-2">
-                         {service.externalUrl}
+                    <div className="w-full h-full p-4 flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50/30">
+                       <div className="bg-white/60 p-4 rounded-full mb-3 backdrop-blur-sm border border-white/40">
+                          <LinkIcon className="w-8 h-8 text-blue-500" />
+                       </div>
+                       <p className="text-[10px] font-black text-blue-600/60 uppercase tracking-widest mb-1">رابط المعاينة</p>
+                       <span className="text-[9px] font-mono text-gray-400 break-all text-center px-6 line-clamp-2">
+                         {service.externalUrl.replace('https://', '')}
                        </span>
                     </div>
                   )}

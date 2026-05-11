@@ -284,19 +284,22 @@ export const SellerProfilePage: React.FC = () => {
                           onClick={() => handleOrder(service)}
                           className="bg-white rounded-3xl border border-gray-100 overflow-hidden hover:border-blue-100 transition-all group cursor-pointer"
                         >
-                          <div className="h-40 bg-gray-50 relative overflow-hidden flex items-center justify-center">
+                          <div className="h-48 bg-gray-50 relative overflow-hidden flex items-center justify-center">
                              {service.imageUrl ? (
                                <img 
                                  src={service.imageUrl} 
-                                 className="w-full h-full object-cover transition-transform group-hover:scale-105 duration-500" 
+                                 className="w-full h-full object-cover transition-transform group-hover:scale-105 duration-700" 
                                  referrerPolicy="no-referrer"
                                  alt=""
                                />
                              ) : service.externalUrl ? (
-                               <div className="w-full h-full p-4 flex flex-col items-center justify-center bg-blue-50/30">
-                                 <ExternalLink className="w-8 h-8 text-blue-400 mb-2" />
-                                 <span className="text-[10px] font-mono text-blue-500 break-all text-center px-4 line-clamp-2">
-                                   {service.externalUrl}
+                               <div className="w-full h-full p-4 flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50/30">
+                                 <div className="bg-white/60 p-4 rounded-full mb-3 backdrop-blur-sm border border-white/40">
+                                    <Globe className="w-8 h-8 text-blue-500" />
+                                 </div>
+                                 <p className="text-[10px] font-black text-blue-600/60 uppercase tracking-widest mb-1">رابط المعاينة</p>
+                                 <span className="text-[9px] font-mono text-gray-400 break-all text-center px-6 line-clamp-2">
+                                   {service.externalUrl.replace('https://', '')}
                                  </span>
                                </div>
                              ) : (

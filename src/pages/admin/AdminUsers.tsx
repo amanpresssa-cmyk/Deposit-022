@@ -7,10 +7,11 @@ import { UserProfile } from '../../types';
 import { ShieldCheck, Search, Star, UserX, UserCheck, ExternalLink, Clock, AlertCircle, Ban, LayoutGrid, List, Table as TableIcon } from 'lucide-react';
 import { motion } from 'motion/react';
 import { sendNotification } from '../../lib/notificationService';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 export const AdminUsers: React.FC = () => {
   const { profile, user } = useAuth();
+  const navigate = useNavigate();
   const isAdmin = user?.email === 'khyratfarmdates@gmail.com' || profile?.isAdmin;
 
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -236,7 +237,11 @@ export const AdminUsers: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {filteredUsers.map(user => (
-                  <tr key={user.uid} className="hover:bg-gray-50/50 transition-colors">
+                  <tr 
+                    key={user.uid} 
+                    className="hover:bg-gray-50/50 transition-colors cursor-pointer group/row"
+                    onClick={() => navigate(`/seller/${user.uid}`)}
+                  >
                     <td className="px-6 py-4">
                        <div className="flex flex-col gap-1">
                           <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded-lg font-mono font-black text-[10px] w-fit">
@@ -248,20 +253,20 @@ export const AdminUsers: React.FC = () => {
                        </div>
                     </td>
                     <td className="px-6 py-4">
-                      <Link to={`/seller/${user.uid}`} className="flex items-center gap-3 group/user">
-                        <img src={user.photoURL} className="w-10 h-10 rounded-xl object-cover ring-2 ring-gray-50 group-hover/user:ring-blue-100 transition-all" />
+                      <div className="flex items-center gap-3">
+                        <img src={user.photoURL} className="w-10 h-10 rounded-xl object-cover ring-2 ring-gray-50 group-hover/row:ring-blue-100 transition-all shadow-sm" />
                         <div>
                           <div className="flex items-center gap-1.5">
-                             <p className="font-bold text-gray-900 group-hover/user:text-blue-600 transition-colors">{user.displayName}</p>
-                             <div className="text-gray-300 group-hover/user:text-blue-600 transition-colors">
+                             <p className="font-bold text-gray-900 group-hover/row:text-blue-600 transition-colors uppercase">{user.displayName}</p>
+                             <div className="text-gray-300 group-hover/row:text-blue-600 transition-colors">
                                 <ExternalLink className="w-3 h-3" />
                              </div>
                           </div>
-                          <p className="text-[10px] text-gray-400 font-medium">{user.email}</p>
+                          <p className="text-[10px] text-gray-400 font-medium tracking-tight">{user.email}</p>
                         </div>
-                      </Link>
+                      </div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                        <div className="flex flex-col gap-2">
                           <button 
                              onClick={() => handleToggleFeatured(user.uid, user.isFeatured)}
@@ -290,7 +295,7 @@ export const AdminUsers: React.FC = () => {
                          user.verificationStatus === 'pending' ? 'بانتظار المراجعة' : 'مرفوض'}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center gap-2">
                          {user.verificationStatus === 'pending' && (
                            <>
