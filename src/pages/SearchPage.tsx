@@ -73,7 +73,7 @@ export const SearchPage: React.FC = () => {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: idx * 0.05 }}
-              onClick={() => navigate(`/order/${order.id}`)}
+              onClick={() => navigate(`/service/${order.id}`)}
               className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer group"
             >
               <div className="flex justify-between items-start mb-4">
@@ -98,8 +98,8 @@ export const SearchPage: React.FC = () => {
                    </span>
                 </div>
                 <div className="flex items-center gap-1 text-blue-600 font-bold text-sm">
-                  <span>طلب تفاصيل</span>
-                  <ArrowLeft className="w-4 h-4" />
+                   <span>مشاهدة التفاصيل</span>
+                   <ArrowLeft className="w-4 h-4" />
                 </div>
               </div>
             </motion.div>

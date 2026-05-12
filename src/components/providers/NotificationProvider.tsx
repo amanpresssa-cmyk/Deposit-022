@@ -5,7 +5,8 @@ import { useAuth } from '../../hooks/useAuth';
 import { toast } from 'sonner';
 import { Bell, AlertTriangle, CreditCard, MessageSquare, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { markNotificationAsRead } from '../../lib/notificationService';
+import { sendNotification, sendAdminNotification, markNotificationAsRead } from '../../lib/notificationService';
+import { handleFirestoreError, OperationType } from '../../lib/error-handler';
 
 interface NotificationContextType {
   notifications: any[];
@@ -60,7 +61,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setUnreadCount(items.filter((n: any) => !n.isRead).length);
       setIsFirstLoad(false);
     }, (error) => {
-      console.warn('Notifications snapshot error:', error);
+      handleFirestoreError(error, OperationType.LIST, 'notifications');
     });
 
     return () => unsubscribe();

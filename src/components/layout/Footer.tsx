@@ -5,8 +5,10 @@ import { PaymentIcon } from '../ui/PaymentIcon';
 import { db } from '../../lib/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 
+import { handleFirestoreError, OperationType } from '../../lib/error-handler';
+
 export const Footer: React.FC = () => {
-  const [footerDesc, setFooterDesc] = useState('المنصة الأولى الموثوقة للوساطة المالية في المملكة العربية السعودية. نضمن حقك كبائع أو مشتري بكل أمان وشفافية برقم هوية موثق.');
+  const [footerDesc, setFooterDesc] = useState('المنصة السعودية الأولى الموثوقة للوساطة المالية. نضمن حقوق البائع والمشتري بكل أمان وشفافية عبر نظام التعميد الذكي.');
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'app_settings', 'footer'), (snapshot) => {
@@ -14,6 +16,8 @@ export const Footer: React.FC = () => {
         const data = snapshot.data();
         if (data.description) setFooterDesc(data.description);
       }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'app_settings/footer');
     });
     return () => unsub();
   }, []);

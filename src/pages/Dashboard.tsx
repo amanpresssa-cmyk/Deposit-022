@@ -182,7 +182,7 @@ export const Dashboard: React.FC = () => {
       score -= (disputed * 15);
       score -= (cancelled * 5);
       setConfidenceScore(Math.max(10, score));
-    });
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'reviews'));
 
     return () => unsubReviews();
   }, [user, orders.length]);
@@ -213,7 +213,7 @@ export const Dashboard: React.FC = () => {
           return Array.from(new Map(combined.map(item => [item.id, item])).values());
         });
         setLoading(false);
-      });
+      }, (error) => handleFirestoreError(error, OperationType.LIST, 'orders'));
 
       const unsubSeller = onSnapshot(qSeller, (snapshot) => {
         const sellerOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
@@ -225,7 +225,7 @@ export const Dashboard: React.FC = () => {
           return Array.from(new Map(combined.map(item => [item.id, item])).values());
         });
         setLoading(false);
-      });
+      }, (error) => handleFirestoreError(error, OperationType.LIST, 'orders'));
 
       let unsubSellerEmail = () => {};
       if (user.email) {
@@ -244,7 +244,7 @@ export const Dashboard: React.FC = () => {
             return Array.from(new Map(combined.map(item => [item.id, item])).values());
           });
           setLoading(false);
-        });
+        }, (error) => handleFirestoreError(error, OperationType.LIST, 'orders'));
       }
 
       return () => {
@@ -267,7 +267,7 @@ export const Dashboard: React.FC = () => {
 
     const unsubLogs = onSnapshot(qLogs, (snapshot) => {
       setLogs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'system_logs'));
 
     return () => unsubLogs();
   }, [profile?.isAdmin]);

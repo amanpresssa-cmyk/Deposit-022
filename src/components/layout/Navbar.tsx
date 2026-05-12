@@ -11,6 +11,8 @@ import { ar } from 'date-fns/locale';
 import { useNotifications } from '../providers/NotificationProvider';
 import { markAllNotificationsAsRead, markNotificationAsRead } from '../../lib/notificationService';
 
+import { handleFirestoreError, OperationType } from '../../lib/error-handler';
+
 export const Navbar: React.FC = () => {
   const { user, profile, login, logout } = useAuth();
   const { notifications, unreadCount } = useNotifications();
@@ -26,6 +28,8 @@ export const Navbar: React.FC = () => {
       if (snapshot.exists()) {
         setAnnouncement(snapshot.data());
       }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'app_settings/announcement');
     });
     return () => unsub();
   }, []);

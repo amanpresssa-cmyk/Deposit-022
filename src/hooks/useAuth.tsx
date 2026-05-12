@@ -14,6 +14,7 @@ import { doc, getDoc, setDoc, serverTimestamp, updateDoc, onSnapshot } from 'fir
 import { auth, db } from '../lib/firebase';
 import { UserProfile } from '../types';
 import { sendNotification } from '../lib/notificationService';
+import { handleFirestoreError, OperationType } from '../lib/error-handler';
 
 interface AuthContextType {
   user: User | null;
@@ -178,7 +179,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
           setLoading(false);
         }, (err) => {
-          console.error("Profile snapshot error:", err);
+          handleFirestoreError(err, OperationType.GET, `users/${user.uid}`);
           setLoading(false);
         });
       } else {

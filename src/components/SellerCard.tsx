@@ -52,13 +52,13 @@ export const SellerCard: React.FC<SellerCardProps> = ({ seller }) => {
         <Link to={`/seller/${seller.uid}`} className="block group-hover:text-blue-600 transition-colors">
           <h3 className="font-bold text-lg mb-1">{seller.displayName}</h3>
         </Link>
-        <p className="text-gray-500 text-sm line-clamp-2 mb-4 h-10">
+        <p className="text-gray-600 text-sm line-clamp-2 mb-4 h-10">
           {seller.bio || 'لا يوجد وصف متاح لهذا البائع حالياً.'}
         </p>
 
         <div className="flex flex-wrap gap-2 mb-4">
           {seller.specialties?.slice(0, 3).map(s => (
-            <span key={s} className="bg-gray-50 text-gray-600 px-3 py-1 rounded-lg text-[10px] font-bold">
+            <span key={s} className="bg-blue-50 text-blue-700 px-3 py-1 rounded-lg text-[10px] font-black">
               {s}
             </span>
           ))}
@@ -73,7 +73,7 @@ export const SellerCard: React.FC<SellerCardProps> = ({ seller }) => {
         </div>
 
         <div className="flex items-center justify-between pt-4 border-t border-gray-50">
-          <div className="text-xs text-gray-400 font-medium">
+          <div className="text-xs text-gray-500 font-bold">
             {seller.reviewsCount} تقييم
           </div>
           <Link 

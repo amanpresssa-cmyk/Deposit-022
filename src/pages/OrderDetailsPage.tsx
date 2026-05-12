@@ -27,8 +27,8 @@ export const OrderDetailsPage: React.FC = () => {
   const [ratingSuccess, setRatingSuccess] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('standard');
-  const [specificProvider, setSpecificProvider] = useState<'mada' | 'visa' | 'mastercard' | 'applepay' | 'stcpay' | 'tabby' | 'tamara'>('mada');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('credit_card');
+  const [specificProvider, setSpecificProvider] = useState<'mada' | 'visa' | 'mastercard' | 'apple_pay' | 'tabby' | 'tamara'>('mada');
   const [completionComment, setCompletionComment] = useState('');
   const [orderLogs, setOrderLogs] = useState<any[]>([]);
   const [copied, setCopied] = useState(false);
@@ -57,6 +57,8 @@ export const OrderDetailsPage: React.FC = () => {
     const logQuery = query(collection(db, 'orderLogs'), where('orderId', '==', id), orderBy('createdAt', 'desc'));
     const unsubscribeLogs = onSnapshot(logQuery, (snapshot) => {
       setOrderLogs(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'orderLogs');
     });
 
     const markAsRead = async () => {
@@ -102,28 +104,27 @@ export const OrderDetailsPage: React.FC = () => {
       if (newStatus === 'escrowed') {
         const fees = calculateOrderFees(order.amount, paymentMethod);
         const hasFreeFee = (profile?.freeFeeTransactions || 0) > 0;
-        const finalPlatformFee = hasFreeFee ? 0 : fees.platformCommission;
+        const finalPlatformFee = hasFreeFee ? 0 : fees.arboonFee;
 
         updateData.paymentMethod = paymentMethod;
         updateData.paymentFees = {
           ...fees,
-          platformCommission: finalPlatformFee
+          arboonFee: finalPlatformFee
         };
 
         await recordTransaction({
           orderId: order.id,
           buyerId: order.buyerId,
           sellerId: order.sellerId,
-          amount: order.amount,
+          amount: fees.buyerTotal,
           fee: finalPlatformFee,
           netAmount: order.amount,
           status: 'escrowed',
           specialty: order.category,
           paymentMethod,
-          platformNetRevenue: fees.platformNetRevenue,
-          providerCost: fees.providerCost,
+          installmentFee: fees.installmentFee,
           sellerNetShare: fees.sellerNetShare,
-          paymentRef: paymentRef // Link reference to transaction audit
+          paymentRef: paymentRef
         });
 
         if (hasFreeFee) {
@@ -305,7 +306,7 @@ export const OrderDetailsPage: React.FC = () => {
                    </div>
                 </div>
                 <span className="bg-blue-50 text-blue-600 px-4 py-1.5 rounded-full text-[10px] font-black uppercase">
-                   {order.paymentMethod === 'bnpl' ? 'دفع آجل (BNPL)' : 'دفع مباشر (Standard)'}
+                   {['tabby', 'tamara'].includes(order.paymentMethod || '') ? 'دفع بالتقسيط (Tabby/Tamara)' : 'دفع مباشر (Standard)'}
                 </span>
              </div>
 
@@ -315,14 +316,23 @@ export const OrderDetailsPage: React.FC = () => {
                    <p className="text-xl font-black">{order.amount.toLocaleString()} ر.س</p>
                 </div>
                 <div className="p-6 bg-gray-50 rounded-3xl border border-gray-100 text-center">
-                   <p className="text-[10px] text-gray-400 font-black mb-1">رسوم الخدمة ({fees.feePercentage}%)</p>
-                   <p className="text-xl font-black">{fees.platformCommission.toLocaleString()} ر.س</p>
+                   <p className="text-[10px] text-gray-400 font-black mb-1">رسوم عربون (المشتري)</p>
+                   <p className="text-xl font-black">{fees.arboonFee.toLocaleString()} ر.س</p>
                 </div>
                 <div className="p-6 bg-blue-600 rounded-3xl text-center text-white shadow-xl shadow-blue-100">
                    <p className="text-[10px] opacity-80 font-black mb-1">صافي المعقب</p>
-                   <p className="text-xl font-black">{(order.amount - fees.platformCommission).toLocaleString()} ر.س</p>
+                   <p className="text-xl font-black">{fees.sellerNetShare.toLocaleString()} ر.س</p>
                 </div>
              </div>
+             
+             {['tabby', 'tamara'].includes(order.paymentMethod || '') && (
+               <div className="mt-4 p-4 bg-amber-50 border border-amber-100 rounded-2xl flex items-start gap-3">
+                 <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                 <div className="text-xs text-amber-800 leading-relaxed font-bold">
+                   تنبيه: بما أن هذه العملية تمت عبر {order.paymentMethod === 'tabby' ? 'تابي' : 'تمارا'}، سيتم تحرير المبلغ للمقدم الخدمة بعد وصوله من بوابة الدفع (خلال 7 أيام عمل) وبعد موافقة المشتري على الاستلام.
+                 </div>
+               </div>
+             )}
           </div>
 
           <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
@@ -350,6 +360,25 @@ export const OrderDetailsPage: React.FC = () => {
              </div>
              <p className="text-gray-600 whitespace-pre-wrap leading-relaxed">{order.description}</p>
           </div>
+
+          <AnimatePresence>
+            {order.status === 'completed' && !ratingSuccess && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="mt-8"
+              >
+                <OrderRating 
+                  orderId={order.id}
+                  reviewerId={user.uid}
+                  revieweeId={isBuyer ? (order.sellerId === 'unknown' ? '' : order.sellerId) : order.buyerId}
+                  type={isBuyer ? 'buyer-to-seller' : 'seller-to-buyer'}
+                  onSuccess={() => setRatingSuccess(true)}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <div className="p-8 bg-gray-50/50 rounded-3xl border border-gray-100">
              <div className="flex flex-wrap gap-4">
@@ -403,7 +432,8 @@ const PaymentModal: React.FC<{
 }> = ({ amount, onConfirm, onClose, loading, paymentMethod, setPaymentMethod, specificProvider, setSpecificProvider, profile }) => {
   const fees = calculateOrderFees(amount, paymentMethod);
   const hasFreeFee = (profile?.freeFeeTransactions || 0) > 0;
-  const platformFee = hasFreeFee ? 0 : fees.platformCommission;
+  
+  const isInstallment = ['tabby', 'tamara'].includes(paymentMethod);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
@@ -411,29 +441,69 @@ const PaymentModal: React.FC<{
         <div className="p-8 text-center border-b bg-gray-50/50">
           <Shield className="w-10 h-10 text-blue-600 mx-auto mb-2" />
           <h3 className="text-2xl font-black">تعميد ودفع آمن (Escrow)</h3>
-          <p className="text-gray-500 text-sm">حجز المبلغ لضمان الحقوق</p>
+          <p className="text-gray-500 text-sm">حجز المبلغ لضمان حقوق الطرفين</p>
         </div>
         <div className="p-8 space-y-6">
-          <div className="grid grid-cols-2 gap-4">
-             <button onClick={() => setPaymentMethod('standard')} className={`p-4 rounded-3xl border-2 transition-all ${paymentMethod === 'standard' ? 'border-blue-600 bg-blue-50' : 'border-gray-50 bg-gray-50'}`}>
-               <CreditCard className="mx-auto" /><span className="block mt-2 font-bold text-sm">دفع مباشر</span>
-             </button>
-             <button onClick={() => setPaymentMethod('bnpl')} className={`p-4 rounded-3xl border-2 transition-all ${paymentMethod === 'bnpl' ? 'border-purple-600 bg-purple-50' : 'border-gray-50 bg-gray-50'}`}>
-               <PackageCheck className="mx-auto" /><span className="block mt-2 font-bold text-sm">تقسيط</span>
-             </button>
-          </div>
-          <div className="bg-gray-900 rounded-[2rem] p-6 text-white space-y-4">
-             <div className="flex justify-between text-sm"><span>قيمة الصفقة</span><span>{amount.toLocaleString()} ر.س</span></div>
-             <div className="flex justify-between text-sm"><span>رسوم الوساطة ({fees.feePercentage}%)</span><span className={hasFreeFee ? 'line-through opacity-50' : ''}>{fees.platformCommission.toLocaleString()} ر.س</span></div>
-             <div className="border-t border-white/10 pt-4 flex justify-between items-end">
-                <div><p className="text-[10px] opacity-50 uppercase mb-1">المجموع للدفع</p><p className="text-3xl font-black">{amount.toLocaleString()} ر.س</p></div>
-                <div className="text-right"><p className="text-[8px] opacity-50 uppercase">سيصل للمعقب</p><p className="font-bold">{(amount - platformFee).toLocaleString()} ر.س</p></div>
+          <div className="space-y-3">
+             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">اختر وسيلة الدفع</p>
+             <div className="grid grid-cols-3 gap-3">
+                <button onClick={() => setPaymentMethod('mada')} className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-2 ${paymentMethod === 'mada' ? 'border-blue-600 bg-blue-50' : 'border-gray-50 bg-gray-50'}`}>
+                  <CreditCard className="w-5 h-5 text-gray-400" />
+                  <span className="font-bold text-[10px]">بطاقة / مدى</span>
+                </button>
+                <button onClick={() => setPaymentMethod('tabby')} className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-2 ${paymentMethod === 'tabby' ? 'border-green-600 bg-green-50' : 'border-gray-50 bg-gray-50'}`}>
+                  <img src="https://i.imgur.com/vHq8S7D.png" className="h-4 w-auto" alt="Tabby" />
+                  <span className="font-bold text-[10px]">تقسيط تابي</span>
+                </button>
+                <button onClick={() => setPaymentMethod('tamara')} className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-2 ${paymentMethod === 'tamara' ? 'border-amber-600 bg-amber-50' : 'border-gray-50 bg-gray-50'}`}>
+                  <img src="https://i.imgur.com/qL5TfRW.png" className="h-4 w-auto" alt="Tamara" />
+                  <span className="font-bold text-[10px]">تقسيط تمارا</span>
+                </button>
              </div>
           </div>
-          <button onClick={onConfirm} disabled={loading} className="w-full bg-[#2563eb] text-white py-4 rounded-2xl font-black text-xl flex items-center justify-center gap-3">
-            {loading ? <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" /> : <><Shield /><span>تأكيد التعميد</span></>}
+
+          <div className="bg-gray-900 rounded-[2rem] p-6 text-white space-y-4">
+             <div className="flex justify-between text-sm">
+                <span className="opacity-60">قيمة الخدمة</span>
+                <span className="font-bold">{amount.toLocaleString()} ر.س</span>
+             </div>
+             <div className="flex justify-between text-sm">
+                <span className="opacity-60 font-bold">إضافات عربون (رسوم ضمان)</span>
+                <span className={hasFreeFee ? 'line-through opacity-50' : 'text-blue-400 font-black'}>+ {fees.arboonFee.toLocaleString()} ر.س</span>
+             </div>
+             
+             {isInstallment && (
+                <div className="flex justify-between text-sm border-t border-white/10 pt-4">
+                  <span className="text-amber-400 font-bold">خصم رسوم التقسيط (من البائع)</span>
+                  <span className="text-amber-400 font-bold">- {fees.installmentFee.toLocaleString()} ر.س</span>
+                </div>
+             )}
+
+             <div className="border-t border-white/10 pt-4 flex justify-between items-end">
+                <div>
+                   <p className="text-[10px] opacity-50 uppercase mb-1">إجمالي ما ستدفعه الآن</p>
+                   <p className="text-3xl font-black">{fees.buyerTotal.toLocaleString()} ر.س</p>
+                </div>
+                <div className="text-right">
+                   <p className="text-[8px] opacity-50 uppercase leading-relaxed">سيصل للمعقب<br/>بعد اكتمال العمل</p>
+                   <p className="font-bold text-green-400">{fees.sellerNetShare.toLocaleString()} ر.س</p>
+                </div>
+             </div>
+          </div>
+
+          {isInstallment && (
+            <div className="p-4 bg-blue-50/50 rounded-2xl border border-blue-100 flex items-start gap-3">
+               <Clock className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+               <p className="text-[10px] text-blue-700 font-bold leading-relaxed">
+                 عند اختيار التقسيط، يتم حجز العملة في ضمان عربون. يرجى الملاحظة أن المبلغ سيتحرك من البوابة التسويقية خلال 7 أيام عمل، لذا ننصح بائعي الخدمات بالبدء فوراً لضمان سرعة التحويل.
+               </p>
+            </div>
+          )}
+
+          <button onClick={onConfirm} disabled={loading} className="w-full bg-[#2563eb] text-white py-5 rounded-3xl font-black text-xl shadow-xl shadow-blue-100 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3">
+            {loading ? <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" /> : <><Shield className="w-5 h-5" /><span>تأكيد ودفع {fees.buyerTotal.toLocaleString()} ر.س</span></>}
           </button>
-          <button onClick={onClose} className="w-full text-gray-400 font-bold">إلغاء</button>
+          <button onClick={onClose} className="w-full text-gray-400 font-bold hover:text-gray-600 transition-colors">إلغاء العملية</button>
         </div>
       </motion.div>
     </div>

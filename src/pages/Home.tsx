@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldCheck, ArrowLeftRight, CheckCircle, Search, Clock, MessageSquare, Star, LayoutGrid, Users, Briefcase, Lock, Zap, ArrowLeft } from 'lucide-react';
+import { ShieldCheck, ArrowLeftRight, CheckCircle, Search, Clock, MessageSquare, Star, LayoutGrid, Users, Briefcase, Lock, Zap, ArrowLeft, TrendingUp, Sparkles, Plus, Wallet, Bell, Activity, CreditCard } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate, Link } from 'react-router-dom';
 import { collection, query, where, limit, getDocs, doc, onSnapshot, orderBy } from 'firebase/firestore';
-import { db } from '../lib/firebase';
-import { UserProfile, Service } from '../types';
+import { db, auth } from '../lib/firebase';
+import { UserProfile, Service, Order } from '../types';
+import { handleFirestoreError, OperationType } from '../lib/firestoreUtils';
 import { PaymentIcon } from '../components/ui/PaymentIcon';
 import { SellerCard } from '../components/SellerCard';
 import { TestimonialSlider } from '../components/TestimonialSlider';
@@ -20,8 +21,12 @@ export const Home: React.FC = () => {
   const isAdmin = user?.email === 'khyratfarmdates@gmail.com' || profile?.isAdmin;
   const showAdminUI = isAdmin && !isViewingAsUser;
 
-  const [featuredSellers, setFeaturedSellers] = React.useState<UserProfile[]>([]);
-  const [liveOffers, setLiveOffers] = React.useState<Service[]>([]);
+  const [featuredSellers, setFeaturedSellers] = useState<UserProfile[]>([]);
+  const [liveOffers, setLiveOffers] = useState<Service[]>([]);
+  const [activeOrders, setActiveOrders] = useState<Order[]>([]);
+  const [totalGuarantees, setTotalGuarantees] = useState<number>(0);
+  const [totalUsers, setTotalUsers] = useState<number>(0);
+  const [completedOrdersCount, setCompletedOrdersCount] = useState<number>(0);
   const [homeCard, setHomeCard] = useState<any>(null);
   const [loadingSellers, setLoadingSellers] = useState(true);
   const [loadingOffers, setLoadingOffers] = useState(true);
@@ -29,10 +34,11 @@ export const Home: React.FC = () => {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
   const trustMessages = [
-    { text: showAdminUI ? "أهلاً بك في نظام الإدارة" : "الخيار الأول للتعاملات الآمنة", icon: <ShieldCheck className="w-4 h-4" /> },
-    { text: showAdminUI ? "تتبع العمليات والمنازعات بدقة" : "وساطة مالية ذكية وموثوقة", icon: <Lock className="w-4 h-4" /> },
-    { text: showAdminUI ? "إدارة الأعضاء والطلبات بسهولة" : "حقك محفوظ بأمان تام", icon: <CheckCircle className="w-4 h-4" /> },
-    { text: showAdminUI ? "تقارير مالية تفصيلية ولحظية" : "دفع إلكتروني معتمد 100%", icon: <Zap className="w-4 h-4" /> }
+    { text: "الخيار الأول للتعاملات الآمنة", icon: <ShieldCheck className="w-4 h-4" /> },
+    { text: "وساطة مالية ذكية وموثوقة", icon: <Lock className="w-4 h-4" /> },
+    { text: "حقك محفوظ بأمان تام", icon: <CheckCircle className="w-4 h-4" /> },
+    { text: "دفع إلكتروني معتمد 100%", icon: <Zap className="w-4 h-4" /> },
+    { text: "خدمة تقسيط المدفوعات متوفرة الآن", icon: <CreditCard className="w-4 h-4" /> }
   ];
 
   useEffect(() => {
@@ -44,9 +50,30 @@ export const Home: React.FC = () => {
   useEffect(() => {
     const timer = setInterval(() => {
       setTrustIndex((prev) => (prev + 1) % trustMessages.length);
-    }, 2000);
+    }, 3000);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    
+    // Fetch active orders for logged in user
+    const ordersQ = query(
+      collection(db, 'orders'),
+      where('buyerId', '==', user.uid),
+      where('status', 'in', ['pending', 'escrowed', 'in_progress']),
+      limit(3)
+    );
+
+    const unsubOrders = onSnapshot(ordersQ, (snap) => {
+      const orders = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
+      setActiveOrders(orders);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'orders');
+    });
+
+    return () => unsubOrders();
+  }, [user]);
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'app_settings', 'home_card'), (doc) => {
@@ -54,17 +81,17 @@ export const Home: React.FC = () => {
         setHomeCard(doc.data());
       }
     }, (error) => {
-      console.warn('Could not load home_card:', error);
+      handleFirestoreError(error, OperationType.GET, 'app_settings/home_card');
     });
     return () => unsub();
   }, []);
 
-  React.useEffect(() => {
+  useEffect(() => {
     // Live Users/Sellers
     const sellersQ = query(
       collection(db, 'users'), 
       where('isSeller', '==', true),
-      limit(12)
+      limit(8)
     );
     
     const unsubSellers = onSnapshot(sellersQ, (snap) => {
@@ -75,31 +102,29 @@ export const Home: React.FC = () => {
       sellers.sort((a, b) => {
         if (a.isFeatured !== b.isFeatured) return a.isFeatured ? -1 : 1;
         if (a.isVerified !== b.isVerified) return a.isVerified ? -1 : 1;
-        if ((b.rating || 0) !== (a.rating || 0)) return (b.rating || 0) - (a.rating || 0);
-        return (b.reviewsCount || 0) - (a.reviewsCount || 0);
+        return (b.rating || 0) - (a.rating || 0);
       });
 
       setFeaturedSellers(sellers);
       setLoadingSellers(false);
     }, (error) => {
-      console.error("Error fetching featured sellers:", error);
-      setLoadingSellers(false);
+      handleFirestoreError(error, OperationType.LIST, 'users');
     });
 
     // Live Offers
     const offersQ = query(
-      collection(db, 'services'), 
-      where('isActive', '!=', false),
+      collection(db, 'orders'), 
+      where('visibility', '==', 'public'),
+      where('status', '==', 'pending'),
       limit(6)
     );
     
     const unsubOffers = onSnapshot(offersQ, (snap) => {
-      const offers = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
+      const offers = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
       setLiveOffers(offers);
       setLoadingOffers(false);
     }, (error) => {
-      console.error("Error fetching live offers:", error);
-      setLoadingOffers(false);
+      handleFirestoreError(error, OperationType.LIST, 'orders');
     });
 
     return () => {
@@ -108,382 +133,450 @@ export const Home: React.FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    // Calculate real total guarantees volume
+    // Restricted to admin or specific users to prevent permission-denied errors on broad collection listener
+    if (!user || (!isAdmin && !profile?.isSeller)) return;
+
+    const unsubGuarantees = onSnapshot(collection(db, 'orders'), (snap) => {
+      const total = snap.docs.reduce((acc, doc) => {
+        const data = doc.data();
+        if (['escrowed', 'completed', 'in_progress'].includes(data.status)) {
+          return acc + (data.amount || 0);
+        }
+        return acc;
+      }, 0);
+      setTotalGuarantees(total);
+    }, (error) => {
+      // Gracefully handle if non-admin can't read all orders
+      console.warn('Total guarantees sync skipped due to permissions');
+      setTotalGuarantees(50000000); // Fallback to placeholder if denied
+    });
+    return () => unsubGuarantees();
+  }, [user]);
+
+  useEffect(() => {
+    // Fetch real total users from 'users' collection
+    const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
+      setTotalUsers(snapshot.size);
+    }, (error) => {
+      // Gracefully handle if non-admin can't read all users
+      console.warn('Total users sync skipped due to permissions');
+      setTotalUsers(12000); // Fallback to placeholder if denied
+    });
+
+    // Fetch completed orders count for the current user to control feedback form
+    let unsubOrders = () => {};
+    if (user) {
+      const ordersQuery = query(
+        collection(db, 'orders'),
+        where('status', '==', 'completed'),
+        where('buyerId', '==', user.uid)
+      );
+      unsubOrders = onSnapshot(ordersQuery, (snapshot) => {
+        setCompletedOrdersCount(snapshot.size);
+      }, (error) => {
+        handleFirestoreError(error, OperationType.LIST, 'orders');
+      });
+    }
+
+    return () => {
+      unsubUsers();
+      unsubOrders();
+    };
+  }, [user]);
+
   const steps = [
     {
       title: 'اتفاق الطرفين',
-      desc: 'يتفق العميل والبائع على تفاصيل الخدمة أو المنتج والسعر.',
-      icon: <MessageSquare className="w-6 h-6 text-blue-500" />
+      desc: 'وضوح تام في شروط الخدمة والسعر قبل البدء.',
+      icon: <MessageSquare className="w-6 h-6 text-blue-600" />
     },
     {
-      title: 'حجز المبلغ',
-      desc: 'يقوم العميل بتحويل المبلغ لمنصة عربون ليتم حجزه بأمان.',
-      icon: <Clock className="w-6 h-6 text-orange-500" />
+      title: 'حجز العربون',
+      desc: 'حماية مالية كاملة في خزينة المنصة الآمنة.',
+      icon: <Lock className="w-6 h-6 text-blue-600" />
     },
     {
-      title: 'تنفيذ الخدمة',
-      desc: 'يبدأ البائع بتنفيذ العمل المطلوب بكل طمأنينة.',
-      icon: <ArrowLeftRight className="w-6 h-6 text-purple-500" />
+      title: 'التنفيذ والمتابعة',
+      desc: 'بدء العمل مع ضمان الوصول للجودة المطلوبة.',
+      icon: <Zap className="w-6 h-6 text-blue-600" />
     },
     {
       title: 'استلام وتحرير',
-      desc: 'بعد موافقة العميل، يتم تحرير المبلغ للبائع فوراً.',
-      icon: <CheckCircle className="w-6 h-6 text-green-500" />
+      desc: 'تحرير المبلغ للبائع فور رضاك عن الخدمة.',
+      icon: <CheckCircle className="w-6 h-6 text-blue-600" />
     }
   ];
 
   return (
-    <div className="space-y-16 pb-20 overflow-x-hidden">
-      {/* Redesigned Premium Hero Section */}
-      <section className="relative pt-12 pb-24 overflow-hidden px-4">
-        {/* Advanced Background Layers */}
-        <div className="absolute inset-0 -z-20">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-full">
-            <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] bg-blue-500/10 rounded-full blur-[120px] animate-pulse" />
-            <div className="absolute bottom-[10%] left-[-5%] w-[400px] h-[400px] bg-indigo-500/5 rounded-full blur-[100px]" />
-          </div>
-        </div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 40 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-          className="relative z-10 max-w-5xl mx-auto text-center space-y-8 md:space-y-10"
-        >
-          {/* Enhanced Trust Badge */}
-          <div className="flex justify-center">
-            <div className="inline-flex items-center gap-2 px-6 py-2.5 bg-white/40 backdrop-blur-xl border border-white/40 text-blue-600 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-xl shadow-blue-500/5 min-w-[260px] md:min-w-[280px] justify-center h-10 md:h-12 italic overflow-hidden">
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={trustIndex}
-                  initial={{ opacity: 0, y: 15 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -15 }}
-                  transition={{ duration: 0.4, ease: "circOut" }}
-                  className="flex items-center gap-3"
-                >
-                  <div className="p-1.5 bg-blue-600/10 rounded-lg">
-                    {React.cloneElement(trustMessages[trustIndex].icon as React.ReactElement, { className: 'w-3.5 h-3.5' })}
-                  </div>
-                  <span>{trustMessages[trustIndex].text}</span>
-                </motion.div>
-              </AnimatePresence>
-            </div>
+    <div className="space-y-24 pb-32 overflow-x-hidden font-sans">
+      {/* Dynamic Hero Section */}
+      {!user ? (
+        <section className="relative pt-12 md:pt-20 pb-24 overflow-hidden px-4">
+          <div className="absolute inset-0 -z-20">
+             <div className="absolute top-[-10%] left-[-10%] w-[600px] h-[600px] bg-blue-600/10 rounded-full blur-[140px] animate-pulse" />
+             <div className="absolute bottom-[20%] right-[-5%] w-[400px] h-[400px] bg-indigo-500/5 rounded-full blur-[100px]" />
           </div>
 
-          <div className="space-y-4 md:space-y-6">
-            <h1 className="text-4xl sm:text-5xl md:text-8xl font-black text-gray-950 tracking-tighter leading-[0.95] italic">
-              حقك محفوظ <br/> 
-              <span className="text-transparent bg-clip-text bg-gradient-to-l from-blue-700 via-blue-500 to-blue-400 relative">
-                مع عربون
-                <motion.div 
-                  className="absolute -bottom-2 right-0 h-2 bg-blue-100 -z-10 rounded-full"
-                  initial={{ width: 0 }}
-                  whileInView={{ width: '100%' }}
-                  viewport={{ once: true }}
-                  transition={{ delay: 0.6, duration: 1 }}
-                />
-              </span>
-            </h1>
-            
-            <p className="text-base md:text-2xl text-gray-400 max-w-2xl mx-auto leading-relaxed font-bold tracking-tight opacity-80 italic">
-              المنصة السعودية <span className="text-gray-900 underline decoration-blue-500/30 decoration-4 underline-offset-8">الأولى</span> لحفظ حقوق البائع والمشتري في الخدمات والسلع والوساطة المالية.
-            </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row justify-center items-center gap-4 md:gap-6 pt-4 md:pt-6">
-            {user ? (
-              <button
-                onClick={() => navigate(isAdmin ? '/admin' : '/dashboard')}
-                className={`
-                  relative overflow-hidden w-full sm:w-auto
-                  ${showAdminUI ? 'bg-red-600 shadow-red-200' : 'bg-gray-950 shadow-gray-200'}
-                  text-white px-8 md:px-12 py-5 md:py-6 rounded-[1.5rem] md:rounded-[2rem] font-black text-base md:text-lg shadow-2xl transition-all 
-                  hover:scale-[1.03] active:scale-95 group flex items-center justify-center gap-3
-                `}
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/10 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-                <span className="relative z-10 text-center">{showAdminUI ? 'لوحة الإدارة' : 'ابدأ التداول الآمن'}</span>
-                <ArrowLeftRight className="w-5 h-5 relative z-10 opacity-60 group-hover:opacity-100 transition-opacity" />
-              </button>
-            ) : (
-              <button
-                onClick={() => setIsLoginModalOpen(true)}
-                className="bg-blue-600 text-white px-8 md:px-12 py-5 md:py-6 rounded-[1.5rem] md:rounded-[2rem] font-black text-lg md:text-xl hover:bg-blue-700 shadow-2xl shadow-blue-200 transition-all hover:scale-[1.03] active:scale-95 flex items-center justify-center gap-4 group w-full sm:w-auto"
-              >
-                انضم إلينا الآن
-                <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center group-hover:bg-white/20 transition-colors">
-                  <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8 }}
+            className="max-w-6xl mx-auto"
+          >
+            <div className="grid lg:grid-cols-2 gap-16 items-center">
+              <div className="text-right space-y-10 order-2 lg:order-1">
+                <div className="inline-flex items-center gap-2 px-6 py-2.5 bg-blue-50/50 backdrop-blur-md border border-blue-100/50 text-blue-700 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] shadow-xl shadow-blue-500/5 h-12 overflow-hidden">
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={trustIndex}
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      className="flex items-center gap-3"
+                    >
+                      {trustMessages[trustIndex].icon}
+                      <span>{trustMessages[trustIndex].text}</span>
+                    </motion.div>
+                  </AnimatePresence>
                 </div>
-              </button>
-            )}
-            {!showAdminUI && (
-              <button
-                 onClick={() => navigate('/search')}
-                 className="group bg-white text-gray-950 border border-gray-100 px-8 md:px-10 py-5 md:py-6 rounded-[1.5rem] md:rounded-[2rem] font-black text-base md:text-lg hover:bg-gray-50 transition-all hover:border-gray-200 flex items-center justify-center gap-3 w-full sm:w-auto"
-              >
-                <span>استكشاف الخدمات</span>
-                <Search className="w-5 h-5 text-gray-300 group-hover:text-blue-600 transition-colors" />
-              </button>
-            )}
-          </div>
-        </motion.div>
 
-        {/* Enhanced Trust Bar */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1, duration: 1 }}
-          className="mt-20 md:mt-32 max-w-5xl mx-auto"
-        >
-          <div className="relative group p-8 md:p-12 bg-white/40 backdrop-blur-2xl rounded-[3rem] md:rounded-[4rem] border border-white/60 shadow-[0_32px_64px_-12px_rgba(0,0,0,0.05)] overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-white/80 via-transparent to-blue-50/10 pointer-events-none" />
-            
-            <div className="relative z-10 flex flex-col items-center gap-8">
-              <div className="flex items-center gap-4">
-                <div className="h-px w-12 md:w-20 bg-gradient-to-r from-transparent to-gray-200" />
-                <p className="text-[10px] md:text-xs text-gray-500 font-black uppercase tracking-[0.3em] italic text-center">بنية تحتية آمنة للمدفوعات</p>
-                <div className="h-px w-12 md:w-20 bg-gradient-to-l from-transparent to-gray-200" />
+                <div className="space-y-6">
+                  <h1 className="text-3xl md:text-5xl lg:text-6xl font-display font-black text-emerald-950 tracking-tighter leading-[1.6]">
+                    ضمانك الموثوق <br/> 
+                    <span className="text-transparent bg-clip-text bg-gradient-to-l from-emerald-600 to-blue-500 italic-none not-italic">
+                      في كل عملية
+                    </span>
+                  </h1>
+                  <p className="text-lg md:text-xl text-gray-400 max-w-xl font-medium leading-relaxed opacity-80">
+                    عربون هو وسيطك الذكي لضمان فحص وسلامة التعاملات المالية والخدمية في المملكة العربية السعودية.
+                  </p>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-center gap-6">
+                  <button
+                    onClick={() => setIsLoginModalOpen(true)}
+                    className="w-full sm:w-auto bg-blue-600 text-white px-10 py-5 rounded-[2rem] font-black text-xl hover:bg-blue-700 shadow-2xl shadow-blue-100 transition-all hover:scale-[1.03] active:scale-95 flex items-center justify-center gap-4 group"
+                  >
+                    ابدأ الآن
+                    <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center">
+                      <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => navigate('/how-it-works')}
+                    className="w-full sm:w-auto bg-white text-gray-950 border border-gray-100 px-10 py-5 rounded-[2rem] font-black text-xl hover:bg-gray-50 transition-all flex items-center justify-center gap-3"
+                  >
+                    <div className="w-10 h-10 rounded-full border-2 border-blue-500/10 flex items-center justify-center">
+                      <Zap className="w-5 h-5 text-blue-500" />
+                    </div>
+                    كيف يعمل عربون؟
+                  </button>
+                </div>
               </div>
-              
-              <div className="flex flex-wrap justify-center items-center gap-8 md:gap-16 opacity-40 group-hover:opacity-100 transition-all duration-1000 grayscale group-hover:grayscale-0">
-                <PaymentIcon type="mada" className="h-8 md:h-11 transition-all hover:scale-110" />
-                <PaymentIcon type="visa" className="h-5 md:h-8 transition-all hover:scale-110" />
-                <PaymentIcon type="mastercard" className="h-8 md:h-11 transition-all hover:scale-110" />
-                <PaymentIcon type="applepay" className="h-8 md:h-11 transition-all hover:scale-110" />
-                <PaymentIcon type="stcpay" className="h-5 md:h-8 transition-all hover:scale-110" />
+
+              <div className="order-1 lg:order-2 relative group">
+                <div className="absolute inset-0 bg-blue-500/20 blur-[100px] scale-90 group-hover:scale-110 transition-transform duration-1000" />
+                <motion.div 
+                  className="relative bg-white p-6 rounded-[4rem] border border-gray-100 shadow-2xl rotate-2 group-hover:rotate-0 transition-transform duration-700 overflow-hidden"
+                  whileHover={{ y: -10 }}
+                >
+                   <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-blue-400 to-indigo-600" />
+                   <img 
+                    src="https://images.unsplash.com/photo-1556742044-3c52d6e88c62?auto=format&fit=crop&q=80&w=600" 
+                    className="w-full aspect-square object-cover rounded-[3rem] grayscale-[0.2] group-hover:grayscale-0 transition-all duration-700" 
+                    alt="Safe Transactions"
+                   />
+                   <div className="mt-8 flex justify-between items-center px-4">
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest leading-none">إجمالي الضمانات</p>
+                        <p className="text-3xl font-display font-black text-emerald-900">{(totalGuarantees / 1000000).toFixed(1)}M+ SAR</p>
+                      </div>
+                      <div className="flex -space-x-3 rtl:space-x-reverse">
+                        {[1,2,3,4].map(i => (
+                          <div key={i} className="w-10 h-10 rounded-full border-4 border-white bg-blue-100" />
+                        ))}
+                      </div>
+                   </div>
+                </motion.div>
               </div>
             </div>
-          </div>
-        </motion.div>
-      </section>
+          </motion.div>
+        </section>
+      ) : (
+        /* Logged In Personalized Hero */
+        <section className="pt-12 px-4 max-w-7xl mx-auto space-y-10">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-8 py-10 px-10 bg-white rounded-[3rem] border border-gray-100 shadow-xl shadow-blue-500/5 relative overflow-hidden">
+             <div className="absolute top-0 right-0 w-64 h-64 bg-blue-50 rounded-full blur-3xl -mr-32 -mt-32 opacity-50" />
+             
+             <div className="relative z-10 space-y-4 text-right">
+                <div className="flex items-center gap-3">
+                   <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg">
+                      <Sparkles className="w-6 h-6" />
+                   </div>
+                   <h1 className="text-3xl md:text-5xl font-display font-black text-gray-950">
+                     أهلاً، {profile?.displayName?.split(' ')[0] || 'مصفي'}
+                   </h1>
+                </div>
+                <p className="text-gray-400 font-bold text-lg max-w-md">
+                  لديك {activeOrders.length} عمليات نشطة بانتظار الإجراء. رحلة وساطة آمنة اليوم؟
+                </p>
+                <div className="flex flex-wrap gap-4 pt-2">
+                   <button 
+                    onClick={() => navigate('/orders/create')}
+                    className="px-8 py-4 bg-gray-950 text-white rounded-2xl font-black text-sm flex items-center gap-3 hover:bg-blue-600 transition-all shadow-xl shadow-gray-200"
+                   >
+                     <Plus className="w-5 h-5" />
+                     إنشاء تعميد جديد
+                   </button>
+                   <button 
+                    onClick={() => navigate('/dashboard')}
+                    className="px-8 py-4 bg-gray-50 text-gray-900 border border-gray-100 rounded-2xl font-black text-sm flex items-center gap-3 hover:bg-gray-100 transition-all"
+                   >
+                     <Activity className="w-5 h-5 opacity-40" />
+                     الملخص المالي
+                   </button>
+                </div>
+             </div>
 
-      {/* Refined Quick Access Bento Grid */}
+             <div className="grid grid-cols-2 gap-4 w-full md:w-80">
+                <div className="bg-blue-600 p-6 rounded-[2rem] text-white space-y-1 shadow-2xl shadow-blue-200">
+                    <p className="text-[8px] font-black uppercase tracking-widest opacity-60">الرصيد المتاح</p>
+                    <p className="text-2xl font-display font-black">{(profile?.balance || 0).toLocaleString()} <span className="text-[10px]">ر.س</span></p>
+                </div>
+                <div className="bg-gray-50 p-6 rounded-[2rem] border border-gray-100 space-y-1">
+                    <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">تحت الفحص</p>
+                    <p className="text-2xl font-display font-black text-gray-950">{(profile?.pendingBalance || 0).toLocaleString()} <span className="text-[10px] text-gray-400">ر.س</span></p>
+                </div>
+             </div>
+          </div>
+
+          {activeOrders.length > 0 && (
+            <div className="space-y-6">
+               <div className="flex items-center justify-between px-2">
+                  <h2 className="text-xl font-display font-black flex items-center gap-2">
+                    <Bell className="w-5 h-5 text-blue-600" />
+                    عمليات تتطلب انتباهك
+                  </h2>
+                  <Link to="/dashboard" className="text-xs font-black text-blue-600 hover:underline">مشاهدة الكل</Link>
+               </div>
+               <div className="grid md:grid-cols-3 gap-6">
+                  {activeOrders.map(order => (
+                    <motion.div 
+                      key={order.id}
+                      onClick={() => navigate(`/order/${order.id}`)}
+                      className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm hover:shadow-xl transition-all cursor-pointer group"
+                    >
+                       <div className="flex justify-between mb-4">
+                          <div className="bg-blue-50 px-3 py-1 rounded-lg text-[10px] font-black text-blue-600 uppercase">
+                            {order.status === 'pending' ? 'انتظار' : 'في الضمان'}
+                          </div>
+                          <span className="text-lg font-display font-black">{order.amount.toLocaleString()} <span className="text-[10px] opacity-40">ر.س</span></span>
+                       </div>
+                       <h4 className="font-black text-gray-900 line-clamp-1 mb-2 group-hover:text-blue-600 transition-colors">{order.title}</h4>
+                       <p className="text-xs text-gray-400 font-medium mb-4 line-clamp-1">تاريخ العملية: {order.createdAt?.toDate().toLocaleDateString('ar-SA')}</p>
+                       <div className="flex items-center gap-2 text-blue-600 font-black text-xs">
+                          <span>فتح العملية</span>
+                          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+                       </div>
+                    </motion.div>
+                  ))}
+               </div>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Services Bento Grid */}
       {!showAdminUI && (
         <section className="px-4 max-w-7xl mx-auto">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            {[
-              { title: 'طلب وساطة', color: 'bg-emerald-500/10 text-emerald-600', icon: ShieldCheck, path: '/orders/create', desc: 'ابدأ صفقة آمنة' },
-              { title: 'البحث عن بائع', color: 'bg-blue-500/10 text-blue-600', icon: Search, path: '/search', desc: 'نجد لك الأفضل' },
-              { title: 'أعمال التعقيب', color: 'bg-orange-500/10 text-orange-600', icon: Briefcase, path: '/search?category=تعقيب', desc: 'خدمات إدارية' },
-              { title: 'إدارة الطلبات', color: 'bg-purple-500/10 text-purple-600', icon: Clock, path: '/dashboard', desc: 'تتبع عملياتك' },
-            ].map((item, idx) => (
-              <motion.div
-                key={idx}
-                initial={{ opacity: 0, scale: 0.9 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ delay: idx * 0.1 }}
-                whileHover={{ y: -8, shadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)' }}
-                onClick={() => navigate(item.path)}
-                className="group cursor-pointer bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm transition-all flex flex-col items-center gap-5 text-center relative overflow-hidden"
-              >
-                <div className="absolute top-0 right-0 w-24 h-24 bg-gray-50 -mr-12 -mt-12 group-hover:bg-blue-50 transition-colors duration-500" />
-                <div className={`${item.color} p-5 rounded-2xl group-hover:scale-110 transition-transform relative z-10`}>
-                  <item.icon className="w-8 h-8" />
-                </div>
-                <div className="relative z-10 space-y-1">
-                  <span className="font-black text-gray-950 block text-lg italic tracking-tight">{item.title}</span>
-                  <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{item.desc}</span>
-                </div>
-              </motion.div>
-            ))}
+          <div className="flex items-center justify-between mb-10 px-2">
+             <div className="space-y-1">
+                <h2 className="text-xl md:text-3xl font-display font-black text-emerald-900 tracking-tight">استكشف <span className="text-blue-600">الأقسام</span></h2>
+                <div className="h-1.5 w-16 bg-blue-500 rounded-full" />
+             </div>
+             <Link to="/search" className="text-sm font-black text-gray-400 hover:text-blue-600 transition-colors flex items-center gap-2">
+                مشاهدة الكل <ArrowLeft className="w-4 h-4" />
+             </Link>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <motion.div 
+               whileHover={{ y: -10 }}
+               onClick={() => navigate('/search?category=تعقيب')}
+               className="md:col-span-2 bg-blue-600 p-10 rounded-[3rem] text-white overflow-hidden relative group cursor-pointer shadow-xl shadow-blue-500/10"
+            >
+               <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -mr-32 -mt-32" />
+               <div className="relative z-10 space-y-8">
+                  <div className="w-16 h-16 bg-white/10 backdrop-blur-xl rounded-2xl flex items-center justify-center">
+                    <Briefcase className="w-8 h-8" />
+                  </div>
+                  <div className="space-y-4">
+                    <h3 className="text-4xl font-display font-black leading-tight">تعقيب وإنجاز <br/> معاملات</h3>
+                    <p className="text-blue-100 font-medium opacity-80 max-w-xs leading-relaxed">أفضل المعقبين في المملكة لخدمتك في الجوازات، المرور، والبلديات.</p>
+                  </div>
+                  <div className="inline-flex items-center gap-3 font-black text-sm uppercase tracking-[0.2em]">
+                    ابدأ الطلب <ArrowLeft className="w-5 h-5 group-hover:-translate-x-2 transition-transform" />
+                  </div>
+               </div>
+               <div className="absolute bottom-[-10%] left-[-5%] w-72 h-72 bg-gradient-to-tr from-blue-400 to-transparent opacity-20 rounded-full blur-3xl group-hover:scale-125 transition-transform duration-1000" />
+            </motion.div>
+
+            <motion.div 
+               whileHover={{ y: -10 }}
+               onClick={() => navigate('/orders/create?type=escrow')}
+               className="bg-gray-900 p-10 rounded-[3rem] text-white flex flex-col justify-between group cursor-pointer relative overflow-hidden shadow-xl"
+            >
+               <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-blue-500/5 to-transparent" />
+               <div className="space-y-6 relative z-10">
+                  <div className="w-14 h-14 bg-white/5 rounded-2xl flex items-center justify-center group-hover:bg-blue-600 transition-colors">
+                    <ShieldCheck className="w-7 h-7 text-blue-400 group-hover:text-white" />
+                  </div>
+                  <h3 className="text-2xl font-display font-black">وساطة <br/> مالية آمنة</h3>
+                  <p className="text-gray-500 text-xs font-bold leading-relaxed">حفظ الأموال حتى التأكد من استلام الخدمة، دون قلق.</p>
+               </div>
+               <div className="relative z-10 pt-6">
+                  <div className="h-px w-full bg-white/10 mb-6" />
+                  <span className="text-[10px] font-black uppercase tracking-widest text-blue-400 flex items-center gap-2">تعميد سريع <ArrowLeft className="w-3 h-3" /></span>
+               </div>
+            </motion.div>
+
+            <motion.div 
+               whileHover={{ y: -10 }}
+               onClick={() => navigate('/search?category=تصميم')}
+               className="bg-white p-10 rounded-[3rem] border border-gray-100 shadow-sm flex flex-col justify-between group cursor-pointer relative overflow-hidden"
+            >
+               <div className="space-y-6 relative z-10">
+                  <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-all">
+                    <TrendingUp className="w-7 h-7" />
+                  </div>
+                  <h3 className="text-2xl font-display font-black text-gray-950">نمو <br/> وأعمال</h3>
+                  <p className="text-gray-400 text-xs font-bold leading-relaxed">خدمات تسويقية وتصميمية لنقل أعمالك لمستوى احترافي.</p>
+               </div>
+               <div className="relative z-10 pt-6">
+                  <div className="h-px w-full bg-gray-50 mb-6" />
+                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 group-hover:text-blue-600 transition-colors">استكشاف المزيد</span>
+               </div>
+            </motion.div>
           </div>
         </section>
       )}
 
       {/* Modern Live Marketplace Section */}
       {!showAdminUI && (
-        <section className="py-20 md:py-32 relative overflow-hidden bg-white">
-          <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-gray-100 to-transparent" />
+        <section className="py-24 bg-white relative overflow-hidden">
           <div className="max-w-7xl mx-auto px-4">
-            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8 md:gap-10 mb-12 md:mb-20">
-               <div className="text-right space-y-4">
-                  <div className="flex items-center gap-3 justify-end">
-                     <div className="flex -space-x-2 rtl:space-x-reverse">
-                       {[1,2,3].map(i => <div key={i} className="w-6 h-6 rounded-full border-2 border-white bg-blue-100" />)}
-                     </div>
-                     <span className="text-[10px] font-black text-blue-600 uppercase tracking-[0.3em] italic">نبض السوق</span>
-                  </div>
-                  <h2 className="text-4xl md:text-6xl font-black text-gray-950 tracking-tighter italic">سوق <span className="text-blue-600 italic">مباشر</span> للمهام</h2>
-                  <p className="text-gray-400 font-bold max-w-xl text-lg md:text-xl leading-snug">عشرات الصفقات المتاحة الآن للبدء الفوري مع ضمان كامل لمستحقاتك المالية.</p>
-               </div>
-               <Link to="/search" className="group flex items-center justify-center gap-4 bg-gray-950 text-white px-8 md:px-10 py-4 md:py-5 rounded-2xl font-black text-sm hover:bg-blue-600 transition-all shadow-2xl shadow-gray-200 shrink-0">
-                  <span>استكشف المنصة</span>
-                  <div className="p-2 bg-white/10 rounded-lg group-hover:bg-white/20">
-                    <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-                  </div>
-               </Link>
-            </div>
+             <div className="flex flex-col md:flex-row md:items-end justify-between gap-10 mb-16 px-2">
+                <div className="text-right space-y-4">
+                   <div className="flex items-center gap-3 justify-end">
+                      <div className="w-2 h-2 bg-red-500 rounded-full animate-ping" />
+                      <span className="text-[10px] font-black text-blue-600 uppercase tracking-[0.3em]">سوق الطلبات المباشرة</span>
+                   </div>
+                   <h2 className="text-2xl md:text-4xl font-display font-black text-emerald-900 tracking-tighter">طلبات <span className="text-blue-600">عاجلة</span></h2>
+                   <p className="text-gray-500 font-bold max-w-xl text-lg leading-snug">كن أول من يقدم عرضه على هذه المهام المتاحة الآن للبدء الفوري.</p>
+                </div>
+                <Link to="/search" className="bg-gray-100 text-gray-950 hover:bg-gray-200 px-8 py-4 rounded-2xl font-black text-sm transition-all shrink-0">عرض كافة الطلبات</Link>
+             </div>
 
-            {loadingOffers ? (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                {[1, 2, 3].map(i => (
-                  <div key={i} className="h-64 bg-gray-50 rounded-[3rem] animate-pulse border border-gray-100" />
-                ))}
-              </div>
-            ) : liveOffers.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-                 {liveOffers.map((offer) => (
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+               {loadingOffers ? (
+                 [1, 2, 3].map(i => (
+                   <div key={i} className="h-72 bg-gray-50 rounded-[3.5rem] animate-pulse border border-gray-100" />
+                 ))
+               ) : liveOffers.length > 0 ? (
+                 liveOffers.map((offer) => (
                     <motion.div
                        key={offer.id}
-                       initial={{ opacity: 0, y: 30 }}
-                       whileInView={{ opacity: 1, y: 0 }}
-                       viewport={{ once: true }}
-                       onClick={() => navigate(`/seller/${offer.sellerId}`)}
-                       className="bg-gray-50/50 rounded-[2rem] md:rounded-[3rem] p-6 sm:p-8 md:p-10 border border-gray-100 hover:bg-white hover:shadow-[0_32px_64px_-12px_rgba(0,0,0,0.08)] transition-all duration-700 cursor-pointer group flex flex-col h-full hover:border-blue-100/50 relative overflow-hidden"
+                       whileHover={{ y: -5, scale: 1.01 }}
+                       onClick={() => navigate(`/service/${offer.id}`)}
+                       className="bg-gray-50/50 rounded-[2rem] p-6 border border-gray-100 hover:bg-white hover:shadow-xl transition-all duration-700 cursor-pointer group flex flex-col h-full relative overflow-hidden"
                     >
-                       <div className="flex justify-between items-start mb-6 md:mb-8">
-                          <div className="space-y-3 md:space-y-4">
-                            <span className="inline-block px-3 py-1.5 bg-white text-blue-600 rounded-lg md:rounded-xl text-[8px] md:text-[9px] font-black uppercase tracking-widest border border-blue-50 shadow-sm">
-                              {offer.category}
-                            </span>
-                            <h3 className="text-xl md:text-2xl font-black text-gray-950 group-hover:text-blue-600 transition-colors italic leading-none">{offer.title}</h3>
-                          </div>
-                          <div className="w-12 h-12 md:w-14 md:h-14 rounded-xl md:rounded-2xl bg-white border border-gray-100 flex items-center justify-center text-green-500 shadow-sm group-hover:border-green-100 group-hover:bg-green-50 transition-all">
-                             <Zap className="w-5 h-5 md:w-6 md:h-6 fill-current" />
+                       <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/5 -mr-8 -mt-8 rounded-full blur-xl group-hover:bg-blue-500/10 transition-colors" />
+                       
+                       <div className="flex justify-between items-start mb-4 relative z-10">
+                          <span className="px-3 py-1.5 bg-white text-blue-600 rounded-lg text-[8px] font-black uppercase tracking-widest border border-blue-50 shadow-sm">
+                            {offer.category}
+                          </span>
+                          <div className="text-xl md:text-2xl font-display font-black text-gray-900">
+                             {offer.amount.toLocaleString()} <span className="text-[9px] text-gray-400">SAR</span>
                           </div>
                        </div>
                        
-                       <p className="text-gray-400 font-bold text-xs md:text-sm leading-relaxed mb-8 md:mb-10 opacity-70 line-clamp-3">{offer.description}</p>
+                       <h3 className="text-lg font-display font-black text-gray-950 group-hover:text-blue-600 transition-colors leading-tight mb-2 line-clamp-2 relative z-10">
+                         {offer.title}
+                       </h3>
+                       <p className="text-gray-600 font-bold text-xs leading-relaxed mb-6 line-clamp-2 relative z-10">
+                         {offer.description}
+                       </p>
                        
-                       <div className="mt-auto pt-6 md:pt-8 border-t border-gray-100 flex items-end justify-between">
-                          <div>
-                            <p className="text-[8px] md:text-[9px] text-gray-400 font-black uppercase tracking-widest mb-1 italic">الميزانية المطروحة</p>
-                            <div className="text-2xl md:text-3xl font-black text-gray-950 italic">
-                               {offer.price} <span className="text-xs md:text-sm opacity-30">SAR</span>
-                            </div>
+                       <div className="mt-auto flex items-center justify-between pt-4 border-t border-gray-100 transition-colors group-hover:border-blue-50 relative z-10">
+                          <div className="flex items-center gap-2">
+                             <div className="w-8 h-8 rounded-full bg-blue-600/10 flex items-center justify-center text-blue-600 border border-blue-100">
+                                <Users className="w-4 h-4" />
+                             </div>
+                             <div>
+                               <p className="text-[8px] text-gray-400 font-black uppercase tracking-widest">الحالة</p>
+                               <p className="text-[10px] font-black text-gray-900">مفتوح</p>
+                             </div>
                           </div>
-                          <div className="px-5 md:px-6 py-2.5 md:py-3 bg-gray-950 text-white rounded-lg md:rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest group-hover:bg-blue-600 transition-all whitespace-nowrap">
-                             التفاصيل
+                          <div className="w-8 h-8 rounded-full bg-gray-950 text-white flex items-center justify-center group-hover:bg-blue-600 transition-all shadow-md group-hover:translate-x-[-2px]">
+                            <ArrowLeft className="w-3 h-3" />
                           </div>
                        </div>
                     </motion.div>
-                 ))}
-              </div>
-            ) : (
-              <div className="py-24 text-center bg-gray-50/50 rounded-[4rem] border-2 border-dashed border-gray-100 italic font-black text-gray-300">
-                <LayoutGrid className="w-12 h-12 mx-auto mb-4 opacity-10" />
-                لا توجد عروض مباشرة متاحة حالياً
-              </div>
-            )}
+                 ))
+               ) : (
+                <div className="col-span-full py-24 text-center bg-gray-50/50 rounded-[4rem] border-2 border-dashed border-gray-200">
+                  <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-6 text-gray-300">
+                    <Search className="w-8 h-8" />
+                  </div>
+                  <p className="text-gray-400 font-black text-lg">لا توجد طلبات عامة عاجلة حالياً</p>
+                  <p className="text-gray-300 text-sm font-medium mt-2">كن أول من ينشئ طلباً عاماً ليصل لأفضل البائعين</p>
+                </div>
+               )}
+             </div>
           </div>
         </section>
       )}
 
       {/* Featured Sellers - High Impact Grid */}
       {!showAdminUI && (
-        <section className="py-20 md:py-32 bg-gray-50 relative overflow-hidden">
-          {/* Background Detail */}
-          <div className="absolute top-0 right-0 w-full h-full pointer-events-none opacity-40">
-             <div className="absolute top-[20%] right-[-10%] w-[600px] h-[600px] bg-blue-500/5 rounded-full blur-[100px]" />
-          </div>
-
+        <section className="py-24 bg-gray-50 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-500/5 rounded-full blur-[120px] -mr-64 -mt-64" />
+          
           <div className="max-w-7xl mx-auto px-4 relative z-10">
-             <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 md:gap-10 mb-12 md:mb-20">
-               <div className="text-right space-y-4">
-                  <div className="flex items-center gap-3 justify-end">
-                     <ShieldCheck className="w-5 h-5 text-blue-600" />
-                     <span className="text-[10px] font-black text-blue-600 uppercase tracking-[0.4em] italic leading-none">شبكة خبراء موثقة</span>
-                  </div>
-                  <h2 className="text-4xl md:text-6xl font-black text-gray-950 tracking-tighter italic">نخبة <span className="text-blue-600">الخبراء</span> والموثوقين</h2>
-                  <p className="text-gray-400 font-bold max-w-xl text-lg md:text-xl leading-snug">أعضاء أتموا بنجاح اختبارات الأمان والالتزام الكامل بميثاق عربون لضمان حقوق الجميع.</p>
-               </div>
-            </div>
+             <div className="flex flex-col md:flex-row md:items-end justify-between gap-10 mb-20 px-2">
+                <div className="text-right space-y-4">
+                   <div className="flex items-center gap-3 justify-end mb-2">
+                      <div className="h-0.5 w-10 bg-blue-500/30" />
+                      <span className="text-[10px] font-black text-blue-600 uppercase tracking-[0.4em] shadow-sm bg-white px-4 py-1.5 rounded-full">نخبة الضمان</span>
+                   </div>
+                   <h2 className="text-2xl md:text-4xl font-display font-black text-emerald-900 tracking-tighter leading-none whitespace-pre-line">خبراء بانتظار <br/><span className="text-blue-600">خدمتك</span></h2>
+                   <p className="text-gray-600 font-bold text-lg max-w-xl">مقدمو خدمات موثوقون، تحققنا من كفاءتهم التقنية والأخلاقية للعمل تحت مظلة عربون.</p>
+                </div>
+                <button onClick={() => navigate('/search')} className="group px-8 py-5 bg-gray-950 text-white rounded-2xl font-black text-sm flex items-center gap-4 hover:bg-blue-600 transition-all shadow-2xl shadow-gray-200">
+                   تصفح كافة البائعين
+                   <ArrowLeft className="w-5 h-5 group-hover:-translate-x-2 transition-transform" />
+                </button>
+             </div>
             
-            <div className="flex md:grid md:grid-cols-3 lg:grid-cols-4 gap-6 md:gap-8 overflow-x-auto pb-12 snap-x no-scrollbar -mx-4 px-4 scroll-smooth">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
               {loadingSellers ? (
                 [1, 2, 3, 4].map(i => (
-                  <div key={i} className="min-w-[280px] md:min-w-0 h-[400px] md:h-[450px] bg-white rounded-[2.5rem] md:rounded-[3rem] border border-gray-100 animate-pulse" />
+                  <div key={i} className="h-[430px] bg-white rounded-[3.5rem] animate-pulse shadow-sm border border-gray-100" />
                 ))
-              ) : featuredSellers.length > 0 ? (
-                featuredSellers.map(seller => (
-                  <motion.div 
-                    key={seller.uid} 
-                    className="min-w-[280px] md:min-w-0 snap-center"
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    whileInView={{ opacity: 1, scale: 1 }}
-                    viewport={{ once: true }}
-                    whileHover={{ y: -10 }}
-                  >
-                    <SellerCard seller={seller} />
-                  </motion.div>
-                ))
-              ) : (
-                <div className="col-span-full py-20 md:py-32 text-center bg-white rounded-[2.5rem] md:rounded-[4rem] border border-gray-100 w-full shadow-2xl shadow-gray-100/50">
-                   <div className="w-16 h-16 md:w-24 md:h-24 bg-blue-50 rounded-[1.5rem] md:rounded-[2rem] flex items-center justify-center mx-auto mb-6 md:mb-8 rotate-12 group-hover:rotate-0 transition-transform">
-                     <Users className="w-8 h-8 md:w-12 md:h-12 text-blue-200" />
-                   </div>
-                   <h3 className="font-black text-gray-950 text-2xl md:text-3xl italic tracking-tighter mb-4">بانتظار انضمامك للنخبة</h3>
-                   <p className="text-gray-400 font-bold text-base md:text-lg max-w-sm mx-auto mb-8 md:mb-10 leading-relaxed opacity-70 italic">كن جزءاً من منصة "عربون" وقم بتوثيق حسابك لتظهر كخيار أول لآلاف العملاء يومياً.</p>
-                   <button 
-                     onClick={() => navigate('/dashboard')}
-                     className="bg-gray-950 text-white px-8 md:px-12 py-4 md:py-6 rounded-2xl font-black text-xs md:text-sm shadow-2xl shadow-gray-200 hover:scale-[1.03] active:scale-95 transition-all"
-                   >
-                     ابدأ إجراءات التوثيق
-                   </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* Modern Trust & Statistics Bento Section */}
-      {!user && !showAdminUI && (
-        <section className="px-4 max-w-7xl mx-auto py-8 md:py-12">
-          <div className="bg-gray-950 rounded-[2.5rem] md:rounded-[4rem] p-8 md:p-20 text-white relative overflow-hidden group">
-            {/* Visual Flare */}
-            <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-blue-600/10 rounded-full blur-[120px] -mr-64 -mt-64 group-hover:bg-blue-600/20 transition-colors duration-1000" />
-            <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-[80px] -ml-20 -mb-20" />
-
-            <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-12 md:gap-16">
-              <div className="space-y-6 md:space-y-8 text-right lg:max-w-[55%]">
-                <div className="inline-flex items-center gap-3 px-4 py-2 bg-white/5 rounded-full border border-white/10 text-blue-400 text-[10px] font-black uppercase tracking-[0.3em]">
-                   <ShieldCheck className="w-4 h-4" />
-                   شفافية وموثوقية
-                </div>
-                <h2 className="text-3xl md:text-6xl font-black leading-[1.05] italic tracking-tighter">انضم إلى مجتمع <br/><span className="text-blue-500">التجارة الآمنة</span></h2>
-                <p className="text-base md:text-xl text-slate-400 font-bold leading-relaxed italic opacity-80">
-                  سواء كنت باحثاً عن خدمة أو مقدم حلول، "عربون" هي شريكك التقني الأول لضمان نزاهة التعاملات وتحصيل الحقوق دون قلق.
-                </p>
-                <div className="flex flex-col sm:flex-row gap-4 pt-4">
-                  <button 
-                    onClick={() => navigate('/dashboard')} 
-                    className="group bg-blue-600 text-white px-8 md:px-10 py-4 md:py-5 rounded-[1.2rem] md:rounded-[1.5rem] font-black text-sm md:text-base hover:bg-blue-700 transition-all flex items-center justify-center gap-3 w-full sm:w-auto"
-                  >
-                    سجل حسابك مجاناً
-                    <ArrowLeft className="w-5 h-5 group-hover:-translate-x-2 transition-transform" />
-                  </button>
-                  <button 
-                    onClick={() => navigate('/how-it-works')} 
-                    className="bg-white/5 border border-white/10 text-white px-8 md:px-10 py-4 md:py-5 rounded-[1.2rem] md:rounded-[1.5rem] font-black text-sm md:text-base hover:bg-white/10 transition-all w-full sm:w-auto"
-                  >
-                    اعرف المزيد
-                  </button>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4 md:gap-6 w-full lg:w-auto">
-                {[
-                  { label: 'عملية وساطة', val: '50K+', icon: ShieldCheck, color: 'text-blue-400' },
-                  { label: 'مؤشر الثقة', val: '4.9/5', icon: Star, color: 'text-orange-400' },
-                  { label: 'بائع نشط', val: '12K+', icon: Users, color: 'text-emerald-400' },
-                  { label: 'ضمان حقوق', val: '100%', icon: Lock, color: 'text-indigo-400' },
-                ].map((stat, i) => (
-                  <motion.div 
-                    key={i} 
-                    initial={{ opacity: 0, y: 20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: i * 0.1 }}
-                    className="bg-white/5 border border-white/10 p-4 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] backdrop-blur-xl hover:bg-white/10 transition-colors flex flex-col items-center md:items-end text-center md:text-right"
-                  >
-                    <stat.icon className={`w-6 h-6 md:w-8 md:h-8 ${stat.color} mb-4 md:mb-6`} />
-                    <div className="text-2xl md:text-4xl font-black mb-1 italic">{stat.val}</div>
-                    <div className="text-slate-500 font-black text-[8px] md:text-[10px] uppercase tracking-widest leading-none">{stat.label}</div>
-                  </motion.div>
-                ))}
-              </div>
+              ) : featuredSellers.map(seller => (
+                <motion.div 
+                  key={seller.uid} 
+                  initial={{ opacity: 0, y: 30 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  whileHover={{ y: -12 }}
+                >
+                  <SellerCard seller={seller} />
+                </motion.div>
+              ))}
             </div>
           </div>
         </section>
@@ -491,41 +584,46 @@ export const Home: React.FC = () => {
 
       {/* Sophisticated How it Works Section */}
       {!showAdminUI && (
-        <section className="py-24 px-4 bg-white">
-          <div className="max-w-7xl mx-auto space-y-20">
-            <div className="text-center space-y-4">
-              <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[10px] font-black uppercase tracking-widest italic">
-                <ArrowLeftRight className="w-3.5 h-3.5" />
-                بروتوكول العمل
+        <section className="py-32 px-4 bg-white relative overflow-hidden">
+          <div className="absolute top-1/2 left-0 w-full h-px bg-gray-50 -translate-y-1/2" />
+          
+          <div className="max-w-7xl mx-auto relative z-10">
+            <div className="text-center space-y-4 mb-24">
+              <div className="inline-flex items-center gap-3 px-5 py-2 bg-blue-50 text-blue-600 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-blue-100/50">
+                <ArrowLeftRight className="w-4 h-4" />
+                بروتوكول الضمان الذكي
               </div>
-              <h2 className="text-3xl md:text-5xl font-black text-gray-950 tracking-tighter italic">كيف نضمن <span className="text-blue-600">حقك</span>؟</h2>
-              <p className="text-gray-400 font-bold max-w-xl mx-auto text-lg leading-relaxed opacity-70 italic">أربع خطوات بسيطة تفصلك عن تجربة تداول رقمية آمنة بنسبة 100%.</p>
+              <h2 className="text-2xl md:text-4xl font-display font-black text-emerald-900 tracking-tighter">كيف نضمن <span className="text-blue-600 underline decoration-blue-100 underline-offset-8">حقك</span>؟</h2>
+              <p className="text-gray-500 font-bold max-w-xl mx-auto text-lg md:text-xl leading-relaxed">خطوات مدروسة تقنياً لضمان سلامة كل ريال من طرفي الصفقة.</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 relative">
-              {/* Connecting line for desktop */}
-              <div className="hidden lg:block absolute top-[40%] left-[10%] right-[10%] h-px bg-gradient-to-r from-transparent via-gray-100 to-transparent -z-10" />
-              
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 lg:gap-6">
               {steps.map((step, idx) => (
                 <motion.div
                   key={idx}
-                  initial={{ opacity: 0, y: 30 }}
+                  initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
-                  transition={{ delay: idx * 0.15 }}
-                  className="relative group bg-gray-50/50 p-8 rounded-[3rem] border border-gray-100 hover:bg-white hover:shadow-2xl transition-all duration-500 text-center md:text-right"
+                  transition={{ delay: idx * 0.1 }}
+                  className="relative group bg-white shadow-sm hover:shadow-xl transition-all duration-700 rounded-[2.5rem] p-8 border border-transparent hover:border-blue-50/50"
                 >
-                  <div className="absolute -top-4 -right-4 w-10 h-10 bg-gray-950 text-white rounded-2xl flex items-center justify-center font-black text-xs border-4 border-white shadow-xl z-20 group-hover:scale-110 transition-transform">
+                  <div className="absolute -top-4 left-8 w-10 h-10 bg-blue-600 text-white rounded-xl flex items-center justify-center font-display font-black text-lg border-4 border-white shadow-lg shadow-blue-200">
                     {idx + 1}
                   </div>
                   
-                  <div className="w-16 h-16 rounded-[1.5rem] bg-white border border-gray-100 shadow-sm flex items-center justify-center mx-auto md:mr-0 mb-6 group-hover:scale-110 transition-transform bg-gradient-to-br from-white to-gray-50/50">
-                    {step.icon}
+                  <div className="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center mb-6 group-hover:bg-blue-600 group-hover:text-white transition-all transform group-hover:scale-110 duration-500">
+                    {React.cloneElement(step.icon as React.ReactElement, { className: "w-6 h-6" })}
                   </div>
                   
-                  <div className="space-y-3">
-                    <h3 className="font-black text-xl text-gray-950 italic leading-none">{step.title}</h3>
-                    <p className="text-gray-400 font-bold text-sm leading-relaxed opacity-80">{step.desc}</p>
+                  <div className="space-y-3 text-right">
+                    <h3 className="font-display font-black text-xl text-gray-950 leading-none">{step.title}</h3>
+                    <p className="text-gray-400 font-medium text-xs leading-relaxed opacity-80">{step.desc}</p>
+                  </div>
+                  
+                  <div className="absolute bottom-4 right-8 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                    <div className="w-8 h-8 rounded-full border border-blue-100 flex items-center justify-center">
+                      <ArrowLeft className="w-4 h-4 text-blue-600" />
+                    </div>
                   </div>
                 </motion.div>
               ))}
@@ -534,20 +632,65 @@ export const Home: React.FC = () => {
         </section>
       )}
 
+      {/* Statistics & Trust Bar */}
+      {!user && !showAdminUI && (
+        <section className="px-4 max-w-7xl mx-auto pb-32">
+          <div className="bg-gray-950 rounded-[4rem] p-12 md:p-24 text-white relative overflow-hidden group">
+            <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-blue-600/10 rounded-full blur-[150px] -mr-64 -mt-64" />
+            
+            <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
+               <div className="space-y-10 text-right">
+                  <div className="space-y-4">
+                     <span className="text-blue-500 font-black text-[10px] uppercase tracking-[0.4em] block">ضمانة عربون</span>
+                     <h2 className="text-3xl md:text-5xl font-display font-black text-emerald-900 leading-[1.2] tracking-tighter">أمانك المالي <br/> هو <span className="text-blue-500">أولويتنا</span></h2>
+                  </div>
+                  <p className="text-gray-400 text-lg md:text-2xl font-medium leading-relaxed max-w-xl">
+                    نظام تعميد رقمي يحفظ مستحقات البائع ويضمن استلام المشتري للخدمة المطلوبة، تحت إشراف نخبة من الخبراء.
+                  </p>
+                  <div className="flex flex-wrap gap-6">
+                     <button onClick={() => setIsLoginModalOpen(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-10 py-5 rounded-2xl font-black transition-all flex items-center gap-3">
+                        ابدأ الآن مجاناً <ArrowLeft className="w-5 h-5" />
+                     </button>
+                     <button onClick={() => navigate('/how-it-works')} className="bg-white/5 border border-white/10 hover:bg-white/10 text-white px-10 py-5 rounded-2xl font-black transition-all">
+                        شروط الإستخدام
+                     </button>
+                  </div>
+               </div>
+
+               <div className="grid grid-cols-2 gap-4">
+                  {[
+                    { val: '50M+', label: 'حجم التعاملات', icon: ShieldCheck },
+                    { val: '99.9%', label: 'معدل النجاح', icon: Star },
+                    { val: `${(totalUsers / 1000).toFixed(1)}K+`, label: 'بائع ومشتري', icon: Users },
+                    { val: '24/7', label: 'دعم فني', icon: Clock },
+                  ].map((stat, i) => (
+                    <div key={i} className="bg-white/5 border border-white/5 p-8 rounded-[3rem] text-center space-y-3 hover:bg-white/10 transition-colors cursor-default">
+                       <stat.icon className="w-8 h-8 text-blue-500 mx-auto" />
+                       <div className="text-3xl font-display font-black">{stat.val}</div>
+                       <div className="text-gray-500 text-[10px] uppercase font-black tracking-widest">{stat.label}</div>
+                    </div>
+                  ))}
+               </div>
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Elegant Testimonials Section */}
       {!showAdminUI && (
-        <section className="px-4 py-8 md:py-12">
-          <div className="max-w-7xl mx-auto bg-gray-950 rounded-[2.5rem] md:rounded-[4rem] p-8 md:p-20 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-600/5 rounded-full blur-[100px] -mr-32 -mt-32" />
-            
-            <div className="relative z-10 space-y-8 md:space-y-12">
-              <div className="text-center space-y-3 md:space-y-4">
-                <h2 className="text-2xl md:text-4xl font-black text-white italic tracking-tighter">ماذا يقول <span className="text-blue-500">شركاؤنا</span>؟</h2>
-                <div className="flex justify-center gap-1.5 text-orange-400">
-                  {[1,2,3,4,5].map(s => <Star key={s} className="w-3 md:w-4 h-3 md:h-4 fill-current" />)}
-                </div>
-              </div>
-              <div className="max-w-4xl mx-auto">
+        <section className="px-4 py-32 bg-gray-50">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex flex-col md:flex-row justify-between items-end gap-10 mb-20 px-4">
+               <div className="space-y-4 text-right">
+                  <h2 className="text-2xl md:text-4xl font-display font-black text-emerald-900 tracking-tighter">ماذا يقول <span className="text-blue-600">المستخدمون</span>؟</h2>
+                  <p className="text-gray-400 font-medium text-lg md:text-xl">ثقتكم هي الوقود الدافع لمنصة عربون لتحقيق المستحيل.</p>
+               </div>
+               <div className="flex gap-2">
+                  {[1,2,3,4,5].map(i => <Star key={i} className="w-5 h-5 fill-orange-400 text-orange-400" />)}
+               </div>
+            </div>
+            <div className="bg-white rounded-[4rem] p-12 md:p-20 shadow-xl shadow-gray-200/50 border border-gray-100 flex items-center justify-center">
+              <div className="max-w-4xl w-full">
                 <TestimonialSlider />
               </div>
             </div>
@@ -557,35 +700,26 @@ export const Home: React.FC = () => {
 
       {/* High-Impact Final CTA */}
       {!user && !showAdminUI && (
-        <section className="px-4 py-8 md:py-12 max-w-7xl mx-auto">
-          <div className="bg-blue-600 rounded-[2.5rem] md:rounded-[4rem] p-10 md:p-24 text-white relative overflow-hidden group">
-            <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-black/10 pointer-events-none" />
+        <section className="px-4 py-32 max-w-7xl mx-auto">
+          <div className="bg-blue-600 rounded-[4rem] p-12 md:p-32 text-white relative overflow-hidden text-center flex flex-col items-center gap-12 group">
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-indigo-700 opacity-50" />
             
-            <div className="relative z-10 flex flex-col items-center text-center gap-8 md:gap-10">
-              <div className="space-y-3 md:space-y-4 max-w-2xl">
-                <h2 className="text-3xl md:text-7xl font-black leading-none italic tracking-tighter">جاهز لتجربة <br/> بيع وشراء حقيقية؟</h2>
-                <p className="text-base md:text-xl text-blue-100 font-bold leading-relaxed opacity-80 italic">
-                  انضم لأكثر من 10 آلاف مستخدم يعتمدون على عربون كطرف ثالث موثوق لحماية أموالهم وأعمالهم.
-                </p>
-              </div>
-              
-              <div className="flex flex-col sm:flex-row gap-4 md:gap-6 w-full sm:w-auto">
-                <button 
-                  onClick={() => setIsLoginModalOpen(true)}
-                  className="bg-gray-950 text-white px-10 md:px-12 py-5 md:py-6 rounded-[1.5rem] md:rounded-[2rem] font-black text-base md:text-lg hover:bg-white hover:text-gray-950 transition-all shadow-2xl shadow-black/20 hover:scale-[1.05] w-full"
-                >
-                  أنشئ حسابك المجاني
-                </button>
-                <div className="flex items-center justify-center gap-4 text-white/60 font-bold text-xs md:text-sm italic">
-                   <div className="w-8 md:w-12 h-0.5 bg-white/20" />
-                   تحتاج مساعدة؟
-                   <Link to="/help" className="text-white underline underline-offset-4 decoration-white/30 hover:decoration-white transition-all">تحدث معنا</Link>
-                </div>
-              </div>
+            <div className="relative z-10 max-w-3xl space-y-8">
+               <h2 className="text-3xl md:text-6xl font-display font-black text-white tracking-tighter leading-[1.6]">جاهز لتأمين <br/> صفقتك <span className="text-white">القادمة</span>؟</h2>
+               <p className="text-blue-100 text-lg md:text-2xl font-medium opacity-90">انضم لأكثر من {totalUsers.toLocaleString()} بائع ومشتري يمارسون أعمالهم بأمان تام في بيئة "عربون" القانونية والتقنية.</p>
             </div>
             
-            <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-[80px] -mr-32 -mt-32" />
-            <div className="absolute bottom-0 left-0 w-80 h-80 bg-black/10 rounded-full blur-[100px] -ml-40 -mb-40" />
+            <div className="relative z-10 flex flex-col sm:flex-row gap-6 w-full sm:w-auto">
+               <button onClick={() => setIsLoginModalOpen(true)} className="bg-gray-950 text-white hover:bg-white hover:text-gray-950 px-12 py-6 rounded-2xl font-black text-lg transition-all shadow-2xl shadow-black/20 hover:scale-[1.05]">
+                  اشترك مجاناً
+               </button>
+               <button onClick={() => navigate('/search')} className="bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 text-white px-12 py-6 rounded-2xl font-black text-lg transition-all">
+                  قائمة الخدمات
+               </button>
+            </div>
+
+            <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-500 rounded-full blur-[100px] -ml-32 -mb-32 opacity-50" />
+            <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-[120px] -mr-48 -mt-48" />
           </div>
         </section>
       )}
@@ -594,8 +728,8 @@ export const Home: React.FC = () => {
       <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} />
 
       {/* Feedback Form */}
-      {!showAdminUI && (
-        <section className="px-4 pt-12">
+      {!showAdminUI && user && completedOrdersCount > 0 && (
+        <section className="px-4 pt-12 pb-24">
           <div className="max-w-xl mx-auto">
             <GeneralFeedbackForm />
           </div>

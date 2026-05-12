@@ -31,7 +31,6 @@ const SYSTEM_PROMPT = `أنت "مساعد عربون الذكي" (الروبوت
 
 export const SupportButton: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [isHidden, setIsHidden] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
   const [messages, setMessages] = useState<Message[]>([
@@ -46,39 +45,6 @@ export const SupportButton: React.FC = () => {
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  // Handle auto-reappear after 5 minutes
-  useEffect(() => {
-    const checkHiddenStatus = () => {
-      const hiddenUntil = localStorage.getItem('support_bot_hidden_until');
-      if (hiddenUntil) {
-        const expiration = parseInt(hiddenUntil);
-        if (Date.now() < expiration) {
-          setIsHidden(true);
-          const remaining = expiration - Date.now();
-          const timer = setTimeout(() => setIsHidden(false), remaining);
-          return timer;
-        } else {
-          setIsHidden(false);
-          localStorage.removeItem('support_bot_hidden_until');
-        }
-      }
-      return null;
-    };
-
-    const timer = checkHiddenStatus();
-    return () => {
-      if (timer) clearTimeout(timer);
-    };
-  }, []);
-
-  const hideBot = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const expiration = Date.now() + 5 * 60 * 1000;
-    localStorage.setItem('support_bot_hidden_until', expiration.toString());
-    setIsHidden(true);
-    setIsOpen(false);
-  };
 
   // Initialize Gemini lazily to prevent crashes if API key is missing on startup
   const getAI = () => {
@@ -183,8 +149,6 @@ export const SupportButton: React.FC = () => {
       }, 1000);
     }
   };
-
-  if (isHidden) return null;
 
   return (
     <div className="fixed bottom-28 md:bottom-8 left-6 md:left-8 z-[60] md:z-40 flex flex-col items-start gap-4 pointer-events-none">
@@ -359,20 +323,6 @@ export const SupportButton: React.FC = () => {
               <span className="absolute -top-1 -right-1 w-4 h-4 md:w-5 md:h-5 bg-red-500 border-4 border-white rounded-full"></span>
             )}
         </motion.button>
-
-        {!isOpen && (
-          <button 
-            id="chat-close-temp-button"
-            onClick={hideBot}
-            className="w-8 h-8 md:w-9 md:h-9 bg-gray-100/80 backdrop-blur-sm text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl flex items-center justify-center transition-all border border-gray-100 group relative shadow-sm"
-            title="إخفاء لمدة 5 دقائق"
-          >
-            <X className="w-4 h-4 md:w-5 md:h-5" />
-            <span className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap transition-opacity pointer-events-none">
-              إخفاء 5 دقايق
-            </span>
-          </button>
-        )}
       </div>
     </div>
   );

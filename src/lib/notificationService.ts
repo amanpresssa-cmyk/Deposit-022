@@ -216,6 +216,7 @@ export const recordTransaction = async (data: {
   providerCost?: number;
   sellerNetShare?: number;
   paymentRef?: string;
+  installmentFee?: number;
 }) => {
   try {
     await addDoc(collection(db, 'transactions'), {

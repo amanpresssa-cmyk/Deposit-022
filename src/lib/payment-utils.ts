@@ -1,34 +1,34 @@
 
-export type PaymentMethod = 'standard' | 'bnpl';
+export type PaymentMethod = 'standard' | 'credit_card' | 'mada' | 'apple_pay' | 'tabby' | 'tamara';
 
 export interface PaymentCalculation {
-  totalAmount: number;
-  platformCommission: number;
-  providerCost: number;
-  platformNetRevenue: number;
-  sellerNetShare: number;
-  feePercentage: number;
+  baseAmount: number;         // المبلغ الأصلي للخدمة
+  buyerTotal: number;         // إجمالي ما يدفعه المشتري (Base + Arboon Fee)
+  arboonFee: number;          // رسوم منصة عربون (3%)
+  installmentFee: number;     // رسوم بوابة التقسيط (تقريباً 7%)
+  sellerNetShare: number;     // صافي ربح البائع بعد خصم رسوم التقسيط
+  gatewayName: string;
 }
 
-export function calculateOrderFees(amount: number, method: PaymentMethod = 'standard'): PaymentCalculation {
-  const providerCost = amount * 0.03;
-  let platformCommission = 0;
-  let feePercentage = 0;
+export function calculateOrderFees(amount: number, method: PaymentMethod = 'credit_card'): PaymentCalculation {
+  // رسوم عربون ثابتة 3% تضاف على المشتري
+  const arboonFee = amount * 0.03;
+  
+  // رسوم بوابة التقسيط (تابي/تمارا تأخذ حوالي 7% من البائع)
+  let installmentFee = 0;
+  let gatewayName = 'بطاقة بنكية';
 
-  if (method === 'standard') {
-    platformCommission = amount * 0.03;
-    feePercentage = 3;
-  } else if (method === 'bnpl') {
-    platformCommission = amount * 0.06;
-    feePercentage = 6;
+  if (method === 'tabby' || method === 'tamara') {
+    installmentFee = amount * 0.07;
+    gatewayName = method === 'tabby' ? 'تابي' : 'تمارا';
   }
 
   return {
-    totalAmount: amount,
-    platformCommission: parseFloat(platformCommission.toFixed(2)),
-    providerCost: parseFloat(providerCost.toFixed(2)),
-    platformNetRevenue: parseFloat((platformCommission - providerCost).toFixed(2)),
-    sellerNetShare: parseFloat((amount - platformCommission).toFixed(2)),
-    feePercentage: parseFloat(feePercentage.toFixed(1))
+    baseAmount: amount,
+    buyerTotal: parseFloat((amount + arboonFee).toFixed(2)),
+    arboonFee: parseFloat(arboonFee.toFixed(2)),
+    installmentFee: parseFloat(installmentFee.toFixed(2)),
+    sellerNetShare: parseFloat((amount - installmentFee).toFixed(2)),
+    gatewayName
   };
 }

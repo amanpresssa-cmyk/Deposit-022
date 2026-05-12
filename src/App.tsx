@@ -26,7 +26,9 @@ import { TermsPage } from './pages/TermsPage';
 import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
 import { FAQPage } from './pages/FAQPage';
 import { HowItWorksPage } from './pages/HowItWorksPage';
+import { ServiceDetailsPage } from './pages/ServiceDetailsPage';
 import { NotificationProvider } from './components/providers/NotificationProvider';
+import { ProfilePrompt } from './components/layout/ProfilePrompt';
 import { Toaster } from 'sonner';
 import { Navbar } from './components/layout/Navbar';
 import { Footer } from './components/layout/Footer';
@@ -197,6 +199,7 @@ function MainLayout({ children, isAdmin }: { children: React.ReactNode, isAdmin:
   return (
     <>
       <Navbar />
+      <ProfilePrompt />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-16 md:pb-8">
         <AnimatePresence mode="wait">
           {children}
@@ -329,6 +332,10 @@ export default function App() {
                   <Route
                     path="/order/:id"
                     element={<OrderDetailsPage />}
+                  />
+                  <Route
+                    path="/service/:id"
+                    element={<ServiceDetailsPage />}
                   />
                   <Route
                     path="/seller/:sellerId"
