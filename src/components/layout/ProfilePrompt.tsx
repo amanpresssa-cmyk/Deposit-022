@@ -15,9 +15,21 @@ export const ProfilePrompt: React.FC = () => {
   const [hasCheckedServices, setHasCheckedServices] = useState(false);
 
   useEffect(() => {
-    if (!user || !profile || location.pathname.startsWith('/admin')) {
+    if (!user || !profile || location.pathname.startsWith('/admin') || location.pathname === '/settings' || location.pathname === '/create-order') {
       setShowPrompt(false);
       return;
+    }
+
+    // Check for snooze
+    const snoozeTime = localStorage.getItem(`prompt_snooze_${user.uid}`);
+    if (snoozeTime) {
+      const lastSnooze = parseInt(snoozeTime);
+      const now = Date.now();
+      const twentyFourHours = 24 * 60 * 60 * 1000;
+      if (now - lastSnooze < twentyFourHours) {
+        setShowPrompt(false);
+        return;
+      }
     }
 
     // Check if profile is incomplete
@@ -113,8 +125,14 @@ export const ProfilePrompt: React.FC = () => {
               </button>
 
               <button
-                onClick={() => setShowPrompt(false)}
+                onClick={() => {
+                  if (user) {
+                    localStorage.setItem(`prompt_snooze_${user.uid}`, Date.now().toString());
+                  }
+                  setShowPrompt(false);
+                }}
                 className="w-full py-4 text-gray-400 font-bold hover:text-gray-600 transition-colors"
+                id="profile-prompt-snooze"
               >
                 سأفعل ذلك لاحقاً
               </button>

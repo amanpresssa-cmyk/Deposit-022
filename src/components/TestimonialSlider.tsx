@@ -17,7 +17,6 @@ interface Testimonial {
 
 export const TestimonialSlider: React.FC = () => {
   const { user, profile } = useAuth();
-  const [index, setIndex] = useState(0);
   const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -27,7 +26,7 @@ export const TestimonialSlider: React.FC = () => {
     // 2. Author sees their own feedback regardless of rating
     // 3. Admin sees everything
     const feedbackRef = collection(db, 'platform_feedback');
-    const q = query(feedbackRef, orderBy('rating', 'desc'), orderBy('createdAt', 'desc'), limit(15));
+    const q = query(feedbackRef, orderBy('rating', 'desc'), orderBy('createdAt', 'desc'), limit(6));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const items = snapshot.docs.map(doc => ({
@@ -57,80 +56,65 @@ export const TestimonialSlider: React.FC = () => {
     return () => unsubscribe();
   }, [user, profile]);
 
-  useEffect(() => {
-    if (testimonials.length <= 1) return;
-    const timer = setInterval(() => {
-      setIndex((prev) => (prev + 1) % testimonials.length);
-    }, 4000);
-    return () => clearInterval(timer);
-  }, [testimonials.length]);
-
   if (loading) return (
-    <div className="h-64 flex items-center justify-center">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      {[1, 2, 3].map(i => (
+        <div key={i} className="h-64 bg-gray-50 rounded-[2.5rem] animate-pulse border border-gray-100" />
+      ))}
     </div>
   );
 
   if (testimonials.length === 0) return null;
 
-  const current = testimonials[index];
-
   return (
-    <div className="bg-white rounded-[2rem] p-6 mb-4 md:p-12 border border-blue-50 shadow-xl shadow-blue-100/30 relative overflow-hidden flex flex-col justify-center min-h-[300px] md:min-h-[400px]">
-      <Quote className="absolute top-4 right-4 md:top-8 md:right-8 w-10 h-10 md:w-24 md:h-24 text-blue-50 opacity-40 -rotate-12" />
-      
-      <AnimatePresence mode="wait">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      {testimonials.map((t, idx) => (
         <motion.div
-          key={current.id}
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.95 }}
-          transition={{ duration: 0.5, ease: "easeOut" }}
-          className="relative z-10 text-center flex flex-col h-full items-center justify-center py-4"
+          key={t.id}
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ delay: idx * 0.1 }}
+          whileHover={{ y: -8, scale: 1.02 }}
+          className="bg-white rounded-[2.5rem] p-10 border border-gray-100 shadow-sm hover:shadow-2xl transition-all duration-500 relative overflow-hidden flex flex-col h-full group"
         >
-          {current.isHidden && (
-            <div className="flex items-center justify-center gap-1 text-orange-500 mb-3 bg-orange-50 w-fit mx-auto px-2.5 py-1 rounded-full text-[8px] md:text-[10px] font-black uppercase tracking-wider">
-              <EyeOff className="w-2.5 h-2.5 md:w-3 md:h-3" />
-              مخفي: تقييم منخفض
+          <Quote className="absolute top-6 right-6 w-16 h-16 text-blue-50 opacity-40 -rotate-12 group-hover:scale-110 transition-transform" />
+          
+          <div className="relative z-10 flex flex-col h-full">
+            {t.isHidden && (
+              <div className="flex items-center gap-1 text-orange-500 mb-4 bg-orange-50 w-fit px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider">
+                <EyeOff className="w-3 h-3" />
+                مخفي: تقييم منخفض
+              </div>
+            )}
+
+            <div className="flex gap-1 mb-8">
+              {[...Array(5)].map((_, i) => (
+                <Star key={i} className={`w-5 h-5 transition-colors ${i < t.rating ? 'fill-orange-400 text-orange-400' : 'text-gray-100'}`} />
+              ))}
             </div>
-          )}
 
-          <div className="flex justify-center gap-1 mb-4 md:mb-6">
-            {[...Array(5)].map((_, i) => (
-              <Star key={i} className={`w-4 h-4 md:w-6 md:h-6 transition-colors ${i < current.rating ? 'fill-orange-400 text-orange-400' : 'text-gray-100'}`} />
-            ))}
-          </div>
+            <p className="text-gray-700 font-bold text-lg leading-[1.8] mb-10 italic relative">
+              <span className="text-blue-500 text-3xl absolute -right-4 -top-2 opacity-50 font-serif">"</span>
+              {t.comment}
+              <span className="text-blue-500 text-3xl absolute -left-2 bottom-[-10px] opacity-50 font-serif">"</span>
+            </p>
 
-          <p className="text-sm md:text-xl font-bold text-gray-800 leading-relaxed mb-6 md:mb-8 px-2 md:px-8 max-w-2xl mx-auto break-words overflow-visible">
-            {current.comment}
-          </p>
-
-          <div className="flex flex-col items-center mt-auto">
-            <div className="bg-gray-100 w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center mb-2 md:mb-3 border-2 border-white shadow-sm">
-              <User className="w-5 h-5 md:w-6 md:h-6 text-gray-400" />
-            </div>
-            <h4 className="text-sm md:text-lg font-black text-gray-900">{current.name}</h4>
-            <div className="mt-1 px-3 py-0.5 rounded-full text-[8px] md:text-[10px] font-black uppercase tracking-widest bg-blue-50 text-blue-600 flex items-center gap-1 md:gap-2">
-              <ShieldCheck className="w-2.5 h-2.5 md:w-3 md:h-3" />
-              مستخدم موثق
+            <div className="flex items-center gap-4 mt-auto pt-8 border-t border-gray-50">
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 w-14 h-14 rounded-2xl flex items-center justify-center border border-blue-100/50 shadow-inner group-hover:bg-blue-600 group-hover:text-white transition-all">
+                <User className="w-7 h-7 text-blue-400 group-hover:text-white" />
+              </div>
+              <div className="text-right">
+                <h4 className="text-base font-black text-gray-950 group-hover:text-blue-600 transition-colors">{t.name}</h4>
+                <div className="text-[10px] font-black uppercase text-blue-600/60 flex items-center gap-1.5 mt-1">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  مستخدم موثق بالبصمة
+                </div>
+              </div>
             </div>
           </div>
         </motion.div>
-      </AnimatePresence>
-
-      {testimonials.length > 1 && (
-        <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2">
-          {testimonials.map((_, i) => (
-            <button
-              key={i}
-              onClick={() => setIndex(i)}
-              className={`h-1 md:h-1.5 rounded-full transition-all duration-500 ${
-                index === i ? 'w-6 md:w-8 bg-blue-600 shadow-sm shadow-blue-200' : 'w-2 bg-gray-200 hover:bg-gray-300'
-              }`} 
-            />
-          ))}
-        </div>
-      )}
+      ))}
     </div>
   );
 };

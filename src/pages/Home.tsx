@@ -227,16 +227,16 @@ export const Home: React.FC = () => {
           >
             <div className="grid lg:grid-cols-2 gap-16 items-center">
               <div className="text-right space-y-10 order-2 lg:order-1">
-                <div className="inline-flex items-center gap-2 px-6 py-2.5 bg-blue-50/50 backdrop-blur-md border border-blue-100/50 text-blue-700 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] shadow-xl shadow-blue-500/5 h-12 overflow-hidden">
+                <div className="inline-flex items-center gap-2 px-10 py-5 bg-blue-50/50 backdrop-blur-md border border-blue-100/50 text-blue-700 rounded-3xl text-sm md:text-lg font-black uppercase tracking-[0.2em] shadow-2xl shadow-blue-500/10 h-16 md:h-20 overflow-hidden">
                   <AnimatePresence mode="wait">
                     <motion.div
                       key={trustIndex}
                       initial={{ opacity: 0, x: 20 }}
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: -20 }}
-                      className="flex items-center gap-3"
+                      className="flex items-center gap-4"
                     >
-                      {trustMessages[trustIndex].icon}
+                      {React.cloneElement(trustMessages[trustIndex].icon as React.ReactElement, { className: "w-6 h-6" })}
                       <span>{trustMessages[trustIndex].text}</span>
                     </motion.div>
                   </AnimatePresence>
@@ -479,55 +479,55 @@ export const Home: React.FC = () => {
                 <Link to="/search" className="bg-gray-100 text-gray-950 hover:bg-gray-200 px-8 py-4 rounded-2xl font-black text-sm transition-all shrink-0">عرض كافة الطلبات</Link>
              </div>
 
-             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-6">
                {loadingOffers ? (
-                 [1, 2, 3].map(i => (
-                   <div key={i} className="h-72 bg-gray-50 rounded-[3.5rem] animate-pulse border border-gray-100" />
+                 [1, 2, 3, 4, 5].map(i => (
+                    <div key={i} className="h-48 bg-gray-50 rounded-2xl animate-pulse border border-gray-100" />
                  ))
                ) : liveOffers.length > 0 ? (
                  liveOffers.map((offer) => (
                     <motion.div
                        key={offer.id}
-                       whileHover={{ y: -5, scale: 1.01 }}
+                       whileHover={{ y: -4, scale: 1.01 }}
                        onClick={() => navigate(`/service/${offer.id}`)}
-                       className="bg-gray-50/50 rounded-[2rem] p-6 border border-gray-100 hover:bg-white hover:shadow-xl transition-all duration-700 cursor-pointer group flex flex-col h-full relative overflow-hidden"
+                       className="bg-gray-50/50 rounded-2xl p-4 border border-gray-100 hover:bg-white hover:shadow-lg transition-all duration-700 cursor-pointer group flex flex-col h-full relative overflow-hidden"
                     >
-                       <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/5 -mr-8 -mt-8 rounded-full blur-xl group-hover:bg-blue-500/10 transition-colors" />
+                       <div className="absolute top-0 right-0 w-12 h-12 bg-blue-500/5 -mr-6 -mt-6 rounded-full blur-lg group-hover:bg-blue-500/10 transition-colors" />
                        
-                       <div className="flex justify-between items-start mb-4 relative z-10">
-                          <span className="px-3 py-1.5 bg-white text-blue-600 rounded-lg text-[8px] font-black uppercase tracking-widest border border-blue-50 shadow-sm">
+                       <div className="flex justify-between items-start mb-3 relative z-10">
+                          <span className="px-2 py-1 bg-white text-blue-600 rounded-md text-[7px] font-black uppercase tracking-widest border border-blue-50 shadow-sm">
                             {offer.category}
                           </span>
-                          <div className="text-xl md:text-2xl font-display font-black text-gray-900">
-                             {offer.amount.toLocaleString()} <span className="text-[9px] text-gray-400">SAR</span>
+                          <div className="text-sm md:text-base font-display font-black text-gray-900">
+                             {offer.amount.toLocaleString()} <span className="text-[8px] text-gray-400">SAR</span>
                           </div>
                        </div>
                        
-                       <h3 className="text-lg font-display font-black text-gray-950 group-hover:text-blue-600 transition-colors leading-tight mb-2 line-clamp-2 relative z-10">
+                       <h3 className="text-xs font-display font-black text-gray-950 group-hover:text-blue-600 transition-colors leading-tight mb-2 line-clamp-2 relative z-10">
                          {offer.title}
                        </h3>
-                       <p className="text-gray-600 font-bold text-xs leading-relaxed mb-6 line-clamp-2 relative z-10">
+                       <p className="text-gray-500 font-bold text-[10px] leading-relaxed mb-4 line-clamp-2 relative z-10">
                          {offer.description}
                        </p>
                        
-                       <div className="mt-auto flex items-center justify-between pt-4 border-t border-gray-100 transition-colors group-hover:border-blue-50 relative z-10">
-                          <div className="flex items-center gap-2">
-                             <div className="w-8 h-8 rounded-full bg-blue-600/10 flex items-center justify-center text-blue-600 border border-blue-100">
-                                <Users className="w-4 h-4" />
+                       <div className="mt-auto flex items-center justify-between pt-3 border-t border-gray-100 transition-colors group-hover:border-blue-50 relative z-10">
+                          <div className="flex items-center gap-1.5">
+                             <div className="w-6 h-6 rounded-full bg-blue-600/10 flex items-center justify-center text-blue-600 border border-blue-100">
+                                <Users className="w-3 h-3" />
                              </div>
                              <div>
-                               <p className="text-[8px] text-gray-400 font-black uppercase tracking-widest">الحالة</p>
-                               <p className="text-[10px] font-black text-gray-900">مفتوح</p>
+                               <p className="text-[7px] text-gray-400 font-black uppercase tracking-widest leading-none mb-0.5">الحالة</p>
+                               <p className="text-[9px] font-black text-gray-900 leading-none">مفتوح</p>
                              </div>
                           </div>
-                          <div className="w-8 h-8 rounded-full bg-gray-950 text-white flex items-center justify-center group-hover:bg-blue-600 transition-all shadow-md group-hover:translate-x-[-2px]">
-                            <ArrowLeft className="w-3 h-3" />
+                          <div className="w-6 h-6 rounded-full bg-gray-950 text-white flex items-center justify-center group-hover:bg-blue-600 transition-all shadow-sm group-hover:translate-x-[-1px]">
+                            <ArrowLeft className="w-2.5 h-2.5" />
                           </div>
                        </div>
                     </motion.div>
                  ))
                ) : (
-                <div className="col-span-full py-24 text-center bg-gray-50/50 rounded-[4rem] border-2 border-dashed border-gray-200">
+                <div className="col-span-full py-24 text-center bg-gray-50/50 rounded-3xl border-2 border-dashed border-gray-200">
                   <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-6 text-gray-300">
                     <Search className="w-8 h-8" />
                   </div>
@@ -619,12 +619,6 @@ export const Home: React.FC = () => {
                     <h3 className="font-display font-black text-xl text-gray-950 leading-none">{step.title}</h3>
                     <p className="text-gray-400 font-medium text-xs leading-relaxed opacity-80">{step.desc}</p>
                   </div>
-                  
-                  <div className="absolute bottom-4 right-8 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-                    <div className="w-8 h-8 rounded-full border border-blue-100 flex items-center justify-center">
-                      <ArrowLeft className="w-4 h-4 text-blue-600" />
-                    </div>
-                  </div>
                 </motion.div>
               ))}
             </div>
@@ -689,11 +683,7 @@ export const Home: React.FC = () => {
                   {[1,2,3,4,5].map(i => <Star key={i} className="w-5 h-5 fill-orange-400 text-orange-400" />)}
                </div>
             </div>
-            <div className="bg-white rounded-[4rem] p-12 md:p-20 shadow-xl shadow-gray-200/50 border border-gray-100 flex items-center justify-center">
-              <div className="max-w-4xl w-full">
-                <TestimonialSlider />
-              </div>
-            </div>
+            <TestimonialSlider />
           </div>
         </section>
       )}
