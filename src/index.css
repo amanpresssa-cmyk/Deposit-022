@@ -4,12 +4,53 @@
 @theme {
   --font-sans: "IBM Plex Sans Arabic", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Alexandria", sans-serif;
+
+  /* Global Color Overrides for a Professional "Midnight & Jade" Theme */
+  --color-blue-50: #f4f7fb;
+  --color-blue-100: #e8eff7;
+  --color-blue-200: #d1dfef;
+  --color-blue-300: #abbfdb;
+  --color-blue-400: #7898ca;
+  --color-blue-500: #5474b4;
+  --color-blue-600: #3a5998; /* Professional Navy Blue */
+  --color-blue-700: #314a7f;
+  --color-blue-800: #293d67;
+  --color-blue-900: #253356;
+  --color-blue-950: #192136;
+
+  --color-indigo-50: #f5f3ff;
+  --color-indigo-100: #ede9fe;
+  --color-indigo-600: #6366f1;
+  --color-indigo-700: #4338ca;
+  --color-indigo-900: #1e1b4b;
+  --color-indigo-950: #0f0e2b;
+
+  --color-gray-50: #f8fafc;
+  --color-gray-100: #f1f5f9;
+  --color-gray-200: #e2e8f0;
+  --color-gray-300: #cbd5e1;
+  --color-gray-400: #94a3b8;
+  --color-gray-500: #64748b;
+  --color-gray-600: #475569;
+  --color-gray-700: #334155;
+  --color-gray-800: #1e293b;
+  --color-gray-900: #0f172a;
+  --color-gray-950: #020617;
 }
 
 @layer base {
   body {
-    @apply text-gray-900 bg-[#f8fafc];
+    @apply text-gray-900 bg-[#f8fafc] selection:bg-blue-100 selection:text-blue-900;
   }
+}
+
+/* Glassmorphism Utilities */
+.glass-card {
+  @apply bg-white/70 backdrop-blur-xl border border-white/20 shadow-xl shadow-blue-900/5;
+}
+
+.premium-shadow {
+  box-shadow: 0 10px 30px -5px rgba(15, 23, 42, 0.05), 0 4px 6px -2px rgba(15, 23, 42, 0.02);
 }
 
 .pb-safe {

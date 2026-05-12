@@ -151,7 +151,7 @@ export const SupportButton: React.FC = () => {
   };
 
   return (
-    <div className="fixed bottom-28 md:bottom-8 left-6 md:left-8 z-[60] md:z-40 flex flex-col items-start gap-4 pointer-events-none">
+    <div className="fixed bottom-20 left-6 md:bottom-10 md:left-10 z-[60] md:z-40 flex flex-col items-start gap-4 pointer-events-none">
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -316,11 +316,11 @@ export const SupportButton: React.FC = () => {
               duration: 2.5,
               ease: "easeInOut"
             }}
-            className={`w-14 h-14 md:w-16 md:h-16 bg-blue-600 text-white rounded-[1.5rem] flex items-center justify-center shadow-2xl shadow-blue-200 hover:scale-110 active:scale-95 transition-all relative ${isOpen ? 'opacity-0 pointer-events-none md:opacity-100 md:pointer-events-auto' : 'opacity-100'}`}
+            className={`w-9 h-9 md:w-11 md:h-11 bg-blue-600 text-white rounded-xl md:rounded-2xl flex items-center justify-center shadow-2xl shadow-blue-200 hover:scale-110 active:scale-95 transition-all relative ${isOpen ? 'opacity-0 pointer-events-none md:opacity-100 md:pointer-events-auto' : 'opacity-100'}`}
           >
-            <MessageCircle className="w-7 h-7 md:w-8 md:h-8" />
+            <MessageCircle className="w-4 h-4 md:w-5 md:h-5" />
             {!isOpen && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 md:w-5 md:h-5 bg-red-500 border-4 border-white rounded-full"></span>
+              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 md:w-3.5 md:h-3.5 bg-red-500 border-2 md:border-4 border-white rounded-full"></span>
             )}
         </motion.button>
       </div>

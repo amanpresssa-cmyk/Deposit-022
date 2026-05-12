@@ -56,10 +56,11 @@ export const SellerProfilePage: React.FC = () => {
         const servicesSnap = await getDocs(servicesQuery);
         setServices(servicesSnap.docs.map(d => ({ id: d.id, ...d.data() } as Service)));
 
-        // Fetch Stats
+        // Fetch Stats - RESTRICTED TO PUBLIC FOR VISITORS
         const ordersQuery = query(
           collection(db, 'orders'),
-          where('sellerId', '==', sellerId)
+          where('sellerId', '==', sellerId),
+          where('visibility', '==', 'public')
         );
         const ordersSnap = await getDocs(ordersQuery);
         const ordersData = ordersSnap.docs.map(d => d.data());

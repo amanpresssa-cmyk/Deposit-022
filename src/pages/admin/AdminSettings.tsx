@@ -319,6 +319,21 @@ export const AdminSettings: React.FC = () => {
                       </div>
                     </div>
 
+                    {/* LIVE PREVIEW AREA */}
+                    <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 border-dashed space-y-3">
+                       <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">معاينة مباشرة</p>
+                       <div className={`w-full py-2.5 px-4 rounded-xl text-center text-xs font-black relative overflow-hidden shadow-sm flex items-center justify-center gap-2 ${
+                         announcement.type === 'urgent' ? 'bg-gradient-to-r from-red-600 to-rose-700 text-white' : 
+                         announcement.type === 'promo' ? 'bg-gradient-to-r from-purple-600 to-indigo-700 text-white' : 
+                         announcement.type === 'success' ? 'bg-gradient-to-r from-green-600 to-emerald-700 text-white' :
+                         'bg-gradient-to-r from-blue-900 to-slate-900 text-white'
+                       }`}>
+                          {announcement.type === 'promo' && <Sparkles className="w-3.5 h-3.5 animate-pulse" />}
+                          {announcement.type === 'urgent' && <AlertCircle className="w-3.5 h-3.5 animate-bounce" />}
+                          <span>{announcement.text || 'اكتب نص الإعلان هنا...'}</span>
+                       </div>
+                    </div>
+
                     <div className="space-y-6">
                       <div className="space-y-2">
                         <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">نص الإشعار</label>

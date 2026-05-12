@@ -34,10 +34,10 @@ export const FloatingScrollToTop = () => {
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.5, y: 20 }}
           onClick={scrollToTop}
-          className="fixed bottom-28 md:bottom-8 left-22 md:left-26 z-50 p-3 bg-white text-blue-600 rounded-2xl shadow-xl border border-gray-100 hover:bg-blue-50 transition-colors flex items-center justify-center group"
+          className="fixed bottom-32 md:bottom-28 left-6 md:left-10 z-50 p-2 md:p-2.5 bg-white text-blue-600 rounded-xl md:rounded-2xl shadow-xl border border-gray-100 hover:bg-blue-50 transition-colors flex items-center justify-center group"
           aria-label="العودة للأعلى"
         >
-          <ChevronUp className="w-6 h-6 group-hover:-translate-y-1 transition-transform" />
+          <ChevronUp className="w-4 h-4 md:w-5 md:h-5 group-hover:-translate-y-1 transition-transform" />
         </motion.button>
       )}
     </AnimatePresence>

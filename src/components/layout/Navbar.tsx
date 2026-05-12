@@ -22,17 +22,27 @@ export const Navbar: React.FC = () => {
   const [activeFilter, setActiveFilter] = useState<'all' | 'urgent' | 'settlement' | 'normal'>('all');
 
   const [announcement, setAnnouncement] = useState<any>(null);
+  const [isDismissed, setIsDismissed] = useState(false);
 
   useEffect(() => {
+    const hidden = sessionStorage.getItem('announcement-dismissed');
+    if (hidden) setIsDismissed(true);
+
     const unsub = onSnapshot(doc(db, 'app_settings', 'announcement'), (snapshot) => {
       if (snapshot.exists()) {
-        setAnnouncement(snapshot.data());
+        const data = snapshot.data();
+        setAnnouncement(data);
       }
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'app_settings/announcement');
     });
     return () => unsub();
   }, []);
+
+  const dismissAnnouncement = () => {
+    setIsDismissed(true);
+    sessionStorage.setItem('announcement-dismissed', 'true');
+  };
 
   const handleMarkAllAsRead = async () => {
     if (!user) return;
@@ -83,25 +93,40 @@ export const Navbar: React.FC = () => {
   return (
     <div className="sticky top-0 z-50 w-full">
       {/* Announcement Bar */}
-      {announcement && announcement.isActive && (
-        <div className={`px-4 py-2 text-center text-xs md:text-sm font-black relative overflow-hidden transition-all ${
-          announcement.type === 'urgent' ? 'bg-red-600 text-white' : 
-          announcement.type === 'promo' ? 'bg-purple-600 text-white' : 
-          'bg-blue-900 text-white'
-        }`}>
-          {announcement.link ? (
-            <a href={announcement.link} className="flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
-              <span>{announcement.text}</span>
-              <Sparkles className="w-4 h-4 animate-pulse shrink-0" />
-            </a>
-          ) : (
-            <div className="flex items-center justify-center gap-2">
-              <span>{announcement.text}</span>
-              <Bell className="w-4 h-4 shrink-0" />
-            </div>
-          )}
-        </div>
-      )}
+      <AnimatePresence>
+        {announcement && announcement.isActive && !isDismissed && (
+          <motion.div 
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className={`px-4 py-2 text-center text-xs md:text-sm font-black relative overflow-hidden transition-all shadow-sm ${
+              announcement.type === 'urgent' ? 'bg-gradient-to-r from-red-600 to-rose-700 text-white' : 
+              announcement.type === 'promo' ? 'bg-gradient-to-r from-purple-600 to-indigo-700 text-white' : 
+              announcement.type === 'success' ? 'bg-gradient-to-r from-green-600 to-emerald-700 text-white' :
+              'bg-gradient-to-r from-blue-900 to-slate-900 text-white'
+            }`}
+          >
+            {announcement.link ? (
+              <a href={announcement.link} className="flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
+                <Sparkles className="w-3 h-3 md:w-4 md:h-4 animate-pulse shrink-0" />
+                <span>{announcement.text}</span>
+                <ChevronRight className="w-3 h-3 md:w-4 md:h-4 shrink-0" />
+              </a>
+            ) : (
+              <div className="flex items-center justify-center gap-2">
+                <Bell className="w-3 h-3 md:w-4 md:h-4 shrink-0 animate-bounce" />
+                <span>{announcement.text}</span>
+              </div>
+            )}
+            <button 
+              onClick={dismissAnnouncement}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-white/10 rounded-full transition-colors"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <nav className="w-full bg-white/80 backdrop-blur-xl border-b border-gray-100 shadow-sm pt-[env(safe-area-inset-top)]">
         {/* Email Consent Banner */}
@@ -387,100 +412,100 @@ export const Navbar: React.FC = () => {
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed top-0 right-0 bottom-0 w-[80%] max-w-sm bg-white z-[101] md:hidden flex flex-col shadow-2xl"
+              className="fixed top-0 right-0 bottom-0 w-[60%] bg-white z-[101] md:hidden flex flex-col shadow-2xl"
               dir="rtl"
             >
-              <div className="p-6 border-b border-gray-50 flex items-center justify-between">
+              <div className="p-4 border-b border-gray-50 flex items-center justify-between">
                 <Link to="/" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-2">
-                  <img src="https://i.imgur.com/OYaLVgI.png" alt="عربون" className="h-8 w-auto" />
-                  <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">وساطة آمنة</span>
+                  <img src="https://i.imgur.com/OYaLVgI.png" alt="عربون" className="h-6 w-auto" />
+                  <span className="text-[8px] font-black text-blue-600 uppercase tracking-widest">عربون</span>
                 </Link>
                 <button 
                   onClick={() => setIsMenuOpen(false)}
-                  className="w-10 h-10 flex items-center justify-center bg-gray-50 rounded-full text-gray-400 hover:text-gray-600"
+                  className="w-8 h-8 flex items-center justify-center bg-gray-50 rounded-full text-gray-400 hover:text-gray-600"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-6 space-y-8">
+              <div className="flex-1 overflow-y-auto p-4 space-y-6 no-scrollbar">
                 {/* Auth Section */}
                 {user ? (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-4 bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-xl border border-gray-100">
                       <img 
                         src={user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile?.displayName || 'User')}&background=random`} 
                         alt="" 
-                        className="w-12 h-12 rounded-xl object-cover"
+                        className="w-10 h-10 rounded-lg object-cover"
                       />
                       <div className="flex-1 overflow-hidden">
-                        <p className="text-sm font-black text-gray-900 truncate">{profile?.displayName || 'مستخدم'}</p>
-                        <p className="text-[10px] font-bold text-gray-400">%{profile?.trustLevel || 10} ثقة</p>
+                        <p className="text-xs font-black text-gray-900 truncate">{profile?.displayName || 'مستخدم'}</p>
+                        <p className="text-[8px] font-bold text-gray-400">%{profile?.trustLevel || 10} ثقة</p>
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-4">
-                    <p className="text-sm font-bold text-gray-500">مرحباً بك في عربون</p>
+                  <div className="space-y-3">
+                    <p className="text-[10px] font-bold text-gray-500">مرحباً بك</p>
                     <button 
                       onClick={() => { login(); setIsMenuOpen(false); }}
-                      className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 shadow-xl shadow-blue-100"
+                      className="w-full bg-blue-600 text-white py-3 rounded-xl font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-blue-100"
                     >
-                      <User className="w-5 h-5" />
-                      تسجيل الدخول
+                      <User className="w-4 h-4" />
+                      الدخول
                     </button>
                   </div>
                 )}
 
                 {/* Primary Nav */}
-                <div className="space-y-2">
-                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4">التنقل السريع</p>
-                  <Link to="/" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 transition-all font-bold text-gray-700 bg-gray-50/50">
-                    <LayoutDashboard className="w-5 h-5 text-blue-600" />
+                <div className="space-y-1">
+                  <p className="text-[8px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2 px-2">الرئيسية</p>
+                  <Link to="/" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-all font-bold text-gray-700 text-xs bg-gray-50/50">
+                    <LayoutDashboard className="w-4 h-4 text-blue-600" />
                     <span>الرئيسية</span>
                   </Link>
-                  <Link to="/search" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 transition-all font-bold text-gray-700">
-                    <Search className="w-5 h-5 text-blue-600" />
+                  <Link to="/search" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-all font-bold text-gray-700 text-xs">
+                    <Search className="w-4 h-4 text-blue-600" />
                     <span>تصفح الصفقات</span>
                   </Link>
                   {user && (
-                    <Link to="/dashboard" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 transition-all font-bold text-gray-700">
-                      <CheckCircle2 className="w-5 h-5 text-blue-600" />
-                      <span>طلباتي النشطة</span>
+                    <Link to="/dashboard" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-all font-bold text-gray-700 text-xs">
+                      <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                      <span>طلباتي</span>
                     </Link>
                   )}
                 </div>
 
                 {/* Info Nav */}
-                <div className="space-y-2">
-                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4">الدعم والمعلومات</p>
-                  <Link to="/how-it-works" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 transition-all font-bold text-gray-600">
-                    <Info className="w-5 h-5" />
+                <div className="space-y-1">
+                  <p className="text-[8px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2 px-2">الدعم</p>
+                  <Link to="/how-it-works" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-all font-bold text-gray-600 text-xs">
+                    <Info className="w-4 h-4" />
                     <span>كيف يعمل؟</span>
                   </Link>
-                  <Link to="/help-center" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 transition-all font-bold text-gray-600">
-                    <HelpCircle className="w-5 h-5" />
-                    <span>مركز المساعدة</span>
+                  <Link to="/help-center" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-all font-bold text-gray-600 text-xs">
+                    <HelpCircle className="w-4 h-4" />
+                    <span>المساعدة</span>
                   </Link>
-                  <Link to="/faq" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 transition-all font-bold text-gray-600">
-                    <MessageSquare className="w-5 h-5" />
-                    <span>الأسئلة الشائعة</span>
+                  <Link to="/faq" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-all font-bold text-gray-600 text-xs">
+                    <MessageSquare className="w-4 h-4" />
+                    <span>الأسئلة</span>
                   </Link>
-                  <Link to="/terms" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 transition-all font-bold text-gray-600">
-                    <FileText className="w-5 h-5" />
-                    <span>الشروط والأحكام</span>
+                  <Link to="/terms" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-all font-bold text-gray-600 text-xs">
+                    <FileText className="w-4 h-4" />
+                    <span>الشروط</span>
                   </Link>
                 </div>
               </div>
 
               {user && (
-                <div className="p-6 border-t border-gray-50">
+                <div className="p-4 border-t border-gray-50">
                   <button 
                     onClick={() => { logout(); setIsMenuOpen(false); }}
-                    className="w-full flex items-center justify-center gap-3 p-4 rounded-2xl font-black text-red-500 hover:bg-red-50 transition-all"
+                    className="w-full flex items-center justify-center gap-2 p-3 rounded-xl font-black text-xs text-red-500 hover:bg-red-50 transition-all"
                   >
-                    <LogOut className="w-5 h-5" />
-                    خروج من النظام
+                    <LogOut className="w-4 h-4" />
+                    خروج
                   </button>
                 </div>
               )}

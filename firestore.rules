@@ -16,10 +16,15 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function isOwnerByEmail(email) {
+      return isSignedIn() && 'email' in request.auth.token && request.auth.token.email == email;
+    }
+
     function isAdmin() {
       return isSignedIn() && (
         ('email' in request.auth.token && request.auth.token.email == 'khyratfarmdates@gmail.com') ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isAdmin', false) == true)
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isAdmin', false) == true)
       );
     }
 
@@ -38,81 +43,56 @@ service cloud.firestore {
     // --- Users ---
     match /users/{userId} {
       allow get: if true;
-      allow list: if resource.data.get('isSeller', false) == true || 
-                    (isSignedIn() && isAdmin()) || 
-                    (isSignedIn() && request.auth.uid == userId) ||
+      allow list: if (resource.data.get('isSeller', false) == true) || 
+                    (isSignedIn() && (
+                      isAdmin() ||
+                      request.auth.uid == userId ||
+                      resource.data.get('uid', '') == request.auth.uid
+                    )) ||
                     // Search by email or phone for order creation
-                    (request.query.limit <= 1 && (resource.data.email != null || resource.data.phoneNumber != null || resource.data.referralCode != null));
-      allow create: if isOwner(userId)
-        && incoming().uid == userId;
+                    (request.query.limit <= 1 && (
+                      'email' in resource.data || 
+                      'phoneNumber' in resource.data || 
+                      'referralCode' in resource.data ||
+                      'userShortId' in resource.data
+                    ));
+      allow create: if isOwner(userId);
       
       allow update: if (isSignedIn() && (
           isOwner(userId) || 
           isAdmin() || 
           // Action: Reward Inviter (Allows an invitee to reward their inviter upon completion)
-          (incoming().diff(existing()).affectedKeys().hasOnly(['freeFeeTransactions', 'updatedAt']) && incoming().freeFeeTransactions == existing().freeFeeTransactions + 1)
-        ))
-        && incoming().uid == userId
-        && (
-          isAdmin() || 
-          (incoming().diff(existing()).affectedKeys().hasOnly(['freeFeeTransactions', 'updatedAt']) && incoming().freeFeeTransactions == existing().freeFeeTransactions + 1) ||
-          (
-            isOwner(userId) && (
-              // Action: Basic Info
-              incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'phoneNumber', 'updatedAt', 'isOnline', 'lastSeen']) ||
-              // Action: Referral Code (for migration of old users)
-              incoming().diff(existing()).affectedKeys().hasOnly(['referralCode', 'updatedAt']) ||
-              // Action: Become Seller
-              incoming().diff(existing()).affectedKeys().hasOnly(['isSeller', 'bio', 'specialties', 'trustLevel', 'updatedAt']) ||
-              // Action: Performance Sync (Automation)
-              incoming().diff(existing()).affectedKeys().hasOnly(['avgResponseTime', 'isFeatured', 'updatedAt']) ||
-              // Action: Submit Verification
-              incoming().diff(existing()).affectedKeys().hasOnly(['idNumber', 'phoneNumber', 'idPhotoUrl', 'agreedToTerms', 'verificationStatus', 'trustLevel', 'updatedAt']) ||
-              // Action: Rating update (from OrderRating component)
-              incoming().diff(existing()).affectedKeys().hasOnly(['reviewsCount', 'rating', 'trustLevel', 'updatedAt']) ||
-              // Action: Referral reward consumption
-              incoming().diff(existing()).affectedKeys().hasOnly(['freeFeeTransactions', 'updatedAt']) && incoming().freeFeeTransactions == existing().freeFeeTransactions - 1 ||
-              // Action: Auto-admin for matching email (STRICT)
-              (incoming().diff(existing()).affectedKeys().hasOnly(['isAdmin']) && ('email' in request.auth.token && request.auth.token.email == 'khyratfarmdates@gmail.com') && incoming().isAdmin == true)
-            )
-          )
-        );
-    }
-
-    // --- Referrals ---
-    match /referrals/{refId} {
-      allow read: if isSignedIn() && (isAdmin() || resource.data.inviterId == request.auth.uid || resource.data.inviteeId == request.auth.uid);
-      allow create: if isSignedIn() && incoming().inviteeId == request.auth.uid;
-      allow update: if isSignedIn() && isAdmin();
-    }
-
-    // --- SMS Logs ---
-    match /sms_logs/{logId} {
-      allow read: if isAdmin();
-      allow create: if isSignedIn(); // Allow apps to log sent SMS for debugging
+          (incoming().diff(existing()).affectedKeys().hasOnly(['freeFeeTransactions', 'updatedAt']) && 
+           incoming().get('freeFeeTransactions', 0) == existing().get('freeFeeTransactions', 0) + 1)
+        ));
     }
 
     // --- Orders ---
     function isValidOrder(data) {
-      return data.buyerId is string && data.sellerId is string
-        && data.title is string && data.title.size() <= 200
-        && data.amount is number && data.amount > 0
-        && data.status in ['pending', 'escrowed', 'delivered', 'completed', 'disputed', 'cancelled'];
+      return data.get('buyerId', '') is string && data.get('sellerId', '') is string
+        && data.get('title', '').size() <= 200
+        && data.get('amount', 0) is number && data.get('amount', 0) > 0
+        && data.get('status', 'pending') in ['pending', 'escrowed', 'delivered', 'completed', 'disputed', 'cancelled'];
     }
 
     match /orders/{orderId} {
-      allow get: if (existing().visibility == 'public') || (isSignedIn() && (
-        isAdmin() ||
-        isOwner(existing().buyerId) || 
-        isOwner(existing().sellerId) || 
-        ('sellerEmail' in existing() && 'email' in request.auth.token && existing().sellerEmail == request.auth.token.email)
-      ));
-      allow list: if (resource.data.visibility == 'public') || (isSignedIn() && (
-        isAdmin() ||
-        resource.data.buyerId == request.auth.uid || 
-        resource.data.sellerId == request.auth.uid || 
-        ('sellerEmail' in resource.data && 'email' in request.auth.token && resource.data.sellerEmail == request.auth.token.email)
-      ));
+      function isOrderParty() {
+        return isSignedIn() && (
+          existing().buyerId == request.auth.uid || 
+          existing().sellerId == request.auth.uid ||
+          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('email', '') == existing().get('sellerEmail', 'N/A'))
+        );
+      }
+
+      allow get: if (existing().get('visibility', 'private') == 'public') || isAdmin() || isOrderParty();
+      allow list: if (resource.data.get('visibility', 'private') == 'public') || 
+                    (isSignedIn() && (
+                      isAdmin() ||
+                      resource.data.buyerId == request.auth.uid || 
+                      resource.data.sellerId == request.auth.uid ||
+                      resource.data.get('sellerEmail', '') == request.auth.token.email
+                    ));
       
       allow create: if isSignedIn() 
         && isValidOrder(incoming())
@@ -121,34 +101,35 @@ service cloud.firestore {
         && incoming().status == 'pending'
         && incoming().createdAt == request.time;
         
-      allow update: if isSignedIn() 
-        && (
+      allow update: if (isAdmin() || (isSignedIn() && (
           isOwner(existing().buyerId) || 
           isOwner(existing().sellerId) ||
-          ('sellerEmail' in existing() && 'email' in request.auth.token && existing().sellerEmail == request.auth.token.email)
-        )
+          ('sellerEmail' in existing() && isOwnerByEmail(existing().sellerEmail))
+        )))
         && (
-          // Action: Seller claims order (sets their UID if sellerId was unknown/placeholder)
-          (existing().sellerId == 'unknown' && incoming().sellerId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['sellerId', 'updatedAt'])) ||
-          
-          (isValidOrder(incoming()) && (
-            // Action: Buyer actions
-            (isOwner(existing().buyerId) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) 
-              && (
-                (existing().status == 'pending' && incoming().status == 'cancelled') ||
-                (existing().status == 'delivered' && incoming().status == 'completed') ||
-                (existing().status == 'escrowed' && incoming().status == 'disputed') ||
-                (existing().status == 'delivered' && incoming().status == 'disputed')
+          isAdmin() || (
+            // Action: Seller claims order (sets their UID if sellerId was unknown/placeholder)
+            (existing().sellerId == 'unknown' && incoming().sellerId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['sellerId', 'updatedAt'])) ||
+            
+            (isValidOrder(incoming()) && (
+              // Action: Buyer actions
+              (isOwner(existing().buyerId) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) 
+                && (
+                  (existing().status == 'pending' && incoming().status == 'cancelled') ||
+                  (existing().status == 'delivered' && incoming().status == 'completed') ||
+                  (existing().status == 'escrowed' && incoming().status == 'disputed') ||
+                  (existing().status == 'delivered' && incoming().status == 'disputed')
+                )
+              ) ||
+              // Action: Seller actions
+              ((isOwner(existing().sellerId) || ('sellerEmail' in existing() && isOwnerByEmail(existing().sellerEmail))) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+                && (
+                  (existing().status == 'pending' && incoming().status == 'escrowed') ||
+                  (existing().status == 'escrowed' && incoming().status == 'delivered')
+                )
               )
-            ) ||
-            // Action: Seller actions
-            ((isOwner(existing().sellerId) || ('sellerEmail' in existing() && 'email' in request.auth.token && existing().sellerEmail == request.auth.token.email)) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
-              && (
-                (existing().status == 'pending' && incoming().status == 'escrowed') ||
-                (existing().status == 'escrowed' && incoming().status == 'delivered')
-              )
-            )
-          ))
+            ))
+          )
         );
     }
 

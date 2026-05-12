@@ -7,14 +7,13 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   Bell, CreditCard, AlertTriangle, MessageSquare, Clock, Globe, ExternalLink, LogOut, Star, 
   Shield, Terminal, Activity, Trash2, ChevronRight, MessageCircle, Plus, Briefcase, 
-  ShieldCheck, CheckCircle2, AlertCircle 
+  ShieldCheck, CheckCircle2, AlertCircle, TrendingUp 
 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { IdentityVerification } from '../components/IdentityVerification';
-import { TrustProgressBar } from '../components/TrustProgressBar';
 import { ServiceManager } from '../components/ServiceManager';
 import { ChatRoom } from '../components/chat/ChatRoom';
 import { useNotifications } from '../components/providers/NotificationProvider';
@@ -40,31 +39,29 @@ interface OrderRowProps {
 const OrderRow: React.FC<OrderRowProps> = ({ order, navigate }) => {
   return (
     <motion.div
-      whileHover={{ backgroundColor: '#fcfdff' }}
-      className="p-6 md:px-8 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors cursor-pointer border-b border-gray-50 group"
+      whileHover={{ scale: 1.01, backgroundColor: '#fdfdff' }}
+      className="p-4 md:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all cursor-pointer bg-white border border-gray-100 rounded-2xl md:rounded-0 md:border-0 md:border-b md:border-gray-50/50 group hover:shadow-lg hover:shadow-blue-900/5 md:hover:shadow-none relative overflow-hidden"
       onClick={() => navigate(`/order/${order.id}`)}
     >
-      <div className="space-y-1">
-        <div className="flex items-center gap-3">
-          <h3 className="font-black text-lg text-gray-900 group-hover:text-blue-600 transition-colors uppercase">{order.title}</h3>
+      <div className="absolute top-0 right-0 w-1 h-full bg-blue-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+      <div className="space-y-1 relative z-10">
+        <div className="flex items-center gap-2 mb-1">
           {getStatusBadge(order.status)}
+          <span className="text-[10px] font-bold text-gray-400 font-mono tracking-tighter">#ARB-{order.id.slice(0, 4).toUpperCase()}</span>
         </div>
-        <p className="text-sm text-gray-500 line-clamp-1 italic">{order.description}</p>
+        <div className="flex items-center gap-3">
+          <h3 className="font-black text-sm md:text-base text-gray-900 group-hover:text-blue-600 transition-colors uppercase truncate">{order.title}</h3>
+        </div>
+        <p className="text-[10px] md:text-xs text-gray-500 line-clamp-1 italic font-medium">{order.description}</p>
       </div>
 
-      <div className="flex items-center justify-between md:justify-end gap-10">
+      <div className="flex items-center justify-between md:justify-end gap-6 md:gap-10 mt-2 md:mt-0 relative z-10">
         <div className="text-right">
-          <p className="text-xs text-gray-400 font-bold uppercase tracking-widest leading-none mb-1">القيمة</p>
-          <p className="text-xl font-black text-gray-900">{order.amount} ر.س</p>
+          <p className="text-[8px] md:text-[10px] text-gray-400 font-black uppercase tracking-widest leading-none mb-1">صافي القيمة</p>
+          <p className="text-base md:text-lg font-black text-gray-900 tracking-tight">{order.amount} <span className="text-[10px] md:text-xs font-bold text-gray-400">ر.س</span></p>
         </div>
-        <div className="text-right hidden sm:block">
-          <p className="text-xs text-gray-400 font-bold uppercase tracking-widest leading-none mb-1">التاريخ</p>
-          <p className="text-sm font-black text-gray-700">
-            {order.createdAt ? format(order.createdAt.toDate(), 'd MMM', { locale: ar }) : ''}
-          </p>
-        </div>
-        <div className="flex items-center justify-center w-10 h-10 bg-gray-50 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-all shadow-sm">
-          <ChevronRight className="w-5 h-5 rtl:rotate-180" />
+        <div className="flex items-center justify-center w-8 h-8 md:w-10 md:h-10 bg-gray-50 rounded-lg md:rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-all shadow-sm border border-gray-100/50">
+          <ChevronRight className="w-4 h-4 md:w-5 md:h-5 rtl:rotate-180 transition-transform group-hover:translate-x-[-2px]" />
         </div>
       </div>
     </motion.div>
@@ -75,43 +72,32 @@ const ArchivedOrderRow: React.FC<OrderRowProps> = ({ order, navigate }) => {
   return (
     <motion.div
       whileHover={{ backgroundColor: '#fcfdff' }}
-      className="p-6 md:px-8 flex flex-col lg:flex-row lg:items-center justify-between gap-4 transition-colors cursor-pointer border-b border-gray-50 opacity-80 hover:opacity-100"
+      className="p-3 md:p-6 md:px-8 flex items-center justify-between gap-4 transition-colors cursor-pointer border-b border-gray-50 opacity-80 hover:opacity-100 group"
       onClick={() => navigate(`/order/${order.id}`)}
     >
-      <div className="space-y-1">
-        <div className="flex items-center gap-3">
-          <h3 className="font-bold text-gray-900">{order.title}</h3>
-          {getStatusBadge(order.status)}
+      <div className="flex items-center gap-3 flex-1 overflow-hidden">
+        <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center shrink-0 group-hover:bg-blue-50 transition-colors">
+          <Shield className="w-4 h-4 text-gray-400 group-hover:text-blue-500" />
         </div>
-        <div className="flex items-center gap-4 text-xs font-bold">
-           <span className="text-gray-400">#ARB-{order.id.slice(0, 8).toUpperCase()}</span>
-           <span className="text-gray-400 border-r-2 border-gray-100 pr-2">
-             {order.createdAt ? format(order.createdAt.toDate(), 'd MMMM yyyy', { locale: ar }) : ''}
-           </span>
+        <div className="space-y-0.5 overflow-hidden">
+          <h3 className="font-bold text-xs md:text-sm text-gray-900 truncate">{order.title}</h3>
+          <div className="flex items-center gap-2 text-[8px] md:text-xs font-bold">
+             <span className="text-gray-400">#ARB-{order.id.slice(0, 4)}</span>
+             <span className="text-gray-400 border-r border-gray-100 pr-2">
+               {order.createdAt ? format(order.createdAt.toDate(), 'd MMM', { locale: ar }) : ''}
+             </span>
+          </div>
         </div>
       </div>
 
-      <div className="flex items-center gap-6">
-        {/* Rating Logic */}
-        {order.status === 'completed' && (
-          <div className="flex flex-col items-end gap-1">
-             <div className="flex items-center gap-1.5 px-3 py-1 bg-orange-50 rounded-full border border-orange-100">
-                <Star className={`w-3.5 h-3.5 ${order.buyerRatingCompleted || order.sellerRatingCompleted ? 'fill-orange-400 text-orange-400' : 'text-gray-300'}`} />
-                <span className="text-xs font-black text-orange-700">
-                   {order.buyerRatingCompleted ? `${order.sellerRating! * 20}%` : order.sellerRatingCompleted ? `${order.buyerRating! * 20}%` : 'بانتظار التقييم'}
-                </span>
-             </div>
-             <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">
-               {order.buyerRatingCompleted || order.sellerRatingCompleted ? 'تقييم المعاملة' : 'لم يتم التقييم بعد'}
-             </p>
-          </div>
-        )}
+      <div className="flex items-center gap-3 md:gap-6 shrink-0">
+        <div className="hidden sm:block">
+           {getStatusBadge(order.status)}
+        </div>
         <div className="text-right">
-          <p className="text-lg font-black text-gray-400">{order.amount} ر.س</p>
+          <p className="text-sm md:text-lg font-black text-gray-400">{order.amount} ر.س</p>
         </div>
-        <div className="text-blue-400/50">
-          <Clock className="w-5 h-5" />
-        </div>
+        <ChevronRight className="w-4 h-4 text-gray-300 rtl:rotate-180" />
       </div>
     </motion.div>
   );
@@ -303,25 +289,25 @@ export const Dashboard: React.FC = () => {
   const archivedConversations = orders.filter(o => o.status === 'completed' || o.status === 'cancelled');
 
   return (
-    <div className="space-y-8 pb-20">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div className="space-y-4 md:space-y-8 pb-20">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 md:gap-4">
         <div>
-          <h1 className="text-3xl font-black text-gray-900 tracking-tight">لوحة التحكم</h1>
-          <p className="text-gray-500 mt-1 font-medium italic">أهلاً {profile?.displayName}، تتبع أعمالك ومحادثاتك هنا.</p>
+          <h1 className="text-xl md:text-3xl font-black text-gray-900 tracking-tight">لوحة التحكم</h1>
+          <p className="text-[10px] md:text-gray-500 mt-0.5 md:mt-1 font-medium italic">أهلاً {profile?.displayName}، تتبع أعمالك ومحادثاتك هنا.</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-2 md:gap-3 w-full md:w-auto">
           <button
             onClick={() => setActiveTab('messages')}
-            className={`p-3 rounded-xl transition-all relative ${activeTab === 'messages' ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' : 'bg-white text-gray-500 border border-gray-100 hover:bg-gray-50 shadow-sm'}`}
+            className={`p-2.5 md:p-3 rounded-xl transition-all relative ${activeTab === 'messages' ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' : 'bg-white text-gray-500 border border-gray-100 hover:bg-gray-50 shadow-sm'}`}
           >
-            <MessageCircle className="w-6 h-6" />
-            <div className="absolute top-0 right-0 w-3 h-3 bg-red-500 border-2 border-white rounded-full"></div>
+            <MessageCircle className="w-5 h-5 md:w-6 md:h-6" />
+            <div className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 border-2 border-white rounded-full"></div>
           </button>
           <button
             onClick={() => navigate('/create-order')}
-            className="flex items-center gap-2 bg-gray-900 text-white px-6 py-3 rounded-xl font-bold hover:bg-black transition-all shadow-sm"
+            className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-gray-900 text-white px-4 md:px-6 py-2.5 md:py-3 rounded-xl font-bold text-xs md:text-base hover:bg-black transition-all shadow-sm"
           >
-            <Plus className="w-5 h-5" />
+            <Plus className="w-4 h-4 md:w-5 md:h-5" />
             <span>طلب جديد</span>
           </button>
         </div>
@@ -448,42 +434,37 @@ export const Dashboard: React.FC = () => {
             className="space-y-6 md:space-y-8"
           >
             {/* Mobile Stats Grid - 2x2 system */}
-            <div className="grid grid-cols-2 md:hidden gap-3 mb-2">
+            <div className="grid grid-cols-2 lg:grid-cols-4 md:hidden gap-2 md:gap-3 mb-2">
                <StatCard title="المعاملات" value={activeOrdersCount} icon={Clock} color="blue" />
                <StatCard title="المنجزة" value={completedOrdersCount} icon={CheckCircle2} color="green" />
                <StatCard title="متعثرة" value={failedOrdersCount} icon={AlertCircle} color="red" />
-               <StatCard title="مؤشر الثقة" value={`${confidenceScore}%`} icon={ShieldCheck} color="indigo" highlight />
+               <StatCard title="مؤشر الثقة" value={`${confidenceScore}%`} icon={ShieldCheck} color="indigo" highlight progress={confidenceScore} />
             </div>
 
             {!profile?.isVerified && (
-              <div className="grid md:grid-cols-3 gap-8">
-                <div className="md:col-span-2">
-                  <motion.div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-[2.5rem] p-10 text-white relative overflow-hidden shadow-xl shadow-blue-100">
-                    <div className="relative z-10">
-                      <div className="flex items-center gap-6 mb-8">
-                        <div className="bg-white/20 p-5 rounded-[2rem] backdrop-blur-md border border-white/10 shrink-0">
-                          <ShieldCheck className="w-10 h-10 text-white" />
-                        </div>
-                        <div>
-                          <h2 className="text-3xl font-black mb-2">وثّق هويتك لزيادة أمانك</h2>
-                          <p className="text-blue-100 opacity-90 max-w-md font-medium leading-relaxed">
-                            التوثيق بالهوية الوطنية يمنحك الأولوية في معالجة الطلبات ويزيد من مستوى الثقة في حسابك.
-                          </p>
-                        </div>
+              <div className="flex flex-col gap-4 md:gap-8 max-w-2xl">
+                <motion.div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-xl md:rounded-[2.5rem] p-3 md:p-8 text-white relative overflow-hidden shadow-lg shadow-blue-100/20">
+                  <div className="relative z-10 flex flex-col md:flex-row items-center md:items-center justify-between gap-3 md:gap-8">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-white/20 p-2 md:p-3 rounded-lg md:rounded-xl backdrop-blur-md border border-white/10 shrink-0">
+                        <ShieldCheck className="w-4 h-4 md:w-6 md:h-6 text-white" />
                       </div>
-                      <button 
-                        onClick={() => setShowIdentityVerify(true)}
-                        className="bg-white text-blue-600 px-10 py-5 rounded-2xl font-bold text-lg hover:bg-blue-50 transition-all flex items-center gap-2 shadow-xl"
-                      >
-                        بدء عملية التوثيق الشامل
-                        <ChevronRight className="w-6 h-6" />
-                      </button>
+                      <div className="space-y-0.5 text-right">
+                        <h2 className="text-[11px] md:text-xl font-black">وثّق هويتك</h2>
+                        <p className="text-blue-100 opacity-90 text-[8px] md:text-xs font-medium leading-relaxed max-w-[150px] md:max-w-xs">
+                          التوثيق يمنحك الأولوية ويزيد الثقة.
+                        </p>
+                      </div>
                     </div>
-                  </motion.div>
-                </div>
-                <div>
-                  <TrustProgressBar level={profile?.trustLevel || 0} />
-                </div>
+                    <button 
+                      onClick={() => setShowIdentityVerify(true)}
+                      className="w-full md:w-auto bg-white text-blue-600 px-4 py-1.5 rounded-lg md:rounded-xl font-black text-[9px] md:text-sm hover:bg-blue-50 transition-all flex items-center justify-center gap-2 shadow-xl shrink-0"
+                    >
+                      بدء التوثيق
+                      <ChevronRight className="w-3 h-3 md:w-5 md:h-5" />
+                    </button>
+                  </div>
+                </motion.div>
               </div>
             )}
 
@@ -496,13 +477,13 @@ export const Dashboard: React.FC = () => {
                     {orders.filter(o => o.status !== 'completed' && o.status !== 'cancelled').length} طلب
                   </span>
                 </div>
-                <div className="divide-y divide-gray-50 overflow-y-auto max-h-[600px] no-scrollbar">
+                <div className="grid grid-cols-2 md:grid-cols-1 gap-3 p-4 md:p-0 md:divide-y md:divide-gray-50 overflow-y-auto max-h-[600px] no-scrollbar">
                   {loading ? (
-                    <div className="flex items-center justify-center h-64">
+                    <div className="col-span-2 md:col-span-1 flex items-center justify-center h-64">
                        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
                     </div>
                   ) : orders.filter(o => o.status !== 'completed' && o.status !== 'cancelled').length === 0 ? (
-                    <div className="p-12 text-center text-gray-400 font-medium">لا توجد طلبات جارية حالياً.</div>
+                    <div className="col-span-2 md:col-span-1 p-12 text-center text-gray-400 font-medium">لا توجد طلبات جارية حالياً.</div>
                   ) : (
                     orders.filter(o => o.status !== 'completed' && o.status !== 'cancelled').map(order => (
                       <OrderRow key={order.id} order={order} navigate={navigate} />
@@ -867,7 +848,7 @@ export const Dashboard: React.FC = () => {
               <StatCard title="المعاملات" value={activeOrdersCount} icon={Clock} color="blue" />
               <StatCard title="المنجزة" value={completedOrdersCount} icon={CheckCircle2} color="green" />
               <StatCard title="متعثرة" value={failedOrdersCount} icon={AlertCircle} color="red" />
-              <StatCard title="مؤشر الثقة" value={`${confidenceScore}%`} icon={ShieldCheck} color="indigo" highlight />
+              <StatCard title="مؤشر الثقة" value={`${confidenceScore}%`} icon={ShieldCheck} color="indigo" highlight progress={confidenceScore} />
             </div>
           </motion.div>
         )}
@@ -878,7 +859,7 @@ export const Dashboard: React.FC = () => {
       )}
 
       {/* Logout */}
-      <div className="pt-8 border-t border-gray-100 flex justify-end">
+      <div className="pt-8 border-t border-gray-100 hidden md:flex justify-end">
         <button onClick={() => setShowLogoutConfirm(true)} className="flex items-center gap-2 text-red-600 font-bold hover:bg-red-50 px-6 py-3 rounded-xl transition-all">
           <LogOut className="w-5 h-5" />
           <span>تسجيل الخروج</span>
@@ -915,14 +896,29 @@ const ServiceGuide: React.FC = () => (
   </div>
 );
 
-const StatCard: React.FC<{ title: string, value: string | number, icon: any, color: string, highlight?: boolean }> = ({ title, value, icon: Icon, color, highlight }) => (
-  <div className={`p-4 md:p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center md:items-start text-center md:text-right gap-3 md:gap-4 ${highlight ? 'bg-gray-950 text-white' : 'bg-white'}`}>
-    <div className={`p-2.5 md:p-3 rounded-xl shrink-0 ${highlight ? 'bg-white/10 text-blue-400' : `bg-${color}-50 text-${color}-500`}`}>
-      <Icon className="w-5 h-5 md:w-6 md:h-6" />
+const StatCard: React.FC<{ title: string, value: string | number, icon: any, color: string, highlight?: boolean, progress?: number }> = ({ title, value, icon: Icon, color, highlight, progress }) => (
+  <div className={`p-2.5 md:p-6 rounded-xl md:rounded-3xl border border-gray-100/50 premium-shadow flex flex-col items-center md:items-start text-center md:text-right gap-1 md:gap-4 transition-all hover:scale-[1.02] ${highlight ? 'bg-gray-950 text-white shadow-blue-900/10' : 'bg-white'}`}>
+    <div className={`p-1.5 md:p-3 rounded-lg md:rounded-2xl shrink-0 ${highlight ? 'bg-white/10 text-blue-400' : `bg-${color}-50 text-${color}-500 bg-opacity-70 backdrop-blur-sm`}`}>
+      <Icon className="w-3.5 h-3.5 md:w-6 md:h-6" />
     </div>
     <div className="flex-1 w-full">
-      <p className={`text-[10px] md:text-sm font-black uppercase tracking-widest leading-none mb-1 ${highlight ? 'text-gray-400' : 'text-gray-500'}`}>{title}</p>
-      <p className="text-xl md:text-2xl font-black">{value}</p>
+      <p className={`text-[8px] md:text-xs font-black uppercase tracking-widest leading-none mb-0.5 md:mb-2 ${highlight ? 'text-gray-400' : 'text-gray-400'}`}>{title}</p>
+      <div className="flex items-center justify-between gap-1 md:gap-4 mb-2">
+         <p className="text-sm md:text-3xl font-black tracking-tight">{value}</p>
+         {progress !== undefined && (
+           <span className={`text-[7px] md:text-[10px] font-black px-2 py-0.5 rounded-full ${highlight ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-600'}`}>موثوق</span>
+         )}
+      </div>
+      
+      {progress !== undefined && (
+        <div className="w-full bg-gray-100 h-1 md:h-2 rounded-full overflow-hidden">
+          <motion.div 
+            initial={{ width: 0 }}
+            animate={{ width: `${progress}%` }}
+            className={`h-full bg-blue-600 rounded-full shadow-[0_0_10px_rgba(58,89,152,0.3)]`}
+          />
+        </div>
+      )}
     </div>
   </div>
 );

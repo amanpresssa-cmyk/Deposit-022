@@ -60,7 +60,7 @@ export const CreateOrderPage: React.FC = () => {
     }
   }, [location.search]);
 
-  const categories = ['عقارات', 'سيارات', 'خدمات إلكترونية', 'تعقيب معاملات', 'برمجة وتطوير', 'أجهزة إلكترونية', 'عام'];
+  const categories = ['عقارات', 'سيارات', 'خدمات إلكترونية', 'تعقيب معاملات', 'برمجة وتطوير', 'صناعة تطبيقات', 'مواقع إلكترونية', 'استضافات', 'أجهزة إلكترونية', 'عام'];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
