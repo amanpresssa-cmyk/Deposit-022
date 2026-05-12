@@ -292,8 +292,8 @@ export const Dashboard: React.FC = () => {
     <div className="space-y-4 md:space-y-8 pb-20">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 md:gap-4">
         <div>
-          <h1 className="text-xl md:text-3xl font-black text-gray-900 tracking-tight">لوحة التحكم</h1>
-          <p className="text-[10px] md:text-gray-500 mt-0.5 md:mt-1 font-medium italic">أهلاً {profile?.displayName}، تتبع أعمالك ومحادثاتك هنا.</p>
+          <h1 className="text-xl md:text-3xl font-display font-black text-slate-950 tracking-tight">لوحة التحكم</h1>
+          <p className="text-[10px] md:text-slate-500 mt-0.5 md:mt-1 font-medium italic">أهلاً {profile?.displayName}، تتبع أعمالك ومحادثاتك هنا.</p>
         </div>
         <div className="flex gap-2 md:gap-3 w-full md:w-auto">
           <button
@@ -305,7 +305,7 @@ export const Dashboard: React.FC = () => {
           </button>
           <button
             onClick={() => navigate('/create-order')}
-            className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-gray-900 text-white px-4 md:px-6 py-2.5 md:py-3 rounded-xl font-bold text-xs md:text-base hover:bg-black transition-all shadow-sm"
+            className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-blue-600 text-white px-4 md:px-6 py-2.5 md:py-3 rounded-xl font-display font-black text-xs md:text-base hover:bg-blue-700 transition-all shadow-lg shadow-blue-900/10"
           >
             <Plus className="w-4 h-4 md:w-5 md:h-5" />
             <span>طلب جديد</span>
@@ -470,10 +470,10 @@ export const Dashboard: React.FC = () => {
 
             <div className="grid lg:grid-cols-2 gap-6">
               {/* Active Orders */}
-              <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden flex flex-col h-full">
-                <div className="px-8 py-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-                  <h2 className="text-lg font-bold text-gray-900">طلبات نشطة</h2>
-                  <span className="bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-xs font-black">
+              <div className="bg-white rounded-[2rem] border border-gray-100/50 shadow-sm overflow-hidden flex flex-col h-full">
+                <div className="px-8 py-6 border-b border-gray-100/50 flex justify-between items-center bg-gray-50/30">
+                  <h2 className="text-lg font-display font-black text-gray-950">طلبات نشطة</h2>
+                  <span className="bg-blue-50/50 text-blue-700 px-3 py-1 rounded-full text-[10px] font-display font-black border border-blue-100/30">
                     {orders.filter(o => o.status !== 'completed' && o.status !== 'cancelled').length} طلب
                   </span>
                 </div>
@@ -493,10 +493,10 @@ export const Dashboard: React.FC = () => {
               </div>
 
               {/* Archived Orders */}
-              <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden flex flex-col h-full">
-                <div className="px-8 py-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-                  <h2 className="text-lg font-bold text-gray-900 underline decoration-gray-200 underline-offset-8">الأرشيف</h2>
-                  <span className="bg-gray-100 text-gray-500 px-3 py-1 rounded-full text-xs font-black">
+              <div className="bg-white rounded-[2rem] border border-gray-100/50 shadow-sm overflow-hidden flex flex-col h-full">
+                <div className="px-8 py-6 border-b border-gray-100/50 flex justify-between items-center bg-gray-50/30">
+                  <h2 className="text-lg font-display font-black text-gray-950 underline decoration-gray-200 underline-offset-8">الأرشيف</h2>
+                  <span className="bg-gray-100/50 text-gray-500 px-3 py-1 rounded-full text-[10px] font-display font-black border border-gray-200/30">
                     {orders.filter(o => o.status === 'completed' || o.status === 'cancelled').length} صفقة
                   </span>
                 </div>
@@ -902,11 +902,11 @@ const StatCard: React.FC<{ title: string, value: string | number, icon: any, col
       <Icon className="w-3.5 h-3.5 md:w-6 md:h-6" />
     </div>
     <div className="flex-1 w-full">
-      <p className={`text-[8px] md:text-xs font-black uppercase tracking-widest leading-none mb-0.5 md:mb-2 ${highlight ? 'text-gray-400' : 'text-gray-400'}`}>{title}</p>
+      <p className={`text-[8px] md:text-xs font-display font-black uppercase tracking-widest leading-none mb-0.5 md:mb-2 ${highlight ? 'text-gray-400' : 'text-gray-400'}`}>{title}</p>
       <div className="flex items-center justify-between gap-1 md:gap-4 mb-2">
-         <p className="text-sm md:text-3xl font-black tracking-tight">{value}</p>
+         <p className="text-sm md:text-3xl font-display font-black tracking-tight">{value}</p>
          {progress !== undefined && (
-           <span className={`text-[7px] md:text-[10px] font-black px-2 py-0.5 rounded-full ${highlight ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-600'}`}>موثوق</span>
+           <span className={`text-[7px] md:text-[10px] font-display font-black px-2 py-0.5 rounded-full ${highlight ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-600'}`}>موثوق</span>
          )}
       </div>
       

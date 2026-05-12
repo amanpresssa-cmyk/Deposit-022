@@ -280,10 +280,10 @@ export const OrderDetailsPage: React.FC = () => {
           <span>{order.title}</span>
         </div>
         <div className="flex items-center gap-3">
-          <p className="font-mono font-bold text-sm bg-gray-50 px-3 py-1 rounded-lg border border-gray-100">#ARB-{order.id.slice(0, 8).toUpperCase()}</p>
+          <p className="font-display font-black text-sm bg-gray-50 px-3 py-1 rounded-lg border border-gray-100 italic">#ARB-{order.id.slice(0, 8).toUpperCase()}</p>
           <button 
             onClick={copyOrderLink}
-            className="flex items-center gap-2 text-xs font-black text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 hover:bg-blue-100 transition-all group"
+            className="flex items-center gap-2 text-xs font-display font-black text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 hover:bg-blue-100 transition-all group shadow-sm"
           >
             {copied ? (
               <><Check className="w-3 h-3" /> تم النسخ</>
@@ -311,17 +311,17 @@ export const OrderDetailsPage: React.FC = () => {
              </div>
 
              <div className="grid md:grid-cols-3 gap-6">
-                <div className="p-6 bg-gray-50 rounded-3xl border border-gray-100 text-center">
-                   <p className="text-[10px] text-gray-400 font-black mb-1">المبلغ المطلوب</p>
-                   <p className="text-xl font-black">{order.amount.toLocaleString()} ر.س</p>
+                <div className="p-6 bg-gray-50/50 rounded-3xl border border-gray-100 text-center">
+                   <p className="text-[10px] text-gray-400 font-display font-black mb-1 italic">المبلغ المطلوب</p>
+                   <p className="text-xl font-display font-black">{order.amount.toLocaleString()} ر.س</p>
                 </div>
-                <div className="p-6 bg-gray-50 rounded-3xl border border-gray-100 text-center">
-                   <p className="text-[10px] text-gray-400 font-black mb-1">رسوم عربون (المشتري)</p>
-                   <p className="text-xl font-black">{fees.arboonFee.toLocaleString()} ر.س</p>
+                <div className="p-6 bg-gray-50/50 rounded-3xl border border-gray-100 text-center">
+                   <p className="text-[10px] text-gray-400 font-display font-black mb-1 italic">رسوم عربون</p>
+                   <p className="text-xl font-display font-black">{fees.arboonFee.toLocaleString()} ر.س</p>
                 </div>
-                <div className="p-6 bg-blue-600 rounded-3xl text-center text-white shadow-xl shadow-blue-100">
-                   <p className="text-[10px] opacity-80 font-black mb-1">صافي المعقب</p>
-                   <p className="text-xl font-black">{fees.sellerNetShare.toLocaleString()} ر.س</p>
+                <div className="p-6 bg-blue-600 rounded-3xl text-center text-white shadow-xl shadow-blue-900/10">
+                   <p className="text-[10px] opacity-80 font-display font-black mb-1 italic">صافي المعقب</p>
+                   <p className="text-xl font-display font-black">{fees.sellerNetShare.toLocaleString()} ر.س</p>
                 </div>
              </div>
              
@@ -353,12 +353,12 @@ export const OrderDetailsPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm space-y-6">
-             <div className="flex justify-between items-center border-b pb-4">
-                <h2 className="text-xl font-bold">تفاصيل الصفقة</h2>
-                <p className="text-2xl font-black text-[#2563eb]">{order.amount} ر.س</p>
+          <div className="bg-white p-8 rounded-3xl border border-gray-100/50 shadow-sm space-y-6">
+             <div className="flex justify-between items-center border-b border-gray-50 pb-4">
+                <h2 className="text-xl font-display font-black text-gray-950">تفاصيل الصفقة</h2>
+                <p className="text-2xl font-display font-black text-blue-600">{order.amount} ر.س</p>
              </div>
-             <p className="text-gray-600 whitespace-pre-wrap leading-relaxed">{order.description}</p>
+             <p className="text-gray-600 whitespace-pre-wrap leading-relaxed font-medium">{order.description}</p>
           </div>
 
           <AnimatePresence>
@@ -500,7 +500,7 @@ const PaymentModal: React.FC<{
             </div>
           )}
 
-          <button onClick={onConfirm} disabled={loading} className="w-full bg-[#2563eb] text-white py-5 rounded-3xl font-black text-xl shadow-xl shadow-blue-100 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3">
+          <button onClick={onConfirm} disabled={loading} className="w-full bg-blue-600 text-white py-5 rounded-3xl font-display font-black text-lg shadow-xl shadow-blue-900/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3">
             {loading ? <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" /> : <><Shield className="w-5 h-5" /><span>تأكيد ودفع {fees.buyerTotal.toLocaleString()} ر.س</span></>}
           </button>
           <button onClick={onClose} className="w-full text-gray-400 font-bold hover:text-gray-600 transition-colors">إلغاء العملية</button>

@@ -272,7 +272,7 @@ export const Home: React.FC = () => {
           >
             <div className="grid lg:grid-cols-2 gap-4 md:gap-16 items-center">
               <div className="text-right space-y-4 md:space-y-10 order-2 lg:order-1">
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 md:px-6 md:py-3 bg-white/50 backdrop-blur-xl border border-gray-100/50 text-blue-900 rounded-xl md:rounded-2xl text-[9px] md:text-sm font-black uppercase tracking-[0.2em] shadow-xl shadow-blue-900/5 h-8 md:h-12 overflow-hidden">
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 md:px-6 md:py-3 bg-white/50 backdrop-blur-xl border border-gray-100/50 text-blue-900 rounded-xl md:rounded-2xl text-[9px] md:text-sm font-display font-black uppercase tracking-[0.2em] shadow-xl shadow-blue-900/5 h-8 md:h-12 overflow-hidden">
                   <AnimatePresence mode="wait">
                     <motion.div
                       key={trustIndex}
@@ -504,7 +504,7 @@ export const Home: React.FC = () => {
                 <h2 className="text-xl md:text-3xl font-display font-black text-emerald-900 tracking-tight">استكشف <span className="text-blue-600">الأقسام</span></h2>
                 <div className="h-1.5 w-16 bg-blue-500 rounded-full" />
              </div>
-             <Link to="/search" className="text-sm font-black text-gray-400 hover:text-blue-600 transition-colors flex items-center gap-2">
+             <Link to="/search" className="text-sm font-display font-black text-gray-400 hover:text-blue-600 transition-colors flex items-center gap-2">
                 مشاهدة الكل <ArrowLeft className="w-4 h-4" />
              </Link>
           </div>
@@ -547,7 +547,7 @@ export const Home: React.FC = () => {
                    <h2 className="text-2xl md:text-4xl font-display font-black text-emerald-900 tracking-tighter leading-none whitespace-pre-line">خبراء بانتظار <br/><span className="text-blue-600">خدمتك</span></h2>
                    <p className="text-gray-600 font-bold text-lg max-w-xl">مقدمو خدمات موثوقون، تحققنا من كفاءتهم التقنية والأخلاقية للعمل تحت مظلة عربون.</p>
                 </div>
-                <button onClick={() => navigate('/search')} className="group px-8 py-5 bg-gray-950 text-white rounded-2xl font-black text-sm flex items-center gap-4 hover:bg-blue-600 transition-all shadow-2xl shadow-gray-200">
+                <button onClick={() => navigate('/search')} className="group px-8 py-5 bg-gray-950 text-white rounded-2xl font-display font-black text-sm flex items-center gap-4 hover:bg-blue-600 transition-all shadow-2xl shadow-gray-200">
                    تصفح كافة البائعين
                    <ArrowLeft className="w-5 h-5 group-hover:-translate-x-2 transition-transform" />
                 </button>
@@ -626,10 +626,10 @@ export const Home: React.FC = () => {
             
             <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-20 items-center">
                <div className="space-y-3 md:space-y-10 text-right">
-                  <div className="space-y-1 md:space-y-4">
-                     <span className="text-blue-500 font-black text-[8px] md:text-[10px] uppercase tracking-[0.4em] block">ضمانة عربون</span>
-                     <h2 className="text-xl md:text-5xl font-display font-black text-white leading-[1.2] tracking-tighter">أمانك المالي <br className="hidden md:block"/> هو <span className="text-blue-500">أولويتنا</span></h2>
-                  </div>
+                   <div className="space-y-1 md:space-y-4">
+                      <span className="text-blue-500 font-display font-black text-[8px] md:text-[10px] uppercase tracking-[0.4em] block">ضمانة عربون</span>
+                      <h2 className="text-xl md:text-5xl font-display font-black text-white leading-[1.2] tracking-tighter">أمانك المالي <br className="hidden md:block"/> هو <span className="text-blue-500">أولويتنا</span></h2>
+                   </div>
                   <p className="text-gray-400 text-[11px] md:text-2xl font-medium leading-relaxed max-w-xl opacity-80">
                     نظام تعميد رقمي يحفظ مستحقات البائع ويضمن استلام المشتري للخدمة المطلوبة، تحت إشراف نخبة من الخبراء.
                   </p>

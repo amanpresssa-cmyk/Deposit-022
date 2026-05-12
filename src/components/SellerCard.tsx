@@ -36,32 +36,32 @@ export const SellerCard: React.FC<SellerCardProps> = ({ seller }) => {
             )}
           </div>
           <div className="flex flex-col items-end gap-2">
-            <div className="flex bg-orange-50 px-3 py-1 rounded-full items-center gap-1">
-              <Star className="w-4 h-4 text-orange-500 fill-orange-500" />
-              <span className="text-orange-700 font-bold text-sm">{seller.rating.toFixed(1)}</span>
-            </div>
+                       <div className="bg-orange-50 px-3 py-1 rounded-full items-center gap-1 border border-orange-100/50">
+                          <Star className="w-4 h-4 text-orange-500 fill-orange-500" />
+                          <span className="text-orange-700 font-display font-black text-sm">{seller.rating.toFixed(1)}</span>
+                       </div>
             {seller.avgResponseTime && (
-              <div className="bg-green-50 px-2 py-0.5 rounded-lg flex items-center gap-1 border border-green-100">
-                <Clock className="w-3 h-3 text-green-600" />
-                <span className="text-green-700 font-bold text-[10px]">{seller.avgResponseTime}</span>
+              <div className="bg-emerald-50 px-2 py-0.5 rounded-lg flex items-center gap-1 border border-emerald-100">
+                <Clock className="w-3 h-3 text-emerald-600" />
+                <span className="text-emerald-700 font-display font-black text-[9px]">{seller.avgResponseTime}</span>
               </div>
             )}
           </div>
         </div>
 
         <Link to={`/seller/${seller.uid}`} className="block group-hover:text-blue-600 transition-colors">
-          <h3 className="font-bold text-lg mb-1">{seller.displayName}</h3>
+          <h3 className="font-display font-black text-lg mb-1">{seller.displayName}</h3>
         </Link>
         <p className="text-gray-600 text-sm line-clamp-2 mb-4 h-10">
           {seller.bio || 'لا يوجد وصف متاح لهذا البائع حالياً.'}
         </p>
 
         <div className="flex flex-wrap gap-2 mb-4">
-          {seller.specialties?.slice(0, 3).map(s => (
-            <span key={s} className="bg-blue-50 text-blue-700 px-3 py-1 rounded-lg text-[10px] font-black">
-              {s}
-            </span>
-          ))}
+            {seller.specialties?.slice(0, 3).map(s => (
+              <span key={s} className="bg-blue-50/50 text-blue-700 px-3 py-1 rounded-lg text-[9px] font-display font-black border border-blue-100/30">
+                {s}
+              </span>
+            ))}
         </div>
 
         <div className="flex items-center gap-3 mb-6">
