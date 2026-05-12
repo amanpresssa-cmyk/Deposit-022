@@ -284,34 +284,34 @@ export const AdminOverview: React.FC = () => {
       {/* Charts & Quick Actions */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
          {/* Growth Chart */}
-         <div className="xl:col-span-2 bg-white p-8 rounded-[2.5rem] border border-gray-50 shadow-sm group relative">
-            <div className="flex items-center justify-between mb-8">
+         <div className="xl:col-span-2 bg-white p-3 md:p-8 rounded-2xl md:rounded-[2.5rem] border border-gray-50 shadow-sm group relative">
+            <div className="flex items-center justify-between mb-4 md:mb-8">
                <div>
-                  <h3 className="text-lg font-black text-gray-900 italic">مخطط <span className="text-blue-600">النمو</span></h3>
-                  <p className="text-gray-400 font-bold text-[10px] uppercase tracking-widest">إجمالي حجم التداولات المالي</p>
+                  <h3 className="text-xs md:text-lg font-black text-gray-900 italic">مخطط <span className="text-blue-600">النمو</span></h3>
+                  <p className="text-[8px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest">إجمالي حجم التداولات المالي</p>
                </div>
                
                {/* Hover Explanation Overlay */}
                <div className="absolute top-24 right-8 left-8 bg-gray-950/95 p-6 rounded-2xl text-white text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none text-center shadow-2xl">
                   يوضح هذا المخطط حركة التدفقات المالية (المبيعات) عبر المنصة، مما يساعد في تتبع مستوى النشاط الاقتصادي وتحديد اتجاهات السوق.
                </div>
-               <div className="flex bg-gray-50 p-1 rounded-xl">
+               <div className="flex bg-gray-50 p-0.5 md:p-1 rounded-lg md:rounded-xl">
                   <button 
                     onClick={() => setChartView('weekly')}
-                    className={`px-4 py-1.5 rounded-lg text-[9px] font-black transition-all ${chartView === 'weekly' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                    className={`px-2 md:px-4 py-1 md:py-1.5 rounded-md md:rounded-lg text-[7px] md:text-[9px] font-black transition-all ${chartView === 'weekly' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
                   >
                     أسبوعي
                   </button>
                   <button 
                     onClick={() => setChartView('monthly')}
-                    className={`px-4 py-1.5 rounded-lg text-[9px] font-black transition-all ${chartView === 'monthly' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                    className={`px-2 md:px-4 py-1 md:py-1.5 rounded-md md:rounded-lg text-[7px] md:text-[9px] font-black transition-all ${chartView === 'monthly' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
                   >
                     شهري
                   </button>
                </div>
             </div>
             
-            <div className="h-[350px] w-full">
+            <div className="h-[140px] md:h-[350px] w-full">
                <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={stats.chartData}>
                      <defs>
@@ -423,39 +423,39 @@ export const AdminOverview: React.FC = () => {
          </div>
 
          {/* System Health / Logs */}
-         <div className="bg-white rounded-[2.5rem] p-8 border border-gray-50 shadow-sm flex flex-col">
-            <div className="flex items-center justify-between mb-6">
-               <h3 className="text-lg font-black text-gray-900 italic">نبض <span className="text-blue-600">النظام</span></h3>
-               <Link to="/admin/logs" className="text-[10px] font-black text-gray-400 hover:text-blue-600 transition-colors uppercase tracking-widest">سجلات النظام</Link>
+          <div className="bg-white rounded-2xl md:rounded-[2.5rem] p-3 md:p-8 border border-gray-50 shadow-sm flex flex-col">
+            <div className="flex items-center justify-between mb-4 md:mb-6">
+               <h3 className="text-xs md:text-lg font-black text-gray-900 italic">نبض <span className="text-blue-600">النظام</span></h3>
+               <Link to="/admin/logs" className="text-[8px] md:text-[10px] font-black text-gray-400 hover:text-blue-600 transition-colors uppercase tracking-widest">سجلات النظام</Link>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 mb-8">
-               <div className="p-4 md:p-5 bg-gray-50 rounded-2xl md:rounded-3xl border border-gray-100 flex flex-col items-center justify-center text-center">
-                  <Activity className="w-5 h-5 md:w-6 md:h-6 text-blue-600 mb-2" />
-                  <p className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">نشاط الخادم</p>
-                  <p className="text-sm md:text-lg font-black text-gray-900">{stats.recentTransactions.length > 5 ? 'مرتفع' : 'مستقر'}</p>
+            <div className="grid grid-cols-2 gap-2 md:gap-4 mb-4 md:mb-8">
+               <div className="p-2 md:p-5 bg-gray-50 rounded-xl md:rounded-3xl border border-gray-100 flex flex-col items-center justify-center text-center">
+                  <Activity className="w-3 h-3 md:w-6 md:h-6 text-blue-600 mb-1 md:mb-2" />
+                  <p className="text-[6px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5 md:mb-1">نشاط الخادم</p>
+                  <p className="text-[10px] md:text-lg font-black text-gray-900">{stats.recentTransactions.length > 5 ? 'مرتفع' : 'مستقر'}</p>
                </div>
-               <div className="p-4 md:p-5 bg-gray-50 rounded-2xl md:rounded-3xl border border-gray-100 flex flex-col items-center justify-center text-center">
-                  <div className={`w-2 h-2 rounded-full mb-3 animate-pulse ${stats.systemStatus === 'connected' ? 'bg-green-500' : 'bg-yellow-500'}`} />
-                  <p className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">حالة القواعد</p>
-                  <p className={`text-sm md:text-lg font-black uppercase ${stats.systemStatus === 'connected' ? 'text-green-600' : 'text-orange-600'}`}>
+               <div className="p-2 md:p-5 bg-gray-50 rounded-xl md:rounded-3xl border border-gray-100 flex flex-col items-center justify-center text-center">
+                  <div className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full mb-1 md:mb-3 animate-pulse ${stats.systemStatus === 'connected' ? 'bg-green-500' : 'bg-yellow-500'}`} />
+                  <p className="text-[6px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5 md:mb-1">حالة القواعد</p>
+                  <p className={`text-[10px] md:text-lg font-black uppercase ${stats.systemStatus === 'connected' ? 'text-green-600' : 'text-orange-600'}`}>
                      {stats.systemStatus === 'connected' ? 'متصل' : 'مستقر'}
                   </p>
                </div>
             </div>
 
-            <div className="mt-auto p-6 bg-gradient-to-br from-indigo-600 to-blue-700 rounded-3xl text-white shadow-xl shadow-blue-100 relative overflow-hidden group">
-               <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-16 -mt-16" />
+            <div className="mt-auto p-3 md:p-6 bg-gradient-to-br from-indigo-600 to-blue-700 rounded-2xl md:rounded-3xl text-white shadow-xl shadow-blue-100 relative overflow-hidden group">
+               <div className="absolute top-0 right-0 w-16 h-16 md:w-32 md:h-32 bg-white/10 rounded-full blur-2xl -mr-8 -mt-8 md:-mr-16 md:-mt-16" />
                <div className="relative z-10 flex items-center justify-between">
                   <div>
-                     <p className="text-[10px] font-black uppercase tracking-[0.2em] mb-1 opacity-70 italic">مستوى استهلاك النظام</p>
-                     <p className="text-2xl font-black">{((stats.totalUsers + stats.allTx.length + stats.totalTickets + stats.totalReviews + stats.totalFeedback) * 0.00015).toFixed(2)} GB <span className="text-[10px] opacity-60">({Math.min(Math.round(((stats.totalUsers + stats.allTx.length + stats.totalTickets + stats.totalReviews + stats.totalFeedback) / 50000) * 100), 100)}%)</span></p>
+                     <p className="text-[6px] md:text-[10px] font-black uppercase tracking-[0.2em] mb-0.5 md:mb-1 opacity-70 italic">مستوى الاستهلاك</p>
+                     <p className="text-xs md:text-2xl font-black">{((stats.totalUsers + stats.allTx.length + stats.totalTickets + stats.totalReviews + stats.totalFeedback) * 0.00015).toFixed(2)} GB <span className="text-[8px] md:text-[10px] opacity-60">({Math.min(Math.round(((stats.totalUsers + stats.allTx.length + stats.totalTickets + stats.totalReviews + stats.totalFeedback) / 50000) * 100), 100)}%)</span></p>
                   </div>
-                  <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center border border-white/30 backdrop-blur-md">
-                     <Zap className="w-7 h-7" />
+                  <div className="w-8 h-8 md:w-14 md:h-14 rounded-lg md:rounded-2xl bg-white/20 flex items-center justify-center border border-white/30 backdrop-blur-md">
+                     <Zap className="w-4 h-4 md:w-7 md:h-7" />
                   </div>
                </div>
-               <div className="mt-4 w-full h-1.5 bg-white/20 rounded-full overflow-hidden">
+               <div className="mt-2 md:mt-4 w-full h-1 md:h-1.5 bg-white/20 rounded-full overflow-hidden">
                   <div className="h-full bg-white rounded-full transition-all duration-1000" style={{ width: `${Math.min(Math.round(((stats.totalUsers + stats.allTx.length + stats.totalTickets + stats.totalReviews + stats.totalFeedback) / 50000) * 100), 100)}%` }} />
                </div>
                

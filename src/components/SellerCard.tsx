@@ -58,7 +58,7 @@ export const SellerCard: React.FC<SellerCardProps> = ({ seller }) => {
 
         <div className="flex flex-wrap gap-2 mb-4">
             {seller.specialties?.slice(0, 3).map(s => (
-              <span key={s} className="bg-blue-50/50 text-blue-700 px-3 py-1 rounded-lg text-[9px] font-display font-black border border-blue-100/30">
+              <span key={s} className="bg-blue-50/50 text-blue-700 px-3 py-2 rounded-lg text-[11px] font-display font-black border border-blue-100/30 leading-relaxed">
                 {s}
               </span>
             ))}

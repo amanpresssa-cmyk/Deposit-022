@@ -12,6 +12,7 @@ export const SearchPage: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('الكل');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -35,27 +36,37 @@ export const SearchPage: React.FC = () => {
     fetchOrders();
   }, []);
 
-  const filteredOrders = orders.filter(o => 
-    o.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    o.description.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredOrders = orders.filter(o => {
+    const matchesSearch = o.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                         o.description.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = selectedCategory === 'الكل' || o.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
 
   return (
     <div className="space-y-8">
       <div className="relative group">
         <input
           type="text"
-          className="w-full bg-white border border-gray-200 rounded-2xl px-12 py-5 text-xl outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50/50 transition-all shadow-sm"
+          className="w-full bg-white border border-gray-200 rounded-xl px-10 py-3 text-base outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50/50 transition-all shadow-sm text-right"
           placeholder="ابحث عن صفقات، خدمات، أو مقدمي خدمات..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
-        <Search className="absolute right-4 top-5 w-6 h-6 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
+        <Search className="absolute right-3 top-3.5 w-5 h-5 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
       </div>
 
       <div className="flex flex-wrap gap-2 mb-8">
         {['الكل', 'عقارات', 'سيارات', 'تعقيب', 'برمجة', 'تطبيقات', 'مواقع', 'استضافة', 'إلكترونيات'].map(tag => (
-          <button key={tag} className="px-3 py-1.5 bg-white border border-gray-100 rounded-full text-[10px] font-black text-gray-600 hover:border-blue-200 hover:text-blue-600 transition-all shadow-sm">
+          <button 
+            key={tag} 
+            onClick={() => setSelectedCategory(tag)}
+            className={`px-4 py-1.5 rounded-full text-[10px] font-black transition-all shadow-sm border ${
+              selectedCategory === tag 
+                ? 'bg-blue-600 border-blue-600 text-white shadow-blue-200' 
+                : 'bg-white border-gray-100 text-gray-600 hover:border-blue-200 hover:text-blue-600'
+            }`}
+          >
             {tag}
           </button>
         ))}

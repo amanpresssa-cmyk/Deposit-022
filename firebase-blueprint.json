@@ -235,6 +235,17 @@
       "description": "Platform-wide configuration partitioned by document ID",
       "type": "object",
       "properties": {
+        "hero_banner": {
+          "type": "object",
+          "properties": {
+            "title": { "type": "string" },
+            "subtitle": { "type": "string" },
+            "gradientFrom": { "type": "string" },
+            "gradientTo": { "type": "string" },
+            "showUserCards": { "type": "boolean" },
+            "trustMessages": { "type": "array", "items": { "type": "string" } }
+          }
+        },
         "updatedAt": { "type": "string", "format": "date-time" }
       }
     }

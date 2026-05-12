@@ -32,10 +32,42 @@ export const Home: React.FC = () => {
   const [stats, setStats] = useState<{ totalGuarantees: number, totalUsers: number } | null>(null);
   const [completedOrdersCount, setCompletedOrdersCount] = useState<number>(0);
   const [homeCard, setHomeCard] = useState<any>(null);
+  const [heroBanner, setHeroBanner] = useState<any>(null);
   const [loadingSellers, setLoadingSellers] = useState(true);
   const [loadingOffers, setLoadingOffers] = useState(true);
   const [trustIndex, setTrustIndex] = useState(0);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [activeStep, setActiveStep] = useState(0);
+
+  const steps = [
+    {
+      title: 'اتفاق الطرفين',
+      desc: 'وضوح تام في شروط الخدمة والسعر قبل البدء.',
+      icon: <MessageSquare className="w-6 h-6 text-blue-600" />
+    },
+    {
+      title: 'حجز العربون',
+      desc: 'حماية مالية كاملة في خزينة المنصة الآمنة.',
+      icon: <Lock className="w-6 h-6 text-blue-600" />
+    },
+    {
+      title: 'التنفيذ والمتابعة',
+      desc: 'بدء العمل مع ضمان الوصول للجودة المطلوبة.',
+      icon: <Zap className="w-6 h-6 text-blue-600" />
+    },
+    {
+      title: 'استلام وتحرير',
+      desc: 'تحرير المبلغ للبائع فور رضاك عن الخدمة.',
+      icon: <CheckCircle className="w-6 h-6 text-blue-600" />
+    }
+  ];
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setActiveStep((prev) => (prev + 1) % steps.length);
+    }, 3000); 
+    return () => clearInterval(timer);
+  }, [steps.length]);
 
   const trustMessages = [
     { text: "الخيار الأول للتعاملات الآمنة", icon: <ShieldCheck className="w-4 h-4" /> },
@@ -98,9 +130,19 @@ export const Home: React.FC = () => {
       console.warn('Stats sync denied');
     });
 
+    // Fetch hero banner settings
+    const unsubHero = onSnapshot(doc(db, 'app_settings', 'hero_banner'), (doc) => {
+      if (doc.exists()) {
+        setHeroBanner(doc.data());
+      }
+    }, (error) => {
+      console.warn('Hero banner settings denied');
+    });
+
     return () => {
       unsubHome();
       unsubStats();
+      unsubHero();
     };
   }, []);
 
@@ -215,31 +257,24 @@ export const Home: React.FC = () => {
     };
   }, [user, isAdmin]);
 
-  const steps = [
-    {
-      title: 'اتفاق الطرفين',
-      desc: 'وضوح تام في شروط الخدمة والسعر قبل البدء.',
-      icon: <MessageSquare className="w-6 h-6 text-blue-600" />
-    },
-    {
-      title: 'حجز العربون',
-      desc: 'حماية مالية كاملة في خزينة المنصة الآمنة.',
-      icon: <Lock className="w-6 h-6 text-blue-600" />
-    },
-    {
-      title: 'التنفيذ والمتابعة',
-      desc: 'بدء العمل مع ضمان الوصول للجودة المطلوبة.',
-      icon: <Zap className="w-6 h-6 text-blue-600" />
-    },
-    {
-      title: 'استلام وتحرير',
-      desc: 'تحرير المبلغ للبائع فور رضاك عن الخدمة.',
-      icon: <CheckCircle className="w-6 h-6 text-blue-600" />
-    }
+  const defaultTrustMessages = [
+    { text: "الخيار الأول للتعاملات الآمنة", icon: <ShieldCheck className="w-4 h-4" /> },
+    { text: "وساطة مالية ذكية وموثوقة", icon: <Lock className="w-4 h-4" /> },
+    { text: "حقك محفوظ بأمان تام", icon: <CheckCircle className="w-4 h-4" /> },
+    { text: "دفع إلكتروني معتمد 100%", icon: <Zap className="w-4 h-4" /> },
+    { text: "خدمة تقسيط المدفوعات متوفرة الآن", icon: <CreditCard className="w-4 h-4" /> }
   ];
 
-  const displayGuarantees = stats?.totalGuarantees || 50000000;
-  const displayUsers = stats?.totalUsers || 12000;
+  const displayGuarantees = stats?.totalGuarantees || 0;
+  const displayUsers = stats?.totalUsers || 0;
+
+  const activeHeroTitleTop = heroBanner?.titleTop || 'ضمانك الموثوق';
+  const activeHeroTitleBottom = heroBanner?.titleBottom || 'في العالم الرقمي';
+  const activeHeroSubtitle = heroBanner?.subtitle || 'عربون هو وسيطك الذكي لضمان فحص وسلامة التعاملات المالية والخدمية في المملكة العربية السعودية.';
+  const activeTrustMessages = heroBanner?.trustMessages?.map((m: string) => ({ 
+    text: m, 
+    icon: <ShieldCheck className="w-4 h-4" /> 
+  })) || defaultTrustMessages;
 
     const categories = [
       { id: 'برمجة', name: 'البرمجة والتطوير', icon: <LayoutGrid className="w-4 h-4" />, color: 'bg-emerald-600', shadow: 'shadow-emerald-500/10' },
@@ -257,7 +292,7 @@ export const Home: React.FC = () => {
     <div className="space-y-8 pb-20 overflow-x-hidden font-sans">
       {/* Dynamic Hero Section */}
       {!user ? (
-        <section className="relative pt-0 md:pt-4 pb-8 md:pb-24 overflow-hidden px-4 min-h-[60vh] md:min-h-[90vh] flex flex-col justify-start md:justify-center">
+        <section className="relative pt-0 md:pt-4 pb-8 md:pb-24 overflow-hidden px-0 min-h-[60vh] md:min-h-[90vh] flex flex-col justify-start md:justify-center">
           <div className="absolute inset-0 -z-20">
              <div className="absolute top-[-10%] left-[-10%] w-[600px] h-[600px] bg-blue-600/10 rounded-full blur-[140px] animate-pulse" />
              <div className="absolute bottom-[20%] right-[-5%] w-[400px] h-[400px] bg-blue-900/5 rounded-full blur-[100px]" />
@@ -268,78 +303,92 @@ export const Home: React.FC = () => {
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8 }}
-            className="max-w-6xl mx-auto w-full"
+            className="w-full flex flex-col items-center gap-4 md:gap-8 pt-2 md:pt-6"
           >
-            <div className="grid lg:grid-cols-2 gap-4 md:gap-16 items-center">
-              <div className="text-right space-y-4 md:space-y-10 order-2 lg:order-1">
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 md:px-6 md:py-3 bg-white/50 backdrop-blur-xl border border-gray-100/50 text-blue-900 rounded-xl md:rounded-2xl text-[9px] md:text-sm font-display font-black uppercase tracking-[0.2em] shadow-xl shadow-blue-900/5 h-8 md:h-12 overflow-hidden">
-                  <AnimatePresence mode="wait">
-                    <motion.div
-                      key={trustIndex}
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -20 }}
-                      className="flex items-center gap-1.5 md:gap-3"
-                    >
-                      {React.cloneElement(trustMessages[trustIndex].icon as React.ReactElement, { className: "w-3 h-3 md:w-4 md:h-4 text-blue-600" })}
-                      <span className="opacity-80">{trustMessages[trustIndex].text}</span>
-                    </motion.div>
-                  </AnimatePresence>
-                </div>
-
-                <div className="space-y-1.5 md:space-y-6">
-                  <h1 className="text-xl md:text-4xl lg:text-5xl font-display font-black text-slate-900 tracking-tighter leading-tight md:leading-[1.2]">
-                    <span className="block mb-2 text-slate-800">ضمانك الموثوق</span> 
-                    <span className="text-transparent bg-clip-text bg-gradient-to-l from-blue-700 via-blue-600 to-indigo-600">
-                      في العالم الرقمي
-                    </span>
-                  </h1>
-                  <p className="text-[10px] md:text-lg text-slate-500 max-w-xl font-medium leading-relaxed opacity-90 line-clamp-2 md:line-clamp-none italic">
-                    عربون هو وسيطك الذكي لضمان فحص وسلامة التعاملات المالية والخدمية في المملكة العربية السعودية.
-                  </p>
-                </div>
-
-                <div className="flex flex-row items-center gap-2 sm:gap-4">
-                  <button
-                    onClick={() => setIsLoginModalOpen(true)}
-                    className="flex-1 sm:flex-none bg-blue-600 text-white px-3 py-2 md:px-6 md:py-3 rounded-lg md:rounded-2xl font-black text-xs md:text-base hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all hover:scale-[1.03] flex items-center justify-center gap-2 md:gap-3 group"
+            <div className="text-center space-y-6 md:space-y-10 order-2 lg:order-1 max-w-4xl mx-auto flex flex-col items-center px-4">
+              <div className="inline-flex items-center justify-center gap-2 px-5 py-2.5 md:px-8 md:py-4 bg-white/60 backdrop-blur-2xl border border-gray-100/50 text-blue-900 rounded-2xl md:rounded-3xl text-[11px] md:text-sm font-display font-black uppercase tracking-[0.2em] shadow-2xl shadow-blue-900/5 min-h-[3rem] md:min-h-[4rem] overflow-visible">
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={trustIndex % activeTrustMessages.length}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="flex items-center gap-2 md:gap-4 py-1"
                   >
-                    ابدأ الآن
-                    <ArrowLeft className="w-3.5 h-3.5 md:w-4 md:h-4 group-hover:-translate-x-1 transition-transform" />
-                  </button>
-                  <button
-                    onClick={() => navigate('/how-it-works')}
-                    className="flex-1 sm:flex-none bg-white text-gray-950 border border-gray-100 px-3 py-2 md:px-6 md:py-3 rounded-lg md:rounded-2xl font-black text-[10px] md:text-base hover:bg-gray-50 transition-all flex items-center justify-center gap-2"
-                  >
-                    كيف يعمل عربون؟
-                  </button>
-                </div>
+                    {React.cloneElement((activeTrustMessages[trustIndex % activeTrustMessages.length]?.icon || <ShieldCheck />) as React.ReactElement, { className: "w-4 h-4 md:w-6 md:h-6 text-blue-600" })}
+                    <span className="opacity-90 leading-normal inline-block">{activeTrustMessages[trustIndex % activeTrustMessages.length]?.text}</span>
+                  </motion.div>
+                </AnimatePresence>
               </div>
 
-              <div className="order-1 lg:order-2 relative group max-w-[280px] md:max-w-none mx-auto lg:mx-0">
-                <div className="absolute inset-0 bg-blue-500/10 blur-[60px] md:blur-[100px] scale-90 group-hover:scale-110 transition-transform duration-1000" />
-                <motion.div 
-                  className="relative bg-white p-3 md:p-6 rounded-[2rem] md:rounded-[4rem] border border-gray-100 shadow-xl md:shadow-2xl md:rotate-2 group-hover:rotate-0 transition-transform duration-700 overflow-hidden"
-                  whileHover={{ y: -10 }}
+              <div className="space-y-4 md:space-y-6 px-4">
+                <h1 className="text-3xl md:text-5xl lg:text-7xl font-display font-black text-slate-900 tracking-tighter leading-tight">
+                  <span className="block text-slate-800">{activeHeroTitleTop}</span> 
+                  <span className="block text-transparent bg-clip-text bg-gradient-to-l from-blue-700 via-blue-600 to-indigo-600">
+                    {activeHeroTitleBottom}
+                  </span>
+                </h1>
+                <p className="text-sm md:text-2xl text-slate-500 max-w-2xl mx-auto font-medium leading-relaxed opacity-90 italic">
+                  {activeHeroSubtitle}
+                </p>
+              </div>
+
+              <div className="flex flex-row justify-center items-center gap-2 sm:gap-4 w-full px-6 max-w-xl mx-auto">
+                <button
+                  onClick={() => setIsLoginModalOpen(true)}
+                  className="w-full sm:w-auto bg-blue-600 text-white px-8 py-4 md:px-12 md:py-5 rounded-2xl md:rounded-3xl font-display font-black text-sm md:text-xl hover:bg-blue-700 shadow-2xl shadow-blue-600/30 transition-all hover:scale-[1.03] flex items-center justify-center gap-3 group"
                 >
+                  ابدأ الآن
+                  <ArrowLeft className="w-5 h-5 md:w-6 md:h-6 group-hover:-translate-x-2 transition-transform" />
+                </button>
+              </div>
+            </div>
+
+            <div className="order-1 lg:order-2 w-full relative group mt-2 md:mt-4 px-0">
+              <div className="absolute inset-0 bg-blue-500/5 blur-[120px] scale-[0.95] group-hover:scale-100 transition-transform duration-1000" />
+              <motion.div 
+                className="relative bg-white w-full rounded-none md:rounded-[4rem] shadow-[0_20px_80px_-15px_rgba(0,0,0,0.1)] overflow-hidden border-y md:border border-gray-100/50 transition-all duration-700"
+              >
+                <div className="relative h-[280px] md:h-[500px] lg:h-[600px] w-full">
                    <img 
-                    src="https://images.unsplash.com/photo-1556742044-3c52d6e88c62?auto=format&fit=crop&q=80&w=600" 
-                    className="w-full aspect-[4/3] md:aspect-square object-cover rounded-[1.5rem] md:rounded-[3rem]" 
+                    src="https://images.unsplash.com/photo-1556742044-3c52d6e88c62?auto=format&fit=crop&q=80&w=2400" 
+                    className="w-full h-full object-cover" 
                     alt="Safe Transactions"
                    />
-                   <div className="mt-3 md:mt-8 flex justify-between items-center px-2 md:px-4">
-                      <div className="space-y-0.5 md:space-y-1">
-                        <p className="text-[7px] md:text-[10px] font-black text-blue-600 uppercase tracking-widest leading-none">إجمالي الضمانات</p>
-                        <p className="text-sm md:text-3xl font-display font-black text-emerald-900">{(displayGuarantees / 1000000).toFixed(1)}M+ SAR</p>
+                   <div className="absolute bottom-0 left-0 w-full p-5 md:p-12 flex flex-row items-center justify-between gap-4 bg-gradient-to-t from-gray-950/95 via-gray-950/40 to-transparent backdrop-blur-[2px]">
+                      <div className="flex flex-row items-center gap-3 md:gap-8">
+                        <div className="flex flex-col md:flex-row md:items-center gap-0 md:gap-6 bg-white/5 px-4 py-2 md:px-8 md:py-4 rounded-2xl md:rounded-[2rem] border border-white/10 backdrop-blur-xl">
+                          <p className="text-[7px] md:text-sm font-display font-black text-blue-400 uppercase tracking-[0.2em] whitespace-nowrap mb-0.5 md:mb-0">إجمالي الضمانات</p>
+                          <p className="text-xl md:text-5xl font-display font-black text-white tracking-tighter whitespace-nowrap">{(displayGuarantees / 1000000).toFixed(1)}M<span className="text-[10px] md:text-xl opacity-40 mr-1">SAR</span></p>
+                        </div>
                       </div>
-                      <div className="flex -space-x-2 md:-space-x-3 rtl:space-x-reverse scale-75 md:scale-100">
-                        {[1,2,3,4].map(i => (
-                          <div key={i} className="w-6 h-6 md:w-10 md:h-10 rounded-full border-2 md:border-4 border-white bg-blue-100" />
-                        ))}
-                      </div>
+                      {heroBanner?.showUserCards !== false && (
+                        <div className="flex -space-x-3 md:-space-x-12 rtl:space-x-reverse items-center pr-2">
+                          {featuredSellers.slice(0, 4).map((seller, idx) => (
+                            <div 
+                              key={seller.uid} 
+                              onClick={() => navigate(`/seller/${seller.uid}`)}
+                              className="w-10 h-10 md:w-28 md:h-28 rounded-full border-4 md:border-8 border-gray-950 bg-blue-600/5 overflow-hidden transition-transform hover:scale-110 hover:z-10 cursor-pointer shadow-2xl relative"
+                            >
+                               {seller.photoURL ? (
+                                 <img src={seller.photoURL} alt={seller.displayName} className="w-full h-full object-cover" />
+                               ) : (
+                                 <div className="w-full h-full bg-blue-600 flex items-center justify-center text-white font-bold text-[8px] md:text-xl">
+                                    {seller.displayName?.[0]}
+                                 </div>
+                               )}
+                            </div>
+                          ))}
+                          {featuredSellers.length === 0 && [1,2,3,4].map(i => (
+                            <div key={i} className="w-10 h-10 md:w-28 md:h-28 rounded-full border-4 md:border-8 border-gray-950 bg-blue-600/5 flex items-center justify-center text-white backdrop-blur-2xl transition-transform hover:scale-110 hover:z-10 cursor-pointer shadow-2xl">
+                               <ShieldCheck className="w-5 h-5 md:w-12 md:h-12 opacity-30 text-blue-400" />
+                            </div>
+                          ))}
+                        </div>
+                      )}
                    </div>
-                </motion.div>
-              </div>
+                </div>
+              </motion.div>
             </div>
           </motion.div>
         </section>
@@ -510,7 +559,7 @@ export const Home: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 md:gap-4">
-            {categories.slice(0, 3).map((cat) => (
+            {categories.slice(0, 6).map((cat) => (
               <motion.div 
                 key={cat.id}
                 whileHover={{ y: -5, scale: 1.02 }}
@@ -542,10 +591,10 @@ export const Home: React.FC = () => {
                 <div className="text-right space-y-4">
                    <div className="flex items-center gap-3 justify-end mb-2">
                       <div className="h-0.5 w-10 bg-blue-500/30" />
-                      <span className="text-[10px] font-black text-blue-600 uppercase tracking-[0.4em] shadow-sm bg-white px-4 py-1.5 rounded-full">نخبة الضمان</span>
+                      <span className="text-xs md:text-sm font-black text-blue-600 uppercase tracking-[0.3em] shadow-sm bg-white px-5 py-2 rounded-full leading-relaxed block overflow-visible">نخبة الضمان</span>
                    </div>
-                   <h2 className="text-2xl md:text-4xl font-display font-black text-emerald-900 tracking-tighter leading-none whitespace-pre-line">خبراء بانتظار <br/><span className="text-blue-600">خدمتك</span></h2>
-                   <p className="text-gray-600 font-bold text-lg max-w-xl">مقدمو خدمات موثوقون، تحققنا من كفاءتهم التقنية والأخلاقية للعمل تحت مظلة عربون.</p>
+                   <h2 className="text-3xl md:text-6xl font-display font-black text-emerald-900 tracking-tighter leading-[1.2] whitespace-pre-line">خبراء بانتظار <br/><span className="text-blue-600">خدمتك</span></h2>
+                   <p className="text-gray-600 font-bold text-lg md:text-2xl max-w-xl leading-relaxed">مقدمو خدمات موثوقون، تحققنا من كفاءتهم التقنية والأخلاقية للعمل تحت مظلة عربون.</p>
                 </div>
                 <button onClick={() => navigate('/search')} className="group px-8 py-5 bg-gray-950 text-white rounded-2xl font-display font-black text-sm flex items-center gap-4 hover:bg-blue-600 transition-all shadow-2xl shadow-gray-200">
                    تصفح كافة البائعين
@@ -576,52 +625,85 @@ export const Home: React.FC = () => {
 
       {/* Sophisticated How it Works Section */}
       {!showAdminUI && (
-        <section className="py-8 px-4 bg-white relative overflow-hidden">
+        <div className="relative overflow-hidden">
           <div className="absolute top-1/2 left-0 w-full h-px bg-gray-50 -translate-y-1/2" />
           
-          <div className="max-w-7xl mx-auto relative z-10">
-            <div className="text-center space-y-4 mb-6">
-              <div className="inline-flex items-center gap-3 px-5 py-2 bg-blue-50 text-blue-600 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-blue-100/50">
-                <ArrowLeftRight className="w-4 h-4" />
-                بروتوكول الضمان الذكي
+          <div className="max-w-7xl mx-auto relative z-10 px-4">
+            <div className="text-center space-y-4 mb-4">
+              <div className="inline-flex items-center gap-3 px-6 py-3.5 md:px-8 md:py-4 bg-blue-50 text-blue-600 rounded-full text-[11px] md:text-sm font-black uppercase tracking-[0.2em] border border-blue-100/50 leading-none shadow-sm overflow-visible">
+                <ArrowLeftRight className="w-5 h-5" />
+                <span className="inline-block">بروتوكول الضمان الذكي</span>
               </div>
-              <h2 className="text-2xl md:text-4xl font-display font-black text-emerald-900 tracking-tighter">كيف نضمن <span className="text-blue-600 underline decoration-blue-100 underline-offset-8">حقك</span>؟</h2>
-              <p className="text-gray-500 font-bold max-w-xl mx-auto text-lg md:text-xl leading-relaxed">خطوات مدروسة تقنياً لضمان سلامة كل ريال من طرفي الصفقة.</p>
+              <h2 className="text-3xl md:text-5xl font-display font-black text-emerald-900 tracking-tighter leading-[1.2]">كيف نضمن <span className="text-blue-600 underline decoration-blue-100 underline-offset-8">حقك</span>؟</h2>
+              <p className="text-gray-500 font-bold max-w-2xl mx-auto text-lg md:text-2xl leading-relaxed">خطوات مدروسة تقنياً لضمان سلامة كل ريال من طرفي الصفقة.</p>
             </div>
  
-            <div className="flex overflow-x-auto md:grid md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 lg:gap-6 snap-x snap-mandatory pb-8 md:pb-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] mt-12 justify-center">
-              {steps.map((step, idx) => (
-                <motion.div
-                  key={idx}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: idx * 0.1 }}
-                  className="min-w-[140px] md:min-w-0 snap-center relative group bg-white shadow-sm hover:shadow-xl transition-all duration-700 rounded-2xl p-4 md:p-6 border border-gray-50/50 hover:border-blue-50/50 flex flex-col items-center text-center md:items-start md:text-right pt-6"
-                >
-                  <div className="absolute top-2 left-4 w-6 h-6 bg-blue-600 text-white rounded-md flex items-center justify-center font-display font-black text-[10px] shadow-md shadow-blue-200 z-20">
-                    {idx + 1}
-                  </div>
-                  
-                  <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center mb-3 group-hover:bg-blue-600 group-hover:text-white transition-all transform group-hover:scale-110 duration-500">
-                    {React.cloneElement(step.icon as React.ReactElement, { className: "w-4 h-4" })}
-                  </div>
-                  
-                  <div className="space-y-1.5">
-                    <h3 className="font-display font-black text-[12px] md:text-base text-gray-950 leading-tight">{step.title}</h3>
-                    <p className="text-gray-400 font-medium text-[9px] md:text-xs leading-relaxed opacity-80">{step.desc}</p>
-                  </div>
-                </motion.div>
-              ))}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-8 mt-4 px-4 max-w-6xl mx-auto">
+              {steps.map((step, idx) => {
+                const isActive = activeStep === idx;
+                return (
+                  <motion.div
+                    key={idx}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    whileInView={{ opacity: 1, scale: 1 }}
+                    viewport={{ once: true }}
+                    animate={isActive ? { 
+                      scale: 1.02, 
+                      borderColor: 'rgba(59, 130, 246, 0.5)',
+                      backgroundColor: 'rgba(255, 255, 255, 1)',
+                      boxShadow: '0 20px 40px -12px rgba(59, 130, 246, 0.15)'
+                    } : { 
+                      scale: 1, 
+                      borderColor: 'rgba(249, 250, 251, 0.5)',
+                      backgroundColor: 'rgba(255, 255, 255, 0.5)',
+                      boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                    }}
+                    className={`relative group rounded-2xl p-4 md:p-8 border-2 transition-all duration-500 flex flex-col items-center text-center md:items-start md:text-right pt-8 md:pt-10 ${
+                      isActive ? 'z-20' : 'z-10'
+                    }`}
+                  >
+                    <div className={`absolute top-2 left-3 md:top-4 md:left-6 w-6 h-6 md:w-8 md:h-8 rounded-lg flex items-center justify-center font-display font-black text-[10px] md:text-xs transition-colors duration-500 ${
+                      isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-400'
+                    }`}>
+                      {idx + 1}
+                    </div>
+                    
+                    <div className={`w-10 h-10 md:w-16 md:h-16 rounded-xl md:rounded-2xl flex items-center justify-center mb-4 md:mb-6 transition-all transform duration-500 shadow-lg ${
+                      isActive ? 'bg-blue-600 text-white scale-110' : 'bg-white text-blue-600'
+                    }`}>
+                      {React.cloneElement(step.icon as React.ReactElement, { 
+                        className: `w-5 h-5 md:w-7 md:h-7` 
+                      })}
+                    </div>
+                    
+                    <div className="space-y-2 w-full">
+                      <h3 className={`font-display font-black text-[11px] md:text-lg leading-tight transition-colors duration-500 ${
+                        isActive ? 'text-blue-600' : 'text-gray-950'
+                      }`}>{step.title}</h3>
+                      <p className={`font-medium text-[9px] md:text-sm leading-relaxed line-clamp-2 md:line-clamp-none transition-opacity duration-500 ${
+                        isActive ? 'text-gray-600 opacity-100' : 'text-gray-400 opacity-70'
+                      }`}>{step.desc}</p>
+                    </div>
+
+                    {isActive && (
+                      <motion.div
+                        layoutId="active-indicator"
+                        className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-12 h-1 bg-blue-600 rounded-full"
+                        transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                      />
+                    )}
+                  </motion.div>
+                );
+              })}
             </div>
           </div>
-        </section>
+        </div>
       )}
 
       {/* Statistics & Trust Bar */}
       {!user && !showAdminUI && (
-        <section className="px-4 max-w-7xl mx-auto pb-4 md:pb-16 min-h-[90dvh] md:min-h-0 flex flex-col justify-center">
-          <div className="bg-gray-950 rounded-[2rem] md:rounded-[4rem] p-6 md:p-16 text-white relative overflow-hidden group h-full">
+        <section className="px-4 max-w-7xl mx-auto py-2 md:py-4 flex flex-col justify-center">
+          <div className="bg-gray-950 rounded-[2rem] md:rounded-[4rem] p-6 md:p-10 text-white relative overflow-hidden group">
             <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-blue-600/10 rounded-full blur-[150px] -mr-64 -mt-64" />
             
             <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-20 items-center">
@@ -664,7 +746,7 @@ export const Home: React.FC = () => {
 
       {/* Elegant Testimonials Section */}
       {!showAdminUI && (
-        <section className="px-4 py-16 bg-gray-50">
+        <section className="px-4 pt-16 pb-4 bg-gray-50">
           <div className="max-w-7xl mx-auto">
             <div className="flex flex-col md:flex-row justify-between items-end gap-10 mb-12 px-4">
                <div className="space-y-4 text-right">
@@ -682,7 +764,7 @@ export const Home: React.FC = () => {
 
       {/* High-Impact Final CTA */}
       {!user && !showAdminUI && (
-        <section className="px-4 py-8 md:py-16 max-w-7xl mx-auto min-h-[70dvh] md:min-h-0 flex flex-col justify-center">
+        <div className="px-4 max-w-7xl mx-auto -mt-4 md:-mt-8 mb-8 md:mb-16">
           <div className="bg-blue-600 rounded-[2.5rem] md:rounded-[4rem] p-8 md:p-20 text-white relative overflow-hidden text-center flex flex-col items-center gap-6 md:gap-8 group">
             <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-indigo-700 opacity-50" />
             
@@ -703,7 +785,7 @@ export const Home: React.FC = () => {
             <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-500 rounded-full blur-[100px] -ml-32 -mb-32 opacity-40" />
             <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-[120px] -mr-48 -mt-48" />
           </div>
-        </section>
+        </div>
       )}
 
       {/* Login Modal */}

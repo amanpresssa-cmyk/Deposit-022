@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
+import { doc, onSnapshot, serverTimestamp, setDoc, getDocs, collection } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../hooks/useAuth';
 import { handleFirestoreError, OperationType } from '../../lib/firestoreUtils';
@@ -22,9 +22,12 @@ import {
   Trash2,
   Plus,
   Save,
+  Sparkles,
   AlertCircle,
   CheckCircle2,
-  ExternalLink
+  ExternalLink,
+  TrendingUp,
+  Zap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -53,6 +56,19 @@ export const AdminSettings: React.FC = () => {
   const [security, setSecurity] = useState({ maintenanceMode: false, maintenanceMessage: '', forceVerification: true, sessionLimit: 24 });
   const [support, setSupport] = useState({ email: '', phone: '', address: '', whatsapp: '', twitter: '', instagram: '' });
   const [legal, setLegal] = useState({ tosLink: '', privacyLink: '', refundLink: '' });
+  const [heroBanner, setHeroBanner] = useState({ 
+    titleTop: 'ضمانك الموثوق', 
+    titleBottom: 'في العالم الرقمي', 
+    subtitle: 'خطوات مدروسة تقنياً لضمان سلامة كل ريال من طرفي الصفقة.',
+    showUserCards: true,
+    trustMessages: [
+      "الخيار الأول للتعاملات الآمنة",
+      "وساطة مالية ذكية وموثوقة",
+      "حقك محفوظ بأمان تام",
+      "دفع إلكتروني معتمد 100%",
+      "خدمة تقسيط المدفوعات متوفرة الآن"
+    ]
+  });
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -66,6 +82,7 @@ export const AdminSettings: React.FC = () => {
       onSnapshot(doc(db, 'app_settings', 'security'), d => d.exists() && setSecurity(d.data() as any), (err) => handleFirestoreError(err, OperationType.GET, 'app_settings/security')),
       onSnapshot(doc(db, 'app_settings', 'support'), d => d.exists() && setSupport(d.data() as any), (err) => handleFirestoreError(err, OperationType.GET, 'app_settings/support')),
       onSnapshot(doc(db, 'app_settings', 'legal'), d => d.exists() && setLegal(d.data() as any), (err) => handleFirestoreError(err, OperationType.GET, 'app_settings/legal')),
+      onSnapshot(doc(db, 'app_settings', 'hero_banner'), d => d.exists() && setHeroBanner(d.data() as any), (err) => handleFirestoreError(err, OperationType.GET, 'app_settings/hero_banner')),
     ];
     setLoading(false);
     return () => unsubs.forEach(u => u());
@@ -299,6 +316,100 @@ export const AdminSettings: React.FC = () => {
 
                   {/* Announcement Banner */}
                   <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-6">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                        <Sparkles className="w-5 h-5" />
+                      </div>
+                      <h3 className="text-xl font-black italic">بانر الصفحة الرئيسية (Hero Section)</h3>
+                    </div>
+
+                    <div className="space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">العنوان العلوي</label>
+                          <input 
+                            type="text" 
+                            value={heroBanner.titleTop} 
+                            onChange={e => setHeroBanner(p => ({...p, titleTop: e.target.value}))} 
+                            className="w-full bg-gray-50 rounded-2xl p-5 text-sm font-bold border border-transparent focus:border-blue-500 outline-none transition-all" 
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">العنوان السفلي (ملون)</label>
+                          <input 
+                            type="text" 
+                            value={heroBanner.titleBottom} 
+                            onChange={e => setHeroBanner(p => ({...p, titleBottom: e.target.value}))} 
+                            className="w-full bg-gray-50 rounded-2xl p-5 text-sm font-bold border border-transparent focus:border-blue-500 outline-none transition-all" 
+                          />
+                        </div>
+                        <div className="space-y-2 flex items-center gap-3 pt-6">
+                          <input 
+                            type="checkbox" 
+                            id="showUserCards"
+                            checked={heroBanner.showUserCards} 
+                            onChange={e => setHeroBanner(p => ({...p, showUserCards: e.target.checked}))} 
+                            className="w-5 h-5 accent-blue-600" 
+                          />
+                          <label htmlFor="showUserCards" className="text-sm font-bold text-gray-700 cursor-pointer">إظهار بطاقات المستخدمين في الهيرو</label>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">الوصف المختصر</label>
+                        <textarea 
+                          value={heroBanner.subtitle} 
+                          onChange={e => setHeroBanner(p => ({...p, subtitle: e.target.value}))} 
+                          className="w-full bg-gray-50 rounded-2xl p-5 text-sm font-bold border border-transparent focus:border-blue-500 outline-none transition-all min-h-[80px] resize-none"
+                        />
+                      </div>
+
+                      <div className="space-y-4">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1 block">رسائل الثقة (المتحركة في الهيرو)</label>
+                        <div className="space-y-3">
+                          {heroBanner.trustMessages.map((msg, idx) => (
+                            <div key={idx} className="flex gap-2">
+                              <input 
+                                type="text" 
+                                value={msg} 
+                                onChange={e => {
+                                  const newMsgs = [...heroBanner.trustMessages];
+                                  newMsgs[idx] = e.target.value;
+                                  setHeroBanner(p => ({...p, trustMessages: newMsgs}));
+                                }}
+                                className="flex-1 bg-gray-50 rounded-xl p-3 text-xs font-bold border border-transparent focus:border-blue-500 outline-none" 
+                              />
+                              <button 
+                                onClick={() => {
+                                  const newMsgs = heroBanner.trustMessages.filter((_, i) => i !== idx);
+                                  setHeroBanner(p => ({...p, trustMessages: newMsgs}));
+                                }}
+                                className="p-3 text-red-400 hover:text-red-600 transition-colors"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ))}
+                          <button 
+                            onClick={() => setHeroBanner(p => ({...p, trustMessages: [...p.trustMessages, '']}))}
+                            className="flex items-center gap-2 text-blue-600 font-black text-[10px] uppercase tracking-widest px-3 py-2 hover:bg-blue-50 rounded-lg transition-all"
+                          >
+                            <Plus className="w-3 h-3" />
+                            إضافة رسالة ثقة
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => saveSettings('hero_banner', heroBanner)} 
+                      disabled={saving === 'hero_banner'}
+                      className="w-full py-5 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-100"
+                    >
+                      {saving === 'hero_banner' ? 'جاري الحفظ...' : 'تحديث بانر الواجهة'}
+                    </button>
+                  </div>
+
+                  {/* Announcement Banner */}
+                  <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-6">
                     <div className="flex justify-between items-center mb-2">
                       <div className="flex items-center gap-3">
                         <div className="p-2 bg-purple-50 text-purple-600 rounded-lg">
@@ -379,6 +490,72 @@ export const AdminSettings: React.FC = () => {
                       className="w-full py-5 bg-purple-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-purple-100"
                     >
                       تحديث إعلان المنصة
+                    </button>
+                  </div>
+
+                  {/* Platform Analytics Trigger */}
+                  <div className="bg-gray-950 p-8 rounded-[2.5rem] text-white space-y-6 relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/10 rounded-full blur-3xl -mr-32 -mt-32 transition-transform group-hover:scale-150 duration-700" />
+                    
+                    <div className="flex items-center gap-4 relative z-10">
+                      <div className="p-3 bg-white/10 rounded-2xl backdrop-blur-md">
+                        <TrendingUp className="w-6 h-6 text-blue-400" />
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-black italic">تحليلات المنصة الذكية</h3>
+                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">تحديث مؤشرات الأداء الحيوية (KPIs)</p>
+                      </div>
+                    </div>
+
+                    <p className="text-xs font-bold text-gray-400 leading-relaxed relative z-10">
+                      بما أن المنصة تعتمد على نظام الحماية المتطور، يوصى بإعادة تشغيل قارئ البيانات الحقيقي دورياً لضمان دقة "إجمالي الضمانات" و "عدد المستخدمين" الفعليين في الصفحة الرئيسية.
+                    </p>
+
+                    <button 
+                      onClick={async () => {
+                         setSaving('stats');
+                         try {
+                           // Fetch total users
+                           const usersSnap = await getDocs(collection(db, 'users'));
+                           const totalUsers = usersSnap.size;
+
+                           // Fetch total guarantees
+                           const ordersSnap = await getDocs(collection(db, 'orders'));
+                           const totalGuarantees = ordersSnap.docs.reduce((acc, doc) => {
+                             const data = doc.data();
+                             if (['escrowed', 'completed', 'in_progress'].includes(data.status)) {
+                               return acc + (data.amount || 0);
+                             }
+                             return acc;
+                           }, 0);
+
+                           await setDoc(doc(db, 'app_settings', 'platform_stats'), {
+                             totalUsers,
+                             totalGuarantees,
+                             updatedAt: serverTimestamp()
+                           }, { merge: true });
+
+                           showToast('تم تحديث إحصائيات المنصة بنجاح');
+                         } catch (e) {
+                           showToast('فشل تحديث الإحصائيات', 'error');
+                         } finally {
+                           setSaving(null);
+                         }
+                      }}
+                      disabled={saving === 'stats'}
+                      className="w-full py-5 bg-white text-gray-950 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-white/5 relative z-10 flex items-center justify-center gap-3 active:scale-95 transition-all"
+                    >
+                      {saving === 'stats' ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-gray-950 border-t-transparent rounded-full animate-spin" />
+                          جاري المسح الضوئي...
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="w-4 h-4" />
+                          تحديث إحصائيات الضمانات الآن
+                        </>
+                      )}
                     </button>
                   </div>
                 </div>
