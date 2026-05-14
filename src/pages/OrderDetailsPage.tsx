@@ -448,15 +448,15 @@ const PaymentModal: React.FC<{
              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">اختر وسيلة الدفع</p>
              <div className="grid grid-cols-3 gap-3">
                 <button onClick={() => setPaymentMethod('mada')} className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-2 ${paymentMethod === 'mada' ? 'border-blue-600 bg-blue-50' : 'border-gray-50 bg-gray-50'}`}>
-                  <CreditCard className="w-5 h-5 text-gray-400" />
+                  <PaymentIcon type="mada" className="h-5" />
                   <span className="font-bold text-[10px]">بطاقة / مدى</span>
                 </button>
                 <button onClick={() => setPaymentMethod('tabby')} className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-2 ${paymentMethod === 'tabby' ? 'border-green-600 bg-green-50' : 'border-gray-50 bg-gray-50'}`}>
-                  <img src="https://i.imgur.com/vHq8S7D.png" className="h-4 w-auto" alt="Tabby" />
+                  <PaymentIcon type="tabby" className="h-5" />
                   <span className="font-bold text-[10px]">تقسيط تابي</span>
                 </button>
                 <button onClick={() => setPaymentMethod('tamara')} className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-2 ${paymentMethod === 'tamara' ? 'border-amber-600 bg-amber-50' : 'border-gray-50 bg-gray-50'}`}>
-                  <img src="https://i.imgur.com/qL5TfRW.png" className="h-4 w-auto" alt="Tamara" />
+                  <PaymentIcon type="tamara" className="h-5" />
                   <span className="font-bold text-[10px]">تقسيط تمارا</span>
                 </button>
              </div>

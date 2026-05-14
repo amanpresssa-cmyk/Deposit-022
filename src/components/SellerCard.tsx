@@ -70,6 +70,8 @@ export const SellerCard: React.FC<SellerCardProps> = ({ seller }) => {
            <PaymentIcon type="mastercard" className="h-7" />
            <PaymentIcon type="applepay" className="h-6" />
            <PaymentIcon type="stcpay" className="h-5" />
+           <PaymentIcon type="tabby" className="h-6" />
+           <PaymentIcon type="tamara" className="h-6" />
         </div>
 
         <div className="flex items-center justify-between pt-4 border-t border-gray-50">

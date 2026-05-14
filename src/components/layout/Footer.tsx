@@ -120,16 +120,18 @@ export const Footer: React.FC = () => {
         <div className="pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex flex-col md:flex-row items-center gap-4 text-right">
             <p className="text-gray-500 text-[9px] font-black uppercase tracking-[0.2em]">
-              © 2026 منصة عربون. جميع الحقوق محفوظة لشركة وساطة الحلول التقنية.
+              © 2026 منصة عربون. جميع الحقوق محفوظة لمؤسسة خبراء الرسم.
             </p>
           </div>
           
-          <div className="flex items-center gap-6 saturate-0 opacity-40 hover:saturate-100 hover:opacity-100 transition-all duration-700">
-            <PaymentIcon type="mada" className="h-5" white />
-            <PaymentIcon type="visa" className="h-4" white />
-            <PaymentIcon type="mastercard" className="h-6" white />
-            <PaymentIcon type="applepay" className="h-5" white />
-            <PaymentIcon type="stcpay" className="h-4" white />
+          <div className="flex items-center gap-6 opacity-60 hover:opacity-100 transition-all duration-700">
+            <PaymentIcon type="mada" className="h-5" />
+            <PaymentIcon type="visa" className="h-4" />
+            <PaymentIcon type="mastercard" className="h-6" />
+            <PaymentIcon type="applepay" className="h-5" />
+            <PaymentIcon type="stcpay" className="h-4" />
+            <PaymentIcon type="tabby" className="h-5" />
+            <PaymentIcon type="tamara" className="h-5" />
           </div>
         </div>
       </div>

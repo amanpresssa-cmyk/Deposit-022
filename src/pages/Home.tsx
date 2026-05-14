@@ -280,7 +280,7 @@ export const Home: React.FC = () => {
       { id: 'برمجة', name: 'البرمجة والتطوير', icon: <LayoutGrid className="w-4 h-4" />, color: 'bg-emerald-600', shadow: 'shadow-emerald-500/10' },
       { id: 'تعقيب', name: 'تعقيب معاملات', icon: <Briefcase className="w-4 h-4" />, color: 'bg-blue-600', shadow: 'shadow-blue-500/10' },
       { id: 'تسويق', name: 'التسويق الرقمي', icon: <TrendingUp className="w-4 h-4" />, color: 'bg-orange-500', shadow: 'shadow-orange-500/10' },
-      { id: 'تصميم', name: 'الجرافيك والتصميم', icon: <Sparkles className="w-4 h-4" />, color: 'bg-purple-600', shadow: 'shadow-purple-500/10' },
+      { id: 'تصميم', name: 'الجرافيك والتصميم', icon: <Sparkles className="w-4 h-4" />, color: 'bg-slate-500', shadow: 'shadow-slate-500/10' },
       { id: 'كتابة', name: 'الترجمة والكتابة', icon: <MessageSquare className="w-4 h-4" />, color: 'bg-slate-800', shadow: 'shadow-slate-900/10' },
       { id: 'استضافة', name: 'الاستضافة والسيرفرات', icon: <ShieldCheck className="w-4 h-4" />, color: 'bg-zinc-100', shadow: 'shadow-sm', textColor: 'text-gray-900', iconColor: 'text-blue-600' },
       { id: 'عقارات', name: 'العقارات والأراضي', icon: <HomeIcon className="w-4 h-4" />, color: 'bg-amber-600', shadow: 'shadow-amber-500/10' },
@@ -357,9 +357,9 @@ export const Home: React.FC = () => {
                    />
                    <div className="absolute bottom-0 left-0 w-full p-5 md:p-12 flex flex-row items-center justify-between gap-4 bg-gradient-to-t from-gray-950/95 via-gray-950/40 to-transparent backdrop-blur-[2px]">
                       <div className="flex flex-row items-center gap-3 md:gap-8">
-                        <div className="flex flex-col md:flex-row md:items-center gap-0 md:gap-6 bg-white/5 px-4 py-2 md:px-8 md:py-4 rounded-2xl md:rounded-[2rem] border border-white/10 backdrop-blur-xl">
-                          <p className="text-[7px] md:text-sm font-display font-black text-blue-400 uppercase tracking-[0.2em] whitespace-nowrap mb-0.5 md:mb-0">إجمالي الضمانات</p>
-                          <p className="text-xl md:text-5xl font-display font-black text-white tracking-tighter whitespace-nowrap">{(displayGuarantees / 1000000).toFixed(1)}M<span className="text-[10px] md:text-xl opacity-40 mr-1">SAR</span></p>
+                        <div className="flex flex-col md:flex-row md:items-center gap-0 md:gap-6 bg-white px-4 py-2 md:px-8 md:py-4 rounded-2xl md:rounded-[2rem] border border-white/20 shadow-2xl backdrop-blur-md">
+                          <p className="text-[7px] md:text-sm font-display font-black text-blue-600 uppercase tracking-[0.2em] whitespace-nowrap mb-0.5 md:mb-0">إجمالي الضمانات</p>
+                          <p className="text-xl md:text-5xl font-display font-black text-gray-950 tracking-tighter whitespace-nowrap">{(displayGuarantees / 1000000).toFixed(1)}M<span className="text-[10px] md:text-xl text-gray-400 mr-1">SAR</span></p>
                         </div>
                       </div>
                       {heroBanner?.showUserCards !== false && (
@@ -455,52 +455,52 @@ export const Home: React.FC = () => {
 
              {/* Financial Bento Cards */}
              <div className="grid grid-cols-2 lg:grid-cols-1 gap-3 md:gap-4 w-full lg:w-72 flex-shrink-0">
-                <div className="bg-gray-950 p-4 md:p-5 rounded-[2rem] md:rounded-[2.5rem] text-white flex flex-col justify-between shadow-xl relative overflow-hidden group/card hover:scale-[1.02] transition-transform h-28 md:h-32">
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-blue-600 rounded-full blur-[40px] opacity-20 group-hover/card:opacity-30 transition-opacity" />
+                <div className="bg-white p-3 md:p-5 rounded-2xl md:rounded-[2.5rem] text-gray-900 flex flex-col justify-between shadow-sm border border-gray-100 relative overflow-hidden group/card hover:scale-[1.02] transition-transform h-24 md:h-32">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-blue-600 rounded-full blur-[40px] opacity-10 group-hover/card:opacity-20 transition-opacity" />
                     <div className="relative z-10 flex items-center justify-between">
-                       <div className="flex items-center gap-2">
-                          <div className="w-5 h-5 bg-white/10 rounded-md flex items-center justify-center">
-                             <TrendingUp className="w-2.5 h-2.5 text-blue-400" />
+                       <div className="flex items-center gap-1.5 md:gap-2">
+                          <div className="w-4 h-4 md:w-5 md:h-5 bg-blue-50 rounded md:rounded-md flex items-center justify-center">
+                             <TrendingUp className="w-2 md:w-2.5 h-2 md:h-2.5 text-blue-600" />
                           </div>
-                          <p className="text-[6px] md:text-[8px] font-black uppercase tracking-[0.1em] opacity-40">إجمالي المعاملات</p>
+                          <p className="text-[6px] md:text-[8px] font-black uppercase tracking-[0.1em] text-gray-400">إجمالي المعاملات</p>
                        </div>
                        <button 
                          onClick={(e) => { e.stopPropagation(); setShowBalances(!showBalances); }}
-                         className="p-1 hover:bg-white/10 rounded-md transition-colors"
+                         className="p-1 hover:bg-gray-100 rounded-md transition-colors"
                        >
-                         {showBalances ? <Eye className="w-3 h-3 opacity-40" /> : <EyeOff className="w-3 h-3 opacity-40" />}
+                         {showBalances ? <Eye className="w-3 h-3 text-gray-400" /> : <EyeOff className="w-3 h-3 text-gray-400" />}
                        </button>
                     </div>
                     <div className="relative z-10">
-                       <p className="text-lg md:text-2xl font-display font-black leading-none">
+                       <p className="text-base md:text-2xl font-display font-black leading-none">
                          {showBalances ? (profile?.balance || 0).toLocaleString() : '••••••'} 
-                         <span className="text-[9px] md:text-xs font-sans opacity-40 mr-1">ر.س</span>
+                         <span className="text-[8px] md:text-xs font-sans opacity-40 mr-1">ر.س</span>
                        </p>
                     </div>
                     <div className="relative z-10">
-                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-500/10 text-green-400 rounded-full text-[6px] md:text-[8px] font-black">
+                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-50 text-green-600 rounded-full text-[6px] md:text-[8px] font-black">
                           <CheckCircle2 className="w-2 h-2 md:w-2.5 md:h-2.5" />
                           محولة لحسابك
                        </span>
                     </div>
                 </div>
 
-                <div className="bg-blue-50 p-4 md:p-5 rounded-[2rem] md:rounded-[2.5rem] border border-blue-100/40 flex flex-col justify-between relative overflow-hidden group/card hover:scale-[1.02] transition-transform h-28 md:h-32">
+                <div className="bg-white p-3 md:p-5 rounded-2xl md:rounded-[2.5rem] border border-gray-100 flex flex-col justify-between shadow-sm relative overflow-hidden group/card hover:scale-[1.02] transition-transform h-24 md:h-32">
                     <div className="absolute top-0 right-0 w-24 h-24 bg-blue-400 rounded-full blur-[40px] opacity-10 group-hover/card:opacity-20 transition-opacity" />
-                    <div className="relative z-10 flex items-center gap-2">
-                       <div className="w-5 h-5 bg-blue-600/10 rounded-md flex items-center justify-center">
-                          <Clock className="w-2.5 h-2.5 text-blue-600" />
+                    <div className="relative z-10 flex items-center gap-1.5 md:gap-2">
+                       <div className="w-4 h-4 md:w-5 md:h-5 bg-blue-50 rounded md:rounded-md flex items-center justify-center">
+                          <Clock className="w-2 md:w-2.5 h-2 md:h-2.5 text-blue-600" />
                        </div>
-                       <p className="text-[6px] md:text-[8px] font-black text-blue-900/40 uppercase tracking-[0.1em]">مبالغ تحت الإجراء</p>
+                       <p className="text-[6px] md:text-[8px] font-black text-gray-400 uppercase tracking-[0.1em]">مبالغ تحت الإجراء</p>
                     </div>
                     <div className="relative z-10">
-                       <p className="text-lg md:text-2xl font-display font-black text-blue-950 leading-none">
+                       <p className="text-base md:text-2xl font-display font-black text-gray-900 leading-none">
                          {showBalances ? (profile?.pendingBalance || 0).toLocaleString() : '••••••'} 
-                         <span className="text-[9px] md:text-xs font-sans opacity-30 text-blue-900 mr-1">ر.س</span>
+                         <span className="text-[8px] md:text-xs font-sans opacity-40 text-gray-400 mr-1">ر.س</span>
                        </p>
                     </div>
                     <div className="relative z-10">
-                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-600/10 text-blue-600 rounded-full text-[6px] md:text-[8px] font-black">
+                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded-full text-[6px] md:text-[8px] font-black">
                           <ShieldCheck className="w-2 h-2 md:w-2.5 md:h-2.5" />
                           بانتظار الإتمام
                        </span>
