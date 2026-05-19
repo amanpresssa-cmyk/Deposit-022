@@ -28,6 +28,7 @@ import { FAQPage } from './pages/FAQPage';
 import { HowItWorksPage } from './pages/HowItWorksPage';
 import { ServiceDetailsPage } from './pages/ServiceDetailsPage';
 import { NotificationProvider } from './components/providers/NotificationProvider';
+import { ThemeProvider } from './components/providers/ThemeProvider';
 import { ProfilePrompt } from './components/layout/ProfilePrompt';
 import { Toaster } from 'sonner';
 import { Navbar } from './components/layout/Navbar';
@@ -226,16 +227,16 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
+      <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] dark:bg-gray-950 transition-colors duration-300">
         <div className="flex flex-col items-center gap-6 p-8 text-center">
-          <div className="w-16 h-16 border-4 border-[#3b82f6] border-t-transparent rounded-full animate-spin shadow-lg shadow-blue-100" />
+          <div className="w-16 h-16 border-4 border-[#3b82f6] border-t-transparent rounded-full animate-spin shadow-lg shadow-blue-100 dark:shadow-blue-900/20" />
           <div className="space-y-2">
-            <h3 className="text-xl font-black text-gray-900">جاري تحميل منصة عربون...</h3>
-            <p className="text-gray-400 font-medium">نتحقق من أمان اتصالك وجلسة العمل</p>
+            <h3 className="text-xl font-black text-gray-900 dark:text-white">جاري تحميل منصة عربون...</h3>
+            <p className="text-gray-400 dark:text-gray-500 font-medium">نتحقق من أمان اتصالك وجلسة العمل</p>
           </div>
           <button 
             onClick={() => window.location.reload()}
-            className="mt-4 text-blue-600 font-bold hover:underline text-sm"
+            className="mt-4 text-blue-600 dark:text-blue-400 font-bold hover:underline text-sm"
           >
             إذا استغرق التحميل وقتاً طويلاً، اضغط هنا للتحديث
           </button>
@@ -249,9 +250,10 @@ export default function App() {
       <ScrollToTop />
       <FloatingScrollToTop />
       <ErrorBoundary>
-        <NotificationProvider>
-          <Toaster position="top-center" richColors />
-          <div className="min-h-screen bg-[#f8fafc] font-sans antialiased rtl relative" dir="rtl">
+        <ThemeProvider>
+          <NotificationProvider>
+            <Toaster position="top-center" richColors />
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-950 font-sans antialiased rtl relative transition-colors duration-300" dir="rtl">
             {profile?.isBlocked && !isAdmin && (
               <BlockedUserOverlay 
                 reason={profile.blockReason} 
@@ -363,7 +365,8 @@ export default function App() {
             </MainLayout>
           </div>
         </NotificationProvider>
-      </ErrorBoundary>
+      </ThemeProvider>
+    </ErrorBoundary>
     </>
   );
 }

@@ -163,23 +163,23 @@ export const SettingsPage: React.FC = () => {
       {/* Header Section */}
       <div className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6 uppercase">
         <div className="text-right">
-           <div className="flex items-center gap-2 text-blue-600 font-bold mb-2 justify-end">
-             <div className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></div>
+           <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-bold mb-2 justify-end">
+             <div className="w-2 h-2 rounded-full bg-blue-600 dark:bg-blue-400 animate-pulse"></div>
              مركز التحكم
            </div>
-           <h1 className="text-4xl font-black text-gray-900 tracking-tight">إعدادات الحساب</h1>
-           <p className="text-gray-500 mt-2 font-medium">قم بإدارة بياناتك، تفضيلات الأمان، والمعلومات المالية للمنصة.</p>
+           <h1 className="text-4xl font-black text-gray-900 dark:text-white tracking-tight">إعدادات الحساب</h1>
+           <p className="text-gray-500 dark:text-gray-400 mt-2 font-medium">قم بإدارة بياناتك، تفضيلات الأمان، والمعلومات المالية للمنصة.</p>
         </div>
         
-        <div className="flex bg-white p-1.5 rounded-2xl border border-gray-100 shadow-sm md:w-fit overflow-x-auto no-scrollbar" dir="rtl">
+        <div className="flex bg-white dark:bg-gray-900 p-1.5 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm md:w-fit overflow-x-auto no-scrollbar" dir="rtl">
           {filteredTabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
               className={`flex-shrink-0 flex items-center gap-2 px-6 py-3 rounded-xl transition-all font-black text-sm whitespace-nowrap ${
                 activeTab === tab.id 
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' 
-                : 'text-gray-500 hover:bg-gray-50'
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-100 dark:shadow-blue-900/40' 
+                : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
               }`}
             >
               <tab.icon className={`w-4 h-4 shrink-0 transition-transform ${activeTab === tab.id ? 'scale-110' : ''}`} />
@@ -192,42 +192,43 @@ export const SettingsPage: React.FC = () => {
       <div className="grid lg:grid-cols-12 gap-8 items-start" dir="rtl">
         {/* Right Side: Profile Preview Card */}
         <div className="lg:col-span-4 space-y-6">
-           <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden p-8 text-center sticky top-24">
+           <div className="bg-white dark:bg-gray-900 rounded-[2.5rem] border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden p-8 text-center sticky top-24">
               <div className="relative mb-6 mx-auto w-32 h-32">
                  <div className="absolute inset-0 bg-blue-600 rounded-[2.5rem] rotate-6 opacity-10"></div>
-                 <div className="absolute inset-0 bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden p-1 z-10">
+                 <div className="absolute inset-0 bg-white dark:bg-gray-800 rounded-[2.5rem] border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden p-1 z-10">
                     <img 
                       src={profile?.photoURL || user?.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.displayName)}&background=random`} 
                       className="w-full h-full object-cover rounded-[2.2rem]"
                       alt="Profile" 
+                      referrerPolicy="no-referrer"
                     />
                  </div>
               </div>
               
               <div className="flex items-center justify-center gap-2 mb-1">
-                <h3 className="text-xl font-black text-gray-900">{formData.displayName || 'بدون اسم'}</h3>
-                {profile?.isVerified && <CheckCircle2 className="w-5 h-5 text-blue-500 fill-blue-50" />}
+                <h3 className="text-xl font-black text-gray-900 dark:text-white uppercase tracking-tight">{formData.displayName || 'بدون اسم'}</h3>
+                {profile?.isVerified && <CheckCircle2 className="w-5 h-5 text-blue-500 fill-blue-50 dark:fill-blue-900/10" />}
               </div>
-              <p className="text-sm text-gray-400 font-medium mb-6">{user?.email}</p>
+              <p className="text-sm text-gray-400 dark:text-gray-500 font-medium mb-6 uppercase tracking-tight">{user?.email}</p>
               
               <div className="flex items-center justify-center gap-2 mb-8">
                 {getVerificationBadge()}
               </div>
 
-              <div className="p-1 px-1.5 bg-gray-50 rounded-2xl border border-gray-100 flex items-center gap-1.5">
-                 <div className="p-3 bg-white rounded-xl text-blue-600 shadow-sm">
+              <div className="p-1 px-1.5 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-gray-100 dark:border-gray-800 flex items-center gap-1.5">
+                 <div className="p-3 bg-white dark:bg-gray-800 rounded-xl text-blue-600 dark:text-blue-400 shadow-sm">
                     <ShieldCheck className="w-5 h-5" />
                  </div>
                  <div className="text-right flex-1 pr-2">
-                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest leading-none mb-1">مستوى الموثوقية</p>
-                    <p className="text-sm font-black text-gray-900 leading-none">{profile?.trustLevel || 0}% كامل</p>
+                    <p className="text-[10px] text-gray-400 dark:text-gray-500 font-black uppercase tracking-widest leading-none mb-1">مستوى الموثوقية</p>
+                    <p className="text-sm font-black text-gray-900 dark:text-white leading-none">{profile?.trustLevel || 0}% كامل</p>
                  </div>
               </div>
 
               <button 
                 onClick={() => handleSave()}
                 disabled={loading}
-                className="w-full mt-8 bg-gray-900 text-white p-4 rounded-2xl font-black text-sm flex items-center justify-center gap-2 hover:bg-gray-800 disabled:bg-gray-200 transition-all shadow-xl shadow-gray-100"
+                className="w-full mt-8 bg-gray-900 dark:bg-blue-600 text-white p-4 rounded-2xl font-black text-sm flex items-center justify-center gap-2 hover:bg-gray-800 dark:hover:bg-blue-700 disabled:bg-gray-200 dark:disabled:bg-gray-800 transition-all shadow-xl shadow-gray-100 dark:shadow-blue-900/20"
               >
                 {loading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Save className="w-5 h-5" />}
                 حفظ التغييرات
@@ -237,7 +238,7 @@ export const SettingsPage: React.FC = () => {
 
         {/* Left Side: Tab Content */}
         <div className="lg:col-span-8 flex flex-col gap-6 text-right">
-           <div className="bg-white rounded-[3rem] border border-gray-100 shadow-sm overflow-hidden min-h-[600px] flex flex-col">
+           <div className="bg-white dark:bg-gray-900 rounded-[3rem] border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden min-h-[600px] flex flex-col">
               <AnimatePresence mode="wait">
                  {activeTab === 'profile' && (
                     <motion.div
@@ -248,44 +249,44 @@ export const SettingsPage: React.FC = () => {
                       className="p-8 md:p-12 space-y-10"
                     >
                       <section>
-                         <h2 className="text-2xl font-black text-gray-900 mb-8">المعلومات الشخصية</h2>
+                         <h2 className="text-2xl font-black text-gray-900 dark:text-white mb-8">المعلومات الشخصية</h2>
                          <div className="space-y-6">
                             <div className="grid md:grid-cols-2 gap-6">
                                <div className="space-y-2">
-                                  <label className="text-xs font-black text-gray-500 block mr-1 uppercase tracking-widest text-right">الاسم الكامل</label>
+                                  <label className="text-xs font-black text-gray-400 dark:text-gray-500 block mr-1 uppercase tracking-widest text-right">الاسم الكامل</label>
                                   <div className="relative">
                                     <input 
                                       type="text"
                                       value={formData.displayName}
                                       onChange={(e) => setFormData({...formData, displayName: e.target.value})}
-                                      className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 pr-12 focus:bg-white focus:ring-4 focus:ring-blue-50 focus:border-blue-500 outline-none transition-all font-bold text-right"
+                                      className="w-full bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700 rounded-2xl p-4 pr-12 focus:bg-white dark:focus:bg-gray-800 focus:ring-4 focus:ring-blue-50 dark:focus:ring-blue-900/20 focus:border-blue-500 outline-none transition-all font-bold text-right dark:text-white tracking-tight"
                                       placeholder="اسمك الثلاثي"
                                     />
-                                    <User className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-300" />
+                                    <User className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-300 dark:text-gray-600" />
                                   </div>
                                </div>
                                <div className="space-y-2">
-                                  <label className="text-xs font-black text-gray-500 block mr-1 uppercase tracking-widest text-right">رقم الجوال</label>
+                                  <label className="text-xs font-black text-gray-400 dark:text-gray-500 block mr-1 uppercase tracking-widest text-right">رقم الجوال</label>
                                   <div className="relative">
                                     <input 
                                       type="tel"
                                       value={formData.phoneNumber}
                                       onChange={(e) => setFormData({...formData, phoneNumber: e.target.value})}
-                                      className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 pr-12 focus:bg-white focus:ring-4 focus:ring-blue-50 focus:border-blue-500 outline-none transition-all font-bold tracking-widest text-right"
+                                      className="w-full bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700 rounded-2xl p-4 pr-12 focus:bg-white dark:focus:bg-gray-800 focus:ring-4 focus:ring-blue-50 dark:focus:ring-blue-900/20 focus:border-blue-500 outline-none transition-all font-bold tracking-widest text-right dark:text-white"
                                       placeholder="05xxxxxxx"
                                     />
-                                    <Smartphone className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-300" />
+                                    <Smartphone className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-300 dark:text-gray-600" />
                                   </div>
                                </div>
                             </div>
 
                             <div className="space-y-2">
-                               <label className="text-xs font-black text-gray-500 block mr-1 uppercase tracking-widest text-right">النبذة التعريفية</label>
+                               <label className="text-xs font-black text-gray-400 dark:text-gray-500 block mr-1 uppercase tracking-widest text-right">النبذة التعريفية</label>
                                <textarea 
                                  rows={4}
                                  value={formData.bio}
                                  onChange={(e) => setFormData({...formData, bio: e.target.value})}
-                                 className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 focus:bg-white focus:ring-4 focus:ring-blue-50 focus:border-blue-500 outline-none transition-all font-medium leading-relaxed text-right"
+                                 className="w-full bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700 rounded-2xl p-4 focus:bg-white dark:focus:bg-gray-800 focus:ring-4 focus:ring-blue-50 dark:focus:ring-blue-900/20 focus:border-blue-500 outline-none transition-all font-medium leading-relaxed text-right dark:text-white"
                                  placeholder="أخبر المستخدمين بمجال تخصصك وما تقدمه من خدمات..."
                                />
                             </div>

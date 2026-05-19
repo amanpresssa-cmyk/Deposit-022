@@ -306,7 +306,7 @@ export const Home: React.FC = () => {
             className="w-full flex flex-col items-center gap-4 md:gap-8 pt-2 md:pt-6"
           >
             <div className="text-center space-y-6 md:space-y-10 order-2 lg:order-1 max-w-4xl mx-auto flex flex-col items-center px-4">
-              <div className="inline-flex items-center justify-center gap-2 px-5 py-2.5 md:px-8 md:py-4 bg-white/60 backdrop-blur-2xl border border-gray-100/50 text-blue-900 rounded-2xl md:rounded-3xl text-[11px] md:text-sm font-display font-black uppercase tracking-[0.2em] shadow-2xl shadow-blue-900/5 min-h-[3rem] md:min-h-[4rem] overflow-visible">
+              <div className="inline-flex items-center justify-center gap-2 px-5 py-2.5 md:px-8 md:py-4 bg-white/60 dark:bg-gray-900/60 backdrop-blur-2xl border border-gray-100/50 dark:border-white/5 text-blue-900 dark:text-blue-100 rounded-2xl md:rounded-3xl text-[11px] md:text-sm font-display font-black uppercase tracking-[0.2em] shadow-2xl shadow-blue-900/5 dark:shadow-black/20 min-h-[3rem] md:min-h-[4rem] overflow-visible">
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={trustIndex % activeTrustMessages.length}
@@ -322,13 +322,13 @@ export const Home: React.FC = () => {
               </div>
 
               <div className="space-y-4 md:space-y-6 px-4">
-                <h1 className="text-3xl md:text-5xl lg:text-7xl font-display font-black text-slate-900 tracking-tighter leading-tight">
-                  <span className="block text-slate-800">{activeHeroTitleTop}</span> 
+                <h1 className="text-3xl md:text-5xl lg:text-7xl font-display font-black text-slate-900 dark:text-white tracking-tighter leading-tight">
+                  <span className="block text-slate-800 dark:text-slate-200">{activeHeroTitleTop}</span> 
                   <span className="block text-transparent bg-clip-text bg-gradient-to-l from-blue-700 via-blue-600 to-indigo-600">
                     {activeHeroTitleBottom}
                   </span>
                 </h1>
-                <p className="text-sm md:text-2xl text-slate-500 max-w-2xl mx-auto font-medium leading-relaxed opacity-90 italic">
+                <p className="text-sm md:text-2xl text-slate-500 dark:text-slate-400 max-w-2xl mx-auto font-medium leading-relaxed opacity-90 italic">
                   {activeHeroSubtitle}
                 </p>
               </div>
@@ -347,19 +347,19 @@ export const Home: React.FC = () => {
             <div className="order-1 lg:order-2 w-full relative group mt-2 md:mt-4 px-0">
               <div className="absolute inset-0 bg-blue-500/5 blur-[120px] scale-[0.95] group-hover:scale-100 transition-transform duration-1000" />
               <motion.div 
-                className="relative bg-white w-full rounded-none md:rounded-[4rem] shadow-[0_20px_80px_-15px_rgba(0,0,0,0.1)] overflow-hidden border-y md:border border-gray-100/50 transition-all duration-700"
+                className="relative bg-white dark:bg-gray-900 w-full rounded-none md:rounded-[4rem] shadow-[0_20px_80px_-15px_rgba(0,0,0,0.1)] dark:shadow-black/40 overflow-hidden border-y md:border border-gray-100/50 dark:border-white/5 transition-all duration-700"
               >
                 <div className="relative h-[280px] md:h-[500px] lg:h-[600px] w-full">
                    <img 
                     src="https://images.unsplash.com/photo-1556742044-3c52d6e88c62?auto=format&fit=crop&q=80&w=2400" 
-                    className="w-full h-full object-cover" 
+                    className="w-full h-full object-cover dark:opacity-80" 
                     alt="Safe Transactions"
                    />
                    <div className="absolute bottom-0 left-0 w-full p-5 md:p-12 flex flex-row items-center justify-between gap-4 bg-gradient-to-t from-gray-950/95 via-gray-950/40 to-transparent backdrop-blur-[2px]">
                       <div className="flex flex-row items-center gap-3 md:gap-8">
-                        <div className="flex flex-col md:flex-row md:items-center gap-0 md:gap-6 bg-white px-4 py-2 md:px-8 md:py-4 rounded-2xl md:rounded-[2rem] border border-white/20 shadow-2xl backdrop-blur-md">
-                          <p className="text-[7px] md:text-sm font-display font-black text-blue-600 uppercase tracking-[0.2em] whitespace-nowrap mb-0.5 md:mb-0">إجمالي الضمانات</p>
-                          <p className="text-xl md:text-5xl font-display font-black text-gray-950 tracking-tighter whitespace-nowrap">{(displayGuarantees / 1000000).toFixed(1)}M<span className="text-[10px] md:text-xl text-gray-400 mr-1">SAR</span></p>
+                        <div className="flex flex-col md:flex-row md:items-center gap-0 md:gap-6 bg-white dark:bg-gray-800 px-4 py-2 md:px-8 md:py-4 rounded-2xl md:rounded-[2rem] border border-white/20 dark:border-white/5 shadow-2xl backdrop-blur-md transition-colors duration-300">
+                          <p className="text-[7px] md:text-sm font-display font-black text-blue-600 dark:text-blue-400 uppercase tracking-[0.2em] whitespace-nowrap mb-0.5 md:mb-0">إجمالي الضمانات</p>
+                          <p className="text-xl md:text-5xl font-display font-black text-gray-950 dark:text-white tracking-tighter whitespace-nowrap">{(displayGuarantees / 1000000).toFixed(1)}M<span className="text-[10px] md:text-xl text-gray-400 dark:text-gray-500 mr-1">SAR</span></p>
                         </div>
                       </div>
                       {heroBanner?.showUserCards !== false && (
@@ -395,16 +395,16 @@ export const Home: React.FC = () => {
       ) : (
         /* Logged In Personalized Hero */
         <section className="pt-4 md:pt-12 px-4 max-w-7xl mx-auto space-y-6 md:space-y-10">
-          <div className="flex flex-col lg:flex-row items-center justify-between gap-6 md:gap-12 p-5 md:p-14 bg-white rounded-[2.5rem] md:rounded-[4rem] border border-gray-100 shadow-2xl shadow-blue-500/5 relative overflow-hidden group">
+          <div className="flex flex-col lg:flex-row items-center justify-between gap-6 md:gap-12 p-5 md:p-14 bg-white dark:bg-gray-900 rounded-[2.5rem] md:rounded-[4rem] border border-gray-100 dark:border-gray-800 shadow-2xl shadow-blue-500/5 dark:shadow-black/20 relative overflow-hidden group transition-colors duration-300">
              {/* Abstract Background Accents */}
-             <div className="absolute top-0 right-0 w-80 h-80 bg-blue-50 rounded-full blur-[100px] -mr-40 -mt-40 opacity-50 group-hover:opacity-70 transition-opacity" />
-             <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-50 rounded-full blur-[100px] -ml-32 -mb-32 opacity-30" />
+             <div className="absolute top-0 right-0 w-80 h-80 bg-blue-50 dark:bg-blue-900/10 rounded-full blur-[100px] -mr-40 -mt-40 opacity-50 group-hover:opacity-70 transition-opacity" />
+             <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-50 dark:bg-indigo-900/10 rounded-full blur-[100px] -ml-32 -mb-32 opacity-30" />
              
              <div className="relative z-10 space-y-6 md:space-y-10 text-right w-full lg:flex-1">
-                <div className="flex flex-col md:flex-row items-center gap-4 md:gap-8 bg-blue-50/5 md:bg-transparent p-4 md:p-0 rounded-[2.5rem] md:rounded-0">
+                <div className="flex flex-col md:flex-row items-center gap-4 md:gap-8 bg-blue-50/5 dark:bg-blue-900/5 md:bg-transparent p-4 md:p-0 rounded-[2.5rem] md:rounded-0 transition-colors">
                    {/* Profile Image - Now on the Right (Start) */}
                    <div className="relative group/avatar">
-                      <div className="w-24 h-24 md:w-32 md:h-32 rounded-[2rem] md:rounded-[2.5rem] overflow-hidden border-[6px] border-white shadow-2xl shadow-blue-200/50 group-hover/avatar:scale-105 transition-transform duration-500">
+                      <div className="w-24 h-24 md:w-32 md:h-32 rounded-[2rem] md:rounded-[2.5rem] overflow-hidden border-[6px] border-white dark:border-gray-800 shadow-2xl shadow-blue-200/50 dark:shadow-black/40 group-hover/avatar:scale-105 transition-all duration-500">
                          {user?.photoURL ? (
                            <img src={user.photoURL} alt={user.displayName || ''} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                          ) : (
@@ -413,7 +413,7 @@ export const Home: React.FC = () => {
                            </div>
                          )}
                       </div>
-                      <div className="absolute -bottom-1 -right-1 w-8 h-8 md:w-11 md:h-11 bg-white border border-blue-50 rounded-xl md:rounded-2xl flex items-center justify-center shadow-xl group-hover/avatar:rotate-12 transition-transform">
+                      <div className="absolute -bottom-1 -right-1 w-8 h-8 md:w-11 md:h-11 bg-white dark:bg-gray-800 border border-blue-50 dark:border-gray-700 rounded-xl md:rounded-2xl flex items-center justify-center shadow-xl group-hover/avatar:rotate-12 transition-all">
                          <div className="w-5 h-5 md:w-7 md:h-7 bg-green-500 rounded-lg flex items-center justify-center text-white">
                             <Sparkles className="w-3 h-3 md:w-4 md:h-4 text-white" />
                          </div>
@@ -426,11 +426,11 @@ export const Home: React.FC = () => {
                         <div className="h-[2px] w-3 bg-blue-600 rounded-full" />
                         <span className="text-[10px] md:text-xs font-black text-blue-600 uppercase tracking-widest opacity-70">طابت أوقاتك بكل خير</span>
                       </div>
-                      <h1 className="text-2xl md:text-5xl font-display font-black text-gray-950 tracking-tighter leading-tight">
-                        أهلاً، <span className="text-blue-600 font-black">{user?.displayName?.split(' ')[0] || 'مصفي'}</span>
+                      <h1 className="text-2xl md:text-5xl font-display font-black text-gray-950 dark:text-white tracking-tighter leading-tight">
+                        أهلاً، <span className="text-blue-600 dark:text-blue-400 font-black">{user?.displayName?.split(' ')[0] || 'مصفي'}</span>
                       </h1>
-                      <p className="text-gray-400 font-bold text-[10px] md:text-lg max-w-sm mx-auto md:mx-0">
-                        لديك <span className="text-gray-950 px-1.5 py-0.5 bg-gray-50 rounded-md">{activeOrders.length} عمليات</span> نشطة بانتظار اهتمامك اليوم.
+                      <p className="text-gray-400 dark:text-gray-500 font-bold text-[10px] md:text-lg max-w-sm mx-auto md:mx-0">
+                        لديك <span className="text-gray-950 dark:text-gray-100 px-1.5 py-0.5 bg-gray-50 dark:bg-gray-800 rounded-md">{activeOrders.length} عمليات</span> نشطة بانتظار اهتمامك اليوم.
                       </p>
                    </div>
                 </div>
@@ -445,7 +445,7 @@ export const Home: React.FC = () => {
                    </button>
                    <button 
                     onClick={() => navigate('/dashboard')}
-                    className="flex-1 md:flex-none px-4 md:px-6 py-2.5 md:py-3 bg-gray-50 text-gray-900 border border-gray-200/40 rounded-lg md:rounded-xl font-black text-[10px] md:text-xs flex items-center justify-center gap-1.5 hover:bg-gray-100 transition-all active:scale-[0.98]"
+                    className="flex-1 md:flex-none px-4 md:px-6 py-2.5 md:py-3 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-200/40 dark:border-white/5 rounded-lg md:rounded-xl font-black text-[10px] md:text-xs flex items-center justify-center gap-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all active:scale-[0.98]"
                    >
                      <span>الملخص المالي</span>
                      <Activity className="w-3 h-3 md:w-4 md:h-4 opacity-30" />
@@ -455,52 +455,52 @@ export const Home: React.FC = () => {
 
              {/* Financial Bento Cards */}
              <div className="grid grid-cols-2 lg:grid-cols-1 gap-3 md:gap-4 w-full lg:w-72 flex-shrink-0">
-                <div className="bg-white p-3 md:p-5 rounded-2xl md:rounded-[2.5rem] text-gray-900 flex flex-col justify-between shadow-sm border border-gray-100 relative overflow-hidden group/card hover:scale-[1.02] transition-transform h-24 md:h-32">
+                <div className="bg-white dark:bg-gray-900 p-3 md:p-5 rounded-2xl md:rounded-[2.5rem] text-gray-900 dark:text-gray-100 flex flex-col justify-between shadow-sm border border-gray-100 dark:border-gray-800 relative overflow-hidden group/card hover:scale-[1.02] transition-transform h-24 md:h-32 transition-colors duration-300">
                     <div className="absolute top-0 right-0 w-24 h-24 bg-blue-600 rounded-full blur-[40px] opacity-10 group-hover/card:opacity-20 transition-opacity" />
                     <div className="relative z-10 flex items-center justify-between">
                        <div className="flex items-center gap-1.5 md:gap-2">
-                          <div className="w-4 h-4 md:w-5 md:h-5 bg-blue-50 rounded md:rounded-md flex items-center justify-center">
-                             <TrendingUp className="w-2 md:w-2.5 h-2 md:h-2.5 text-blue-600" />
+                          <div className="w-4 h-4 md:w-5 md:h-5 bg-blue-50 dark:bg-blue-900/30 rounded md:rounded-md flex items-center justify-center transition-colors">
+                             <TrendingUp className="w-2 md:w-2.5 h-2 md:h-2.5 text-blue-600 dark:text-blue-400" />
                           </div>
-                          <p className="text-[6px] md:text-[8px] font-black uppercase tracking-[0.1em] text-gray-400">إجمالي المعاملات</p>
+                          <p className="text-[6px] md:text-[8px] font-black uppercase tracking-[0.1em] text-gray-400 dark:text-gray-500">إجمالي المعاملات</p>
                        </div>
                        <button 
                          onClick={(e) => { e.stopPropagation(); setShowBalances(!showBalances); }}
-                         className="p-1 hover:bg-gray-100 rounded-md transition-colors"
+                         className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
                        >
-                         {showBalances ? <Eye className="w-3 h-3 text-gray-400" /> : <EyeOff className="w-3 h-3 text-gray-400" />}
+                         {showBalances ? <Eye className="w-3 h-3 text-gray-400 dark:text-gray-500" /> : <EyeOff className="w-3 h-3 text-gray-400 dark:text-gray-500" />}
                        </button>
                     </div>
                     <div className="relative z-10">
-                       <p className="text-base md:text-2xl font-display font-black leading-none">
+                       <p className="text-base md:text-2xl font-display font-black leading-none text-gray-900 dark:text-white">
                          {showBalances ? (profile?.balance || 0).toLocaleString() : '••••••'} 
-                         <span className="text-[8px] md:text-xs font-sans opacity-40 mr-1">ر.س</span>
+                         <span className="text-[8px] md:text-xs font-sans opacity-40 dark:opacity-20 mr-1">ر.س</span>
                        </p>
                     </div>
                     <div className="relative z-10">
-                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-50 text-green-600 rounded-full text-[6px] md:text-[8px] font-black">
+                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 rounded-full text-[6px] md:text-[8px] font-black transition-colors">
                           <CheckCircle2 className="w-2 h-2 md:w-2.5 md:h-2.5" />
                           محولة لحسابك
                        </span>
                     </div>
                 </div>
 
-                <div className="bg-white p-3 md:p-5 rounded-2xl md:rounded-[2.5rem] border border-gray-100 flex flex-col justify-between shadow-sm relative overflow-hidden group/card hover:scale-[1.02] transition-transform h-24 md:h-32">
+                <div className="bg-white dark:bg-gray-900 p-3 md:p-5 rounded-2xl md:rounded-[2.5rem] border border-gray-100 dark:border-gray-800 flex flex-col justify-between shadow-sm relative overflow-hidden group/card hover:scale-[1.02] transition-transform h-24 md:h-32 transition-colors duration-300">
                     <div className="absolute top-0 right-0 w-24 h-24 bg-blue-400 rounded-full blur-[40px] opacity-10 group-hover/card:opacity-20 transition-opacity" />
                     <div className="relative z-10 flex items-center gap-1.5 md:gap-2">
-                       <div className="w-4 h-4 md:w-5 md:h-5 bg-blue-50 rounded md:rounded-md flex items-center justify-center">
-                          <Clock className="w-2 md:w-2.5 h-2 md:h-2.5 text-blue-600" />
+                       <div className="w-4 h-4 md:w-5 md:h-5 bg-blue-50 dark:bg-blue-900/30 rounded md:rounded-md flex items-center justify-center transition-colors">
+                          <Clock className="w-2 md:w-2.5 h-2 md:h-2.5 text-blue-600 dark:text-blue-400" />
                        </div>
-                       <p className="text-[6px] md:text-[8px] font-black text-gray-400 uppercase tracking-[0.1em]">مبالغ تحت الإجراء</p>
+                       <p className="text-[6px] md:text-[8px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.1em]">مبالغ تحت الإجراء</p>
                     </div>
                     <div className="relative z-10">
-                       <p className="text-base md:text-2xl font-display font-black text-gray-900 leading-none">
+                       <p className="text-base md:text-2xl font-display font-black text-gray-900 dark:text-white leading-none">
                          {showBalances ? (profile?.pendingBalance || 0).toLocaleString() : '••••••'} 
-                         <span className="text-[8px] md:text-xs font-sans opacity-40 text-gray-400 mr-1">ر.س</span>
+                         <span className="text-[8px] md:text-xs font-sans opacity-40 dark:opacity-20 text-gray-400 dark:text-gray-500 mr-1">ر.س</span>
                        </p>
                     </div>
                     <div className="relative z-10">
-                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded-full text-[6px] md:text-[8px] font-black">
+                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-full text-[6px] md:text-[8px] font-black transition-colors">
                           <ShieldCheck className="w-2 h-2 md:w-2.5 md:h-2.5" />
                           بانتظار الإتمام
                        </span>
@@ -510,30 +510,30 @@ export const Home: React.FC = () => {
           </div>
 
           {activeOrders.length > 0 && (
-            <div className="space-y-6">
+            <div className="space-y-6 pt-12">
                <div className="flex items-center justify-between px-2">
-                  <h2 className="text-xl font-display font-black flex items-center gap-2">
-                    <Bell className="w-5 h-5 text-blue-600" />
+                  <h2 className="text-xl font-display font-black flex items-center gap-2 text-gray-900 dark:text-white">
+                    <Bell className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                     عمليات تتطلب انتباهك
                   </h2>
-                  <Link to="/dashboard" className="text-xs font-black text-blue-600 hover:underline">مشاهدة الكل</Link>
+                  <Link to="/dashboard" className="text-xs font-black text-blue-600 dark:text-blue-400 hover:underline">مشاهدة الكل</Link>
                </div>
-               <div className="grid md:grid-cols-3 gap-6">
+               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   {activeOrders.map(order => (
                     <motion.div 
                       key={order.id}
                       onClick={() => navigate(`/order/${order.id}`)}
-                      className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm hover:shadow-xl transition-all cursor-pointer group"
+                      className="bg-white dark:bg-gray-900 p-6 rounded-[2.5rem] border border-gray-100 dark:border-gray-800 shadow-sm dark:shadow-black/20 hover:shadow-xl transition-all cursor-pointer group"
                     >
                        <div className="flex justify-between mb-4">
-                          <div className="bg-blue-50 px-3 py-1 rounded-lg text-[10px] font-black text-blue-600 uppercase">
+                          <div className="bg-blue-50 dark:bg-blue-900/20 px-3 py-1 rounded-lg text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase">
                             {order.status === 'pending' ? 'انتظار' : 'في الضمان'}
                           </div>
-                          <span className="text-lg font-display font-black">{order.amount.toLocaleString()} <span className="text-[10px] opacity-40">ر.س</span></span>
+                          <span className="text-lg font-display font-black text-gray-900 dark:text-white">{order.amount.toLocaleString()} <span className="text-[10px] opacity-40">ر.س</span></span>
                        </div>
-                       <h4 className="font-black text-gray-900 line-clamp-1 mb-2 group-hover:text-blue-600 transition-colors">{order.title}</h4>
-                       <p className="text-xs text-gray-400 font-medium mb-4 line-clamp-1">تاريخ العملية: {order.createdAt?.toDate().toLocaleDateString('ar-SA')}</p>
-                       <div className="flex items-center gap-2 text-blue-600 font-black text-xs">
+                       <h4 className="font-black text-gray-900 dark:text-gray-100 line-clamp-1 mb-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors uppercase tracking-tight">{order.title}</h4>
+                       <p className="text-xs text-gray-400 dark:text-gray-500 font-medium mb-4 line-clamp-1">تاريخ العملية: {order.createdAt?.toDate().toLocaleDateString('ar-SA')}</p>
+                       <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-black text-xs uppercase tracking-widest">
                           <span>فتح العملية</span>
                           <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
                        </div>
@@ -545,20 +545,20 @@ export const Home: React.FC = () => {
         </section>
       )}
 
-      {/* Services Bento Grid */}
+      {/* Categories Section */}
       {!showAdminUI && (
         <section className="px-4 max-w-7xl mx-auto">
           <div className="flex items-center justify-between mb-6 px-2">
              <div className="space-y-1">
-                <h2 className="text-xl md:text-3xl font-display font-black text-emerald-900 tracking-tight">استكشف <span className="text-blue-600">الأقسام</span></h2>
+                <h2 className="text-xl md:text-3xl font-display font-black text-emerald-900 dark:text-emerald-400 tracking-tight">استكشف <span className="text-blue-600 dark:text-blue-400">الأقسام</span></h2>
                 <div className="h-1.5 w-16 bg-blue-500 rounded-full" />
              </div>
-             <Link to="/search" className="text-sm font-display font-black text-gray-400 hover:text-blue-600 transition-colors flex items-center gap-2">
+             <Link to="/search" className="text-sm font-display font-black text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center gap-2">
                 مشاهدة الكل <ArrowLeft className="w-4 h-4" />
              </Link>
           </div>
 
-          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 md:gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2 md:gap-4">
             {categories.slice(0, 6).map((cat) => (
               <motion.div 
                 key={cat.id}
@@ -568,10 +568,10 @@ export const Home: React.FC = () => {
               >
                 <div className="absolute top-0 right-0 w-20 h-20 bg-white/5 rounded-full blur-xl -mr-10 -mt-10 group-hover:scale-150 transition-transform duration-700" />
                 <div className="relative z-10">
-                   <div className={`w-8 h-8 ${cat.textColor ? 'bg-white shadow-sm' : 'bg-white/10 backdrop-blur-xl'} rounded-lg flex items-center justify-center mb-2 group-hover:scale-110 transition-transform`}>
+                   <div className={`w-8 h-8 ${cat.textColor ? 'bg-white dark:bg-gray-100 shadow-sm' : 'bg-white/10 dark:bg-white/5 backdrop-blur-xl'} rounded-lg flex items-center justify-center mb-2 group-hover:scale-110 transition-transform`}>
                      {React.cloneElement(cat.icon as React.ReactElement, { className: `w-4 h-4 ${cat.iconColor || ''}` })}
                    </div>
-                   <h3 className="text-[10px] md:text-sm font-display font-black leading-tight">{cat.name.split(' ').join('\n')}</h3>
+                   <h3 className="text-[10px] md:text-sm font-display font-black leading-tight uppercase tracking-tight">{cat.name.split(' ').join('\n')}</h3>
                 </div>
               </motion.div>
             ))}
@@ -579,11 +579,9 @@ export const Home: React.FC = () => {
         </section>
       )}
 
-
-
       {/* Featured Sellers - High Impact Grid */}
       {!showAdminUI && (
-        <section className="py-12 bg-gray-50 relative overflow-hidden">
+        <section className="py-12 bg-gray-50 dark:bg-gray-950/50 relative overflow-hidden transition-colors duration-300">
           <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-500/5 rounded-full blur-[120px] -mr-64 -mt-64" />
           
           <div className="max-w-7xl mx-auto px-4 relative z-10">
@@ -591,51 +589,51 @@ export const Home: React.FC = () => {
                 <div className="text-right space-y-4">
                    <div className="flex items-center gap-3 justify-end mb-2">
                       <div className="h-0.5 w-10 bg-blue-500/30" />
-                      <span className="text-xs md:text-sm font-black text-blue-600 uppercase tracking-[0.3em] shadow-sm bg-white px-5 py-2 rounded-full leading-relaxed block overflow-visible">نخبة الضمان</span>
+                      <span className="text-xs md:text-sm font-black text-blue-600 dark:text-blue-400 uppercase tracking-[0.3em] shadow-sm bg-white dark:bg-gray-900 border dark:border-gray-800 px-5 py-2 rounded-full leading-relaxed block overflow-visible leading-none">نخبة الضمان</span>
                    </div>
-                   <h2 className="text-3xl md:text-6xl font-display font-black text-emerald-900 tracking-tighter leading-[1.2] whitespace-pre-line">خبراء بانتظار <br/><span className="text-blue-600">خدمتك</span></h2>
-                   <p className="text-gray-600 font-bold text-lg md:text-2xl max-w-xl leading-relaxed">مقدمو خدمات موثوقون، تحققنا من كفاءتهم التقنية والأخلاقية للعمل تحت مظلة عربون.</p>
+                   <h2 className="text-3xl md:text-6xl font-display font-black text-emerald-900 dark:text-emerald-400 tracking-tighter leading-[1.2] whitespace-pre-line">خبراء بانتظار <br/><span className="text-blue-600 dark:text-blue-400">خدمتك</span></h2>
+                   <p className="text-gray-600 dark:text-gray-400 font-bold text-lg md:text-2xl max-w-xl leading-relaxed">مقدمو خدمات موثوقون، تحققنا من كفاءتهم التقنية والأخلاقية للعمل تحت مظلة عربون.</p>
                 </div>
-                <button onClick={() => navigate('/search')} className="group px-8 py-5 bg-gray-950 text-white rounded-2xl font-display font-black text-sm flex items-center gap-4 hover:bg-blue-600 transition-all shadow-2xl shadow-gray-200">
+                <button onClick={() => navigate('/search')} className="group px-8 py-5 bg-gray-950 dark:bg-gray-800 text-white rounded-2xl font-display font-black text-sm flex items-center justify-center gap-4 hover:bg-blue-600 transition-all shadow-2xl shadow-gray-200 dark:shadow-black/40 uppercase tracking-widest leading-none">
                    تصفح كافة البائعين
                    <ArrowLeft className="w-5 h-5 group-hover:-translate-x-2 transition-transform" />
                 </button>
              </div>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-              {loadingSellers ? (
-                [1, 2, 3, 4].map(i => (
-                  <div key={i} className="h-[430px] bg-white rounded-[3.5rem] animate-pulse shadow-sm border border-gray-100" />
-                ))
-              ) : featuredSellers.map(seller => (
-                <motion.div 
-                  key={seller.uid} 
-                  initial={{ opacity: 0, y: 30 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  whileHover={{ y: -12 }}
-                >
-                  <SellerCard seller={seller} />
-                </motion.div>
-              ))}
-            </div>
+
+             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+               {loadingSellers ? (
+                 [1, 2, 3, 4].map(i => (
+                   <div key={i} className="h-[430px] bg-white dark:bg-gray-900 rounded-[3.5rem] animate-pulse shadow-sm border border-gray-100 dark:border-gray-800" />
+                 ))
+               ) : featuredSellers.map(seller => (
+                 <motion.div 
+                   key={seller.uid} 
+                   initial={{ opacity: 0, y: 30 }}
+                   whileInView={{ opacity: 1, y: 0 }}
+                   viewport={{ once: true }}
+                   whileHover={{ y: -12 }}
+                 >
+                   <SellerCard seller={seller} />
+                 </motion.div>
+               ))}
+             </div>
           </div>
         </section>
       )}
 
       {/* Sophisticated How it Works Section */}
       {!showAdminUI && (
-        <div className="relative overflow-hidden">
-          <div className="absolute top-1/2 left-0 w-full h-px bg-gray-50 -translate-y-1/2" />
+        <div className="relative overflow-hidden bg-white dark:bg-gray-900 transition-colors duration-300">
+          <div className="absolute top-1/2 left-0 w-full h-px bg-gray-50 dark:bg-gray-800 -translate-y-1/2" />
           
           <div className="max-w-7xl mx-auto relative z-10 px-4">
             <div className="text-center space-y-4 mb-4">
-              <div className="inline-flex items-center gap-3 px-6 py-3.5 md:px-8 md:py-4 bg-blue-50 text-blue-600 rounded-full text-[11px] md:text-sm font-black uppercase tracking-[0.2em] border border-blue-100/50 leading-none shadow-sm overflow-visible">
+              <div className="inline-flex items-center gap-3 px-6 py-3.5 md:px-8 md:py-4 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-full text-[11px] md:text-sm font-black uppercase tracking-[0.2em] border border-blue-100/50 dark:border-blue-900/30 leading-none shadow-sm overflow-visible">
                 <ArrowLeftRight className="w-5 h-5" />
                 <span className="inline-block">بروتوكول الضمان الذكي</span>
               </div>
-              <h2 className="text-3xl md:text-5xl font-display font-black text-emerald-900 tracking-tighter leading-[1.2]">كيف نضمن <span className="text-blue-600 underline decoration-blue-100 underline-offset-8">حقك</span>؟</h2>
-              <p className="text-gray-500 font-bold max-w-2xl mx-auto text-lg md:text-2xl leading-relaxed">خطوات مدروسة تقنياً لضمان سلامة كل ريال من طرفي الصفقة.</p>
+              <h2 className="text-3xl md:text-5xl font-display font-black text-emerald-900 dark:text-emerald-400 tracking-tighter leading-[1.2]">كيف نضمن <span className="text-blue-600 underline decoration-blue-100 dark:decoration-blue-900 underline-offset-8">حقك</span>؟</h2>
+              <p className="text-gray-500 dark:text-gray-400 font-bold max-w-2xl mx-auto text-lg md:text-2xl leading-relaxed">خطوات مدروسة تقنياً لضمان سلامة كل ريال من طرفي الصفقة.</p>
             </div>
  
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-8 mt-4 px-4 max-w-6xl mx-auto">
@@ -650,26 +648,26 @@ export const Home: React.FC = () => {
                     animate={isActive ? { 
                       scale: 1.02, 
                       borderColor: 'rgba(59, 130, 246, 0.5)',
-                      backgroundColor: 'rgba(255, 255, 255, 1)',
+                      backgroundColor: 'var(--card-bg, rgba(255, 255, 255, 1))',
                       boxShadow: '0 20px 40px -12px rgba(59, 130, 246, 0.15)'
                     } : { 
                       scale: 1, 
-                      borderColor: 'rgba(249, 250, 251, 0.5)',
-                      backgroundColor: 'rgba(255, 255, 255, 0.5)',
+                      borderColor: 'var(--border-color, rgba(249, 250, 251, 0.5))',
+                      backgroundColor: 'var(--card-bg-dim, rgba(255, 255, 255, 0.5))',
                       boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
                     }}
                     className={`relative group rounded-2xl p-4 md:p-8 border-2 transition-all duration-500 flex flex-col items-center text-center md:items-start md:text-right pt-8 md:pt-10 ${
-                      isActive ? 'z-20' : 'z-10'
-                    }`}
+                      isActive ? 'z-20 border-blue-500/50' : 'z-10 border-gray-100 dark:border-gray-800'
+                    } dark:bg-gray-800/50`}
                   >
                     <div className={`absolute top-2 left-3 md:top-4 md:left-6 w-6 h-6 md:w-8 md:h-8 rounded-lg flex items-center justify-center font-display font-black text-[10px] md:text-xs transition-colors duration-500 ${
-                      isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-400'
+                      isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500'
                     }`}>
                       {idx + 1}
                     </div>
                     
                     <div className={`w-10 h-10 md:w-16 md:h-16 rounded-xl md:rounded-2xl flex items-center justify-center mb-4 md:mb-6 transition-all transform duration-500 shadow-lg ${
-                      isActive ? 'bg-blue-600 text-white scale-110' : 'bg-white text-blue-600'
+                      isActive ? 'bg-blue-600 text-white scale-110' : 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400'
                     }`}>
                       {React.cloneElement(step.icon as React.ReactElement, { 
                         className: `w-5 h-5 md:w-7 md:h-7` 
@@ -678,10 +676,10 @@ export const Home: React.FC = () => {
                     
                     <div className="space-y-2 w-full">
                       <h3 className={`font-display font-black text-[11px] md:text-lg leading-tight transition-colors duration-500 ${
-                        isActive ? 'text-blue-600' : 'text-gray-950'
+                        isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-950 dark:text-white'
                       }`}>{step.title}</h3>
                       <p className={`font-medium text-[9px] md:text-sm leading-relaxed line-clamp-2 md:line-clamp-none transition-opacity duration-500 ${
-                        isActive ? 'text-gray-600 opacity-100' : 'text-gray-400 opacity-70'
+                        isActive ? 'text-gray-600 dark:text-gray-400 opacity-100' : 'text-gray-400 dark:text-gray-500 opacity-70'
                       }`}>{step.desc}</p>
                     </div>
 
@@ -703,7 +701,7 @@ export const Home: React.FC = () => {
       {/* Statistics & Trust Bar */}
       {!user && !showAdminUI && (
         <section className="px-4 max-w-7xl mx-auto py-2 md:py-4 flex flex-col justify-center">
-          <div className="bg-gray-950 rounded-[2rem] md:rounded-[4rem] p-6 md:p-10 text-white relative overflow-hidden group">
+          <div className="bg-gray-950 dark:bg-black rounded-[2rem] md:rounded-[4rem] p-6 md:p-10 text-white relative overflow-hidden group border dark:border-white/5">
             <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-blue-600/10 rounded-full blur-[150px] -mr-64 -mt-64" />
             
             <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-20 items-center">
@@ -746,12 +744,12 @@ export const Home: React.FC = () => {
 
       {/* Elegant Testimonials Section */}
       {!showAdminUI && (
-        <section className="px-4 pt-16 pb-4 bg-gray-50">
+        <section className="px-4 pt-16 pb-4 bg-gray-50 dark:bg-gray-950/50 transition-colors duration-300">
           <div className="max-w-7xl mx-auto">
             <div className="flex flex-col md:flex-row justify-between items-end gap-10 mb-12 px-4">
                <div className="space-y-4 text-right">
-                  <h2 className="text-2xl md:text-4xl font-display font-black text-emerald-900 tracking-tighter">ماذا يقول <span className="text-blue-600">المستخدمون</span>؟</h2>
-                  <p className="text-gray-400 font-medium text-lg md:text-xl">ثقتكم هي الوقود الدافع لمنصة عربون لتحقيق المستحيل.</p>
+                  <h2 className="text-2xl md:text-4xl font-display font-black text-emerald-900 dark:text-emerald-400 tracking-tighter">ماذا يقول <span className="text-blue-600 dark:text-blue-400">المستخدمون</span>؟</h2>
+                  <p className="text-gray-400 dark:text-gray-500 font-medium text-lg md:text-xl">ثقتكم هي الوقود الدافع لمنصة عربون لتحقيق المستحيل.</p>
                </div>
                <div className="flex gap-2">
                   {[1,2,3,4,5].map(i => <Star key={i} className="w-5 h-5 fill-orange-400 text-orange-400" />)}
@@ -774,7 +772,7 @@ export const Home: React.FC = () => {
             </div>
             
             <div className="relative z-10 flex flex-row gap-3 md:gap-6 w-full md:w-auto">
-               <button onClick={() => setIsLoginModalOpen(true)} className="flex-1 md:flex-none justify-center bg-gray-950 text-white hover:bg-white hover:text-gray-950 px-4 py-3 md:px-12 md:py-6 rounded-xl md:rounded-2xl font-black text-[10px] md:text-lg transition-all shadow-2xl shadow-black/20 hover:scale-[1.05]">
+               <button onClick={() => setIsLoginModalOpen(true)} className="flex-1 md:flex-none justify-center bg-gray-950 dark:bg-gray-800 text-white hover:bg-white hover:text-gray-950 dark:hover:bg-gray-700 px-4 py-3 md:px-12 md:py-6 rounded-xl md:rounded-2xl font-black text-[10px] md:text-lg transition-all shadow-2xl shadow-black/20 hover:scale-[1.05]">
                   ابدأ مجاناً
                </button>
                <button onClick={() => navigate('/search')} className="flex-1 md:flex-none justify-center bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 text-white px-4 py-3 md:px-12 md:py-6 rounded-xl md:rounded-2xl font-black text-[10px] md:text-lg transition-all">

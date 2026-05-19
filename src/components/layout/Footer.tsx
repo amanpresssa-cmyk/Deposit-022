@@ -37,6 +37,7 @@ export const Footer: React.FC = () => {
                 src="https://i.imgur.com/OYaLVgI.png" 
                 alt="عربون" 
                 className="h-10 w-auto object-contain brightness-0 invert" 
+                referrerPolicy="no-referrer"
               />
               <div className="h-6 w-px bg-white/10 mx-1" />
               <span className="text-[10px] font-black text-blue-500 tracking-[0.2em] uppercase">Smart Escrow</span>

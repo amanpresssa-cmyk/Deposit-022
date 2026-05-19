@@ -2,13 +2,13 @@ import React from 'react';
 
 // استخدام روابط عالية الجودة ومستقرة لشعارات الدفع
 const USER_PROVIDED_LOGOS = {
-  mada: 'https://i.imgur.com/LAn9Lss.png',
-  visa: 'https://i.imgur.com/iu2GQRy.png',
-  mastercard: 'https://i.imgur.com/v7eSJ8F.png',
-  applepay: 'https://i.imgur.com/PpJsUN1.png',
-  stcpay: 'https://i.imgur.com/O6jM7q4.png',
-  tabby: 'https://i.imgur.com/vHq8S7D.png',
-  tamara: 'https://i.imgur.com/qL5TfRW.png'
+  mada: 'https://cdn.checkout.com/market/mada.svg',
+  visa: 'https://cdn.checkout.com/market/visa.svg',
+  mastercard: 'https://cdn.checkout.com/market/mastercard.svg',
+  applepay: 'https://cdn.checkout.com/market/applepay.svg',
+  stcpay: 'https://raw.githubusercontent.com/stc-pay/branding/master/logos/stc-pay-logo.png',
+  tabby: 'https://tabby.ai/favicon.ico',
+  tamara: 'https://tamara.co/favicon.ico'
 };
 
 interface PaymentIconProps {
@@ -29,7 +29,12 @@ export const PaymentIcon: React.FC<PaymentIconProps> = ({ type, className = "h-8
         <img 
           src={url} 
           alt={type} 
-          onError={() => setError(true)}
+          onError={(e) => {
+            setError(true);
+            // Try fallback URL if the primary one fails
+            if (type === 'tabby') (e.target as HTMLImageElement).src = 'https://i.imgur.com/vHq8S7D.png';
+            if (type === 'tamara') (e.target as HTMLImageElement).src = 'https://i.imgur.com/qL5TfRW.png';
+          }}
           className={`${className} object-contain transition-all duration-300 ${white ? 'brightness-0 invert' : ''}`}
           referrerPolicy="no-referrer"
           style={{

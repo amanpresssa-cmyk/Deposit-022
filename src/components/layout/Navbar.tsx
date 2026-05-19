@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { Search, PlusCircle, LayoutDashboard, User, ShieldCheck, Bell, X, CreditCard, AlertTriangle, Clock, CheckCircle2, MessageSquare, Settings, Sparkles, ChevronRight, Menu, LogOut, HelpCircle, FileText, Info } from 'lucide-react';
+import { Search, PlusCircle, LayoutDashboard, User, ShieldCheck, Bell, X, CreditCard, AlertTriangle, Clock, CheckCircle2, MessageSquare, Settings, Sparkles, ChevronRight, Menu, LogOut, HelpCircle, FileText, Info, Sun, Moon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { collection, query, where, orderBy, onSnapshot, limit, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -9,6 +9,7 @@ import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 
 import { useNotifications } from '../providers/NotificationProvider';
+import { useTheme } from '../providers/ThemeProvider';
 import { markAllNotificationsAsRead, markNotificationAsRead } from '../../lib/notificationService';
 
 import { handleFirestoreError, OperationType } from '../../lib/error-handler';
@@ -16,6 +17,7 @@ import { handleFirestoreError, OperationType } from '../../lib/error-handler';
 export const Navbar: React.FC = () => {
   const { user, profile, login, logout } = useAuth();
   const { notifications, unreadCount } = useNotifications();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const [showNotifications, setShowNotifications] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -128,7 +130,7 @@ export const Navbar: React.FC = () => {
         )}
       </AnimatePresence>
 
-      <nav className="w-full bg-white/80 backdrop-blur-xl border-b border-gray-100 shadow-sm pt-[env(safe-area-inset-top)]">
+      <nav className="w-full bg-white/80 dark:bg-gray-950/80 backdrop-blur-xl border-b border-gray-100 dark:border-gray-800 shadow-sm pt-[env(safe-area-inset-top)] transition-colors duration-300">
         {/* Email Consent Banner */}
         {user && profile && profile.emailConsent === undefined && (
           <div className="bg-blue-600 text-white px-4 py-2 text-[10px] md:text-sm font-bold flex items-center justify-center gap-4 animate-in slide-in-from-top duration-500">
@@ -155,6 +157,7 @@ export const Navbar: React.FC = () => {
               src="https://i.imgur.com/OYaLVgI.png" 
               alt="عربون" 
               className="h-7 md:h-10 w-auto object-contain flex-shrink-0" 
+              referrerPolicy="no-referrer"
             />
             <span className="text-[9px] md:text-[10px] font-black text-blue-600 tracking-widest uppercase border-r border-gray-100 pr-2 hidden sm:block">وساطة مالية</span>
           </Link>
@@ -170,24 +173,33 @@ export const Navbar: React.FC = () => {
           )}
           {!showAdminUI && (
             <>
-              <Link to="/search" className="text-sm font-bold text-gray-600 hover:text-blue-600 transition-colors">تصفح الخدمات</Link>
-              <Link to="/how-it-works" className="text-sm font-bold text-gray-600 hover:text-blue-600 transition-colors">كيف يعمل؟</Link>
+              <Link to="/search" className="text-sm font-bold text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">تصفح الخدمات</Link>
+              <Link to="/how-it-works" className="text-sm font-bold text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">كيف يعمل؟</Link>
             </>
           )}
         </div>
 
               <div className="flex items-center gap-2 md:gap-4">
+                {/* Theme Toggle */}
+                <button 
+                  onClick={toggleTheme}
+                  className="p-2.5 text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-900 rounded-xl transition-all"
+                  title={theme === 'light' ? 'الوضع الليلي' : 'الوضع النهاري'}
+                >
+                  {theme === 'light' ? <Moon className="w-5 h-5 md:w-6 md:h-6" /> : <Sun className="w-5 h-5 md:w-6 md:h-6" />}
+                </button>
+
                 {/* Sonner toasts will handle the real-time feedback */}
                 {user ? (
             <div className="flex items-center gap-3">
               <div className="relative">
                 <button 
                   onClick={() => setShowNotifications(!showNotifications)}
-                  className="p-2.5 text-gray-400 hover:bg-gray-50 rounded-xl transition-all relative z-10"
+                  className="p-2.5 text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-900 rounded-xl transition-all relative z-10"
                 >
                   <Bell className="w-6 h-6 pointer-events-none" />
                   {unreadCount > 0 && (
-                    <span className="absolute top-2.5 right-2.5 w-5 h-5 bg-red-500 text-white text-[10px] font-black flex items-center justify-center rounded-full border-2 border-white animate-bounce pointer-events-none">
+                    <span className="absolute top-2.5 right-2.5 w-5 h-5 bg-red-500 text-white text-[10px] font-black flex items-center justify-center rounded-full border-2 border-white dark:border-gray-950 animate-bounce pointer-events-none">
                       {unreadCount}
                     </span>
                   )}
@@ -365,17 +377,17 @@ export const Navbar: React.FC = () => {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => navigate(isAdmin ? '/admin' : '/dashboard')}
-                  className="flex items-center gap-3 bg-gray-50 p-1.5 pr-4 rounded-2xl hover:bg-gray-100 transition-all border border-gray-100 group"
+                  className="flex items-center gap-3 bg-gray-50 dark:bg-gray-900 p-1.5 pr-4 rounded-2xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-all border border-gray-100 dark:border-gray-800 group"
                 >
                   <div className="text-right hidden sm:block">
-                    <p className="text-xs font-black text-gray-900 group-hover:text-blue-600 transition-colors uppercase tracking-tight">{profile?.displayName || (isAdmin ? 'المدير العام' : 'مستخدم جديد')}</p>
-                    {!isAdmin && <p className="text-[10px] font-bold text-gray-400">%{profile?.trustLevel || 10} ثقة</p>}
+                    <p className="text-xs font-black text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors uppercase tracking-tight">{profile?.displayName || (isAdmin ? 'المدير العام' : 'مستخدم جديد')}</p>
+                    {!isAdmin && <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500">%{profile?.trustLevel || 10} ثقة</p>}
                     {isAdmin && <p className="text-[10px] font-bold text-red-500">حساب إداري</p>}
                   </div>
                   <img 
                     src={user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile?.displayName || 'Admin')}&background=random`} 
                     alt="" 
-                    className="w-10 h-10 rounded-xl object-cover border-2 border-white shadow-sm"
+                    className="w-10 h-10 rounded-xl object-cover border-2 border-white dark:border-gray-800 shadow-sm"
                     referrerPolicy="no-referrer"
                   />
                 </motion.button>
@@ -416,16 +428,24 @@ export const Navbar: React.FC = () => {
               dir="rtl"
             >
               <div className="p-4 border-b border-gray-50 flex items-center justify-between">
-                <Link to="/" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-2">
-                  <img src="https://i.imgur.com/OYaLVgI.png" alt="عربون" className="h-6 w-auto" />
-                  <span className="text-[8px] font-black text-blue-600 uppercase tracking-widest">عربون</span>
-                </Link>
-                <button 
-                  onClick={() => setIsMenuOpen(false)}
-                  className="w-8 h-8 flex items-center justify-center bg-gray-50 rounded-full text-gray-400 hover:text-gray-600"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+                  <Link to="/" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-2">
+                    <img src="https://i.imgur.com/OYaLVgI.png" alt="عربون" className="h-6 w-auto dark:brightness-200" />
+                    <span className="text-[8px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest">عربون</span>
+                  </Link>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={toggleTheme}
+                      className="w-8 h-8 flex items-center justify-center bg-gray-50 dark:bg-gray-900 rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                    >
+                      {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+                    </button>
+                    <button 
+                      onClick={() => setIsMenuOpen(false)}
+                      className="w-8 h-8 flex items-center justify-center bg-gray-50 dark:bg-gray-900 rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
               </div>
 
               <div className="flex-1 overflow-y-auto p-4 space-y-6 no-scrollbar">
