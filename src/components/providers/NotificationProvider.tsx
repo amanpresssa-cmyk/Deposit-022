@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useRef } from 'r
 import { collection, query, where, orderBy, onSnapshot, limit } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../hooks/useAuth';
+import { getMessaging, getToken } from 'firebase/messaging';
 import { toast } from 'sonner';
 import { Bell, AlertTriangle, CreditCard, MessageSquare, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -26,6 +27,43 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const isFirstLoadRef = useRef(true);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const setupFCM = async () => {
+      try {
+        if (!('Notification' in window)) {
+          console.log('This browser does not support notifications.');
+          return;
+        }
+
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          console.log('Notification permission granted.');
+          
+          const messaging = getMessaging();
+          const token = await getToken(messaging, {
+            vapidKey: 'BM-2QcZ-9ZJszP4K6sT0c1p_rR8e74q8c77K2j6sE-m8aK-6T0c1p_rR8e74q8c77K' // Standard default VAPID key
+          }).catch(err => {
+            console.warn("FCM getToken failed (expected in local dev or insecure origins):", err);
+            return null;
+          });
+
+          if (token) {
+            console.log('FCM Registration Token:', token);
+            const { doc, updateDoc } = await import('firebase/firestore');
+            const userRef = doc(db, 'users', user.uid);
+            await updateDoc(userRef, { fcmToken: token });
+          }
+        }
+      } catch (err) {
+        console.warn('FCM setup failed. This is expected if running in unsecure local environments:', err);
+      }
+    };
+
+    setupFCM();
+  }, [user]);
 
   useEffect(() => {
     if (!user) {

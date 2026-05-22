@@ -3,7 +3,8 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
 import * as admin from 'firebase-admin';
-import { readFileSync } from "fs";
+import { readFileSync, existsSync, mkdirSync, readdirSync, statSync } from "fs";
+import fs from "fs";
 import axios from "axios";
 
 // @ts-ignore
@@ -15,13 +16,117 @@ import qrcode from "qrcode-terminal";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Initialize Firebase Admin FIRST
+let db: admin.firestore.Firestore | null = null;
+try {
+  const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
+  const firebaseConfig = JSON.parse(readFileSync(configPath, 'utf8'));
+  
+  if (!admin.apps.length) {
+    admin.initializeApp({
+      projectId: firebaseConfig.projectId,
+      storageBucket: firebaseConfig.storageBucket || `${firebaseConfig.projectId}.firebasestorage.app`
+    });
+  }
+  db = admin.firestore();
+  console.log("[Firebase] Admin SDK initialized successfully at startup");
+} catch (err) {
+  console.error("❌ Failed to initialize Firebase Admin SDK at startup:", err);
+}
+
+const wwebjsAuthPath = path.join(__dirname, '.wwebjs_auth');
+
+// WhatsApp Session Backup / Restore Functions
+async function backupWhatsAppSession() {
+  if (!db) {
+    console.warn("⚠️ [WhatsApp Backup] Firebase Admin not initialized. Skipping backup.");
+    return;
+  }
+  try {
+    const bucket = admin.storage().bucket();
+    if (!existsSync(wwebjsAuthPath)) {
+      console.log("ℹ️ [WhatsApp Backup] No session directory found locally to backup.");
+      return;
+    }
+
+    console.log("📤 [WhatsApp Backup] Starting session backup to Firebase Storage...");
+    
+    const getAllFiles = (dirPath: string, arrayOfFiles: string[] = []): string[] => {
+      const files = readdirSync(dirPath);
+      files.forEach((file) => {
+        const filePath = path.join(dirPath, file);
+        if (statSync(filePath).isDirectory()) {
+          arrayOfFiles = getAllFiles(filePath, arrayOfFiles);
+        } else {
+          arrayOfFiles.push(filePath);
+        }
+      });
+      return arrayOfFiles;
+    };
+
+    const filesToUpload = getAllFiles(wwebjsAuthPath);
+    console.log(`📤 [WhatsApp Backup] Found ${filesToUpload.length} files to upload.`);
+
+    for (const filePath of filesToUpload) {
+      const relativePath = path.relative(wwebjsAuthPath, filePath).replace(/\\/g, '/');
+      const destination = `whatsapp_session/${relativePath}`;
+      
+      await bucket.upload(filePath, {
+        destination: destination,
+        metadata: {
+          cacheControl: 'no-cache',
+        }
+      });
+    }
+
+    console.log("✅ [WhatsApp Backup] Backup completed successfully!");
+  } catch (err) {
+    console.error("❌ [WhatsApp Backup] Failed to backup session:", err);
+  }
+}
+
+async function restoreWhatsAppSession() {
+  if (!db) {
+    console.warn("⚠️ [WhatsApp Restore] Firebase Admin not initialized. Skipping restore.");
+    return;
+  }
+  try {
+    const bucket = admin.storage().bucket();
+    console.log("📥 [WhatsApp Restore] Checking for session backup in Firebase Storage...");
+    
+    const [files] = await bucket.getFiles({ prefix: 'whatsapp_session/' });
+    if (files.length === 0) {
+      console.log("ℹ️ [WhatsApp Restore] No backup found in storage. Fresh WhatsApp initialization.");
+      return;
+    }
+
+    console.log(`📥 [WhatsApp Restore] Found ${files.length} files in backup. Downloading...`);
+
+    for (const file of files) {
+      const relativePath = file.name.substring('whatsapp_session/'.length);
+      const localFilePath = path.join(wwebjsAuthPath, relativePath);
+      const localDirPath = path.dirname(localFilePath);
+
+      if (!existsSync(localDirPath)) {
+        mkdirSync(localDirPath, { recursive: true });
+      }
+
+      await file.download({ destination: localFilePath });
+    }
+
+    console.log("✅ [WhatsApp Restore] Restore completed successfully!");
+  } catch (err) {
+    console.error("❌ [WhatsApp Restore] Failed to restore session:", err);
+  }
+}
+
 let whatsappStatus = "disconnected";
 let qrCodeStr = "";
 
 // Initialize WhatsApp Web Client with sandbox-safe parameters for Cloud environments
 const whatsappClient = new Client({
   authStrategy: new LocalAuth({
-    dataPath: path.join(__dirname, '.wwebjs_auth')
+    dataPath: wwebjsAuthPath
   }),
   webVersionCache: {
     type: 'remote',
@@ -55,6 +160,10 @@ whatsappClient.on('ready', () => {
   console.log('================================================================');
   console.log('✅ [WhatsApp] Client is authenticated and ready to send alerts!');
   console.log('================================================================');
+  
+  backupWhatsAppSession().catch(err => {
+    console.error("❌ [WhatsApp Backup Trigger] Failed:", err);
+  });
 });
 
 whatsappClient.on('auth_failure', (msg: string) => {
@@ -68,112 +177,392 @@ whatsappClient.on('disconnected', (reason: string) => {
   console.log('🔌 [WhatsApp] Client disconnected:', reason);
 });
 
-// Logic to handle incoming messages (interactive button responses)
+// Logic to handle incoming messages (interactive button responses and commands)
 whatsappClient.on('message', async (msg: any) => {
   if (!db) return;
 
-  const sender = msg.from; // e.g. "9665... @c.us"
+  const sender = msg.from; // e.g. "9665xxxxxxxx@c.us"
   const cleanSender = sender.replace(/\D/g, '');
   const body = msg.body.trim();
+  const bodyLower = body.toLowerCase();
   const selectedButtonId = msg.selectedButtonId;
 
-  // Process Approval/Rejection
-  const isApprove = selectedButtonId === 'APPROVE_ORDER' || body === 'موافقة' || body === '1';
-  const isReject = selectedButtonId === 'REJECT_ORDER' || body === 'رفض' || body === '2';
+  // Normalize approvals from buttons or quick replies
+  const isApprove = selectedButtonId === 'APPROVE_ORDER' || body === 'موافقة' || body === 'نعم';
+  const isReject = selectedButtonId === 'REJECT_ORDER' || body === 'رفض' || body === 'لا';
 
-  if (isApprove || isReject) {
-    try {
-      // 1. Find user by whatsappNumber
-      const usersRef = db.collection('users');
-      // We check for variants of the number
-      const userQuery = await usersRef.where('whatsappEnabled', '==', true).get();
-      let userDoc = null;
+  try {
+    // 1. Find user by whatsappNumber
+    const usersRef = db.collection('users');
+    const userQuery = await usersRef.where('whatsappEnabled', '==', true).get();
+    let userDoc = null;
+    
+    for (const doc of userQuery.docs) {
+      const data = doc.data();
+      const num = (data.whatsappNumber || '').replace(/\D/g, '');
+      if (num && (cleanSender.endsWith(num) || num.endsWith(cleanSender))) {
+        userDoc = doc;
+        break;
+      }
+    }
+
+    if (!userDoc) {
+      console.log(`[WhatsApp Bot] Unrecognized sender: ${cleanSender}`);
+      return;
+    }
+
+    const userData = userDoc.data();
+    const userId = userDoc.id;
+    const userName = userData.displayName || "عضو عربون";
+
+    // 2. Chat Forwarding Parser: (رد [رمز الطلب]: [الرسالة])
+    const chatReplyMatch = body.match(/^(رد|الرد|reply)\s+([a-zA-Z0-9_\-]+)\s*:\s*(.+)$/i);
+    if (chatReplyMatch) {
+      const shortOrderId = chatReplyMatch[2].trim();
+      const replyText = chatReplyMatch[3].trim();
       
-      for (const doc of userQuery.docs) {
-        const data = doc.data();
-        const num = (data.whatsappNumber || '').replace(/\D/g, '');
-        if (num && (cleanSender.endsWith(num) || num.endsWith(cleanSender))) {
-          userDoc = doc;
-          break;
+      const ordersRef = db.collection('orders');
+      const orderQuery = await ordersRef.get();
+      let matchedOrder = null;
+      
+      for (const doc of orderQuery.docs) {
+        if (doc.id.toLowerCase().endsWith(shortOrderId.toLowerCase()) || doc.id.toLowerCase() === shortOrderId.toLowerCase()) {
+          const data = doc.data();
+          if (data.buyerId === userId || data.sellerId === userId || data.sellerEmail === userData.email) {
+            matchedOrder = doc;
+            break;
+          }
         }
       }
 
-      if (!userDoc) return;
-      const userId = userDoc.id;
-
-      // 2. Find latest pending order for this user (as a seller)
-      const ordersRef = db.collection('orders');
-      const latestOrder = await ordersRef
-        .where('sellerId', '==', userId)
-        .where('status', '==', 'pending')
-        .orderBy('createdAt', 'desc')
-        .limit(1)
-        .get();
-
-      if (latestOrder.empty) {
-        await whatsappClient.sendMessage(sender, "⚠️ عذراً، لا يوجد لديك طلبات معلقة (في انتظار الموافقة) حالياً لتحويل حالتها.");
+      if (!matchedOrder) {
+        await whatsappClient.sendMessage(sender, `⚠️ لم نتمكن من العثور على طلب نشط مرتبط بك ينتهي بالرمز (${shortOrderId}). يرجى التحقق من رمز الطلب.`);
         return;
       }
 
-      const orderDoc = latestOrder.docs[0];
-      const orderData = orderDoc.data();
-      const newStatus = isApprove ? 'accepted' : 'rejected';
-      const statusText = isApprove ? 'مقبول ✅' : 'مرفوض ❌';
-
-      // 3. Update Order Level
-      await orderDoc.ref.update({
-        status: newStatus,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-      });
-
-      // 4. Send Confirmation Notification to BOTH parties (optional but good)
-      const feedbackMsg = isApprove 
-        ? `✅ تم قبول الطلب رقم (${orderDoc.id.slice(-6)}) بنجاح! سيتم إخطار المشتري للمتابعة.`
-        : `❌ تم رفض الطلب رقم (${orderDoc.id.slice(-6)}). تم إيقاف العملية وإخطار المشتري.`;
-
-      await whatsappClient.sendMessage(sender, feedbackMsg);
-
-      // Add a system notification in Firestore
-      await db.collection('notifications').add({
-        userId: userId,
-        title: `تم تحديث حالة الطلب`,
-        message: `لقد قمت بتحديث حالة الطلب (${orderData.title}) إلى: ${statusText} عبر الواتساب.`,
-        type: 'order',
-        priority: 'high',
-        isRead: false,
+      // Append message to Firestore chat subcollection
+      const messagesRef = db.collection(`orders/${matchedOrder.id}/messages`);
+      await messagesRef.add({
+        senderId: userId,
+        text: replyText,
+        orderId: matchedOrder.id,
+        isWhatsAppForwarded: true, // Prevent recursive loops
         createdAt: admin.firestore.FieldValue.serverTimestamp()
       });
 
-      // Notify Buyer if exists
+      // Update order last message preview
+      await matchedOrder.ref.update({
+        lastMessage: replyText,
+        lastMessageAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      await whatsappClient.sendMessage(sender, `✅ تم إيصال رسالتك للطرف الآخر بنجاح بخصوص الطلب (#ARB-${matchedOrder.id.slice(0, 4).toUpperCase()})!`);
+      return;
+    }
+
+    // 3. Command Menu Trigger
+    const isMenu = ['قائمة', 'مساعدة', 'منيو', 'menu', 'help', 'مرحبا', 'السلام عليكم', 'سلام'].includes(bodyLower);
+    if (isMenu) {
+      const menuMessage = `مرحباً بك يا ${userName} في منصة عربون! 🤝
+
+لقد التعرف على رقمك المربوط بالحساب تلقائياً. إليك قائمة التحكم السريعة:
+
+1️⃣ أرسل *1* أو *رصيدي* 💰: لمعرفة رصيدك المالي الحالي والودائع المحجوزة.
+2️⃣ أرسل *2* أو *طلباتي* 📋: لعرض صفقاتك النشطة الجارية حالياً.
+3️⃣ أرسل *تعميد [رمز الطلب]* ✅ (مثال: تعميد a1b2): لقبول وحجز مبلغ الصفقة.
+4️⃣ أرسل *استلام [رمز الطلب]* 🎉 (مثال: استلام a1b2): لتأكيد الاستلام وتحرير المبلغ للبائع.
+
+يرجى كتابة رقم الخيار أو الكلمة لتنفيذها فوراً.`;
+      await whatsappClient.sendMessage(sender, menuMessage);
+      return;
+    }
+
+    // 4. Balance Query (1 or رصيدي)
+    if (body === '1' || body === 'رصيدي') {
+      const balance = userData.balance || 0;
+      const pendingBalance = userData.pendingBalance || 0;
+      const freeFee = userData.freeFeeTransactions || 0;
+
+      const balanceMessage = `💰 تفاصيل محفظتك المالية لدى منصة عربون:
+
+* 🟢 الرصيد المتاح للسحب: *${balance.toLocaleString()} ر.س*
+* 🔵 الرصيد المحجوز كضمان: *${pendingBalance.toLocaleString()} ر.س*
+* 🎁 صفقات مجانية من الرسوم: *${freeFee} صفقة*
+
+بإمكانك طلب سحب الرصيد المتاح مباشرة من إعدادات حسابك على المنصة.`;
+      await whatsappClient.sendMessage(sender, balanceMessage);
+      return;
+    }
+
+    // 5. Active Escrows Query (2 or طلباتي)
+    if (body === '2' || body === 'طلباتي') {
+      const ordersRef = db.collection('orders');
+      
+      const buyerSnap = await ordersRef.where('buyerId', '==', userId).get();
+      const sellerSnap = await ordersRef.where('sellerId', '==', userId).get();
+      
+      let allOrders = [...buyerSnap.docs, ...sellerSnap.docs].map(d => ({ id: d.id, ...d.data() } as any));
+      allOrders = Array.from(new Map(allOrders.map(item => [item.id, item])).values());
+      const activeOrders = allOrders.filter(o => !['completed', 'cancelled'].includes(o.status));
+
+      if (activeOrders.length === 0) {
+        await whatsappClient.sendMessage(sender, `📋 ليس لديك صفقات نشطة أو جارية حالياً على منصة عربون.`);
+        return;
+      }
+
+      let orderListMessage = `📋 صفقاتك النشطة الجارية (${activeOrders.length}):\n\n`;
+      activeOrders.slice(0, 5).forEach((order, index) => {
+        const shortId = order.id.slice(0, 4).toUpperCase();
+        let statusText = '';
+        switch(order.status) {
+          case 'pending': statusText = '⏳ بانتظار القبول والتعميد'; break;
+          case 'escrowed': statusText = '🔵 المبلغ محجوز بالضمان'; break;
+          case 'delivered': statusText = '📦 تم تسليم العمل (بانتظار المشتري)'; break;
+          case 'disputed': statusText = '🚨 نزاع نشط'; break;
+        }
+        orderListMessage += `${index + 1}. *#ARB-${shortId}* - ${order.title}\n`;
+        orderListMessage += `   * القيمة: *${order.amount} ر.س*\n`;
+        orderListMessage += `   * الحالة: *${statusText}*\n\n`;
+      });
+
+      orderListMessage += `💡 للتعميد الفوري، أرسل: *تعميد [رمز الطلب]*\n`;
+      orderListMessage += `💡 لتأكيد الاستلام والتحرير، أرسل: *استلام [رمز الطلب]*`;
+      
+      await whatsappClient.sendMessage(sender, orderListMessage);
+      return;
+    }
+
+    // 6. Accept/Escrow Deal Command (تعميد [رمز الطلب])
+    const acceptMatch = body.match(/^(تعميد|موافقة|approve|accept)\s+([a-zA-Z0-9_\-]+)$/i);
+    if (acceptMatch || isApprove) {
+      let shortId = acceptMatch ? acceptMatch[2].trim() : "";
+      const ordersRef = db.collection('orders');
+      
+      let matchedOrder = null;
+      if (shortId) {
+        const orderQuery = await ordersRef.get();
+        for (const doc of orderQuery.docs) {
+          if (doc.id.toLowerCase().endsWith(shortId.toLowerCase()) || doc.id.toLowerCase() === shortId.toLowerCase()) {
+            matchedOrder = doc;
+            break;
+          }
+        }
+      } else {
+        // Fallback to latest pending order for buttons
+        const latestOrder = await ordersRef
+          .where('sellerId', '==', userId)
+          .where('status', '==', 'pending')
+          .orderBy('createdAt', 'desc')
+          .limit(1)
+          .get();
+        if (!latestOrder.empty) {
+          matchedOrder = latestOrder.docs[0];
+          shortId = matchedOrder.id.slice(0, 4);
+        }
+      }
+
+      if (!matchedOrder) {
+        await whatsappClient.sendMessage(sender, `⚠️ لم نتمكن من العثور على طلب معلق ينتهي بالرمز (${shortId || "غير محدد"}).`);
+        return;
+      }
+
+      const orderData = matchedOrder.data();
+      const isOrderSeller = orderData.sellerId === userId || orderData.sellerEmail === userData.email;
+      if (!isOrderSeller) {
+        await whatsappClient.sendMessage(sender, `⚠️ لا تملك صلاحية قبول هذا الطلب. أنت لست البائع المعين في هذه الصفقة.`);
+        return;
+      }
+
+      if (orderData.status !== 'pending') {
+        await whatsappClient.sendMessage(sender, `⚠️ لا يمكن قبول هذا الطلب لأن حالته الحالية هي: (${orderData.status}).`);
+        return;
+      }
+
+      await matchedOrder.ref.update({
+        status: 'escrowed',
+        sellerId: userId, // Claim
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      await db.collection('orderLogs').add({
+        orderId: matchedOrder.id,
+        userId: userId,
+        action: 'تغيير الحالة: escrowed',
+        previousStatus: 'pending',
+        currentStatus: 'escrowed',
+        message: 'تم قبول وتعميد الطلب عبر شات الواتساب',
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      await whatsappClient.sendMessage(sender, `✅ تم قبول وتعميد الطلب (#ARB-${shortId.toUpperCase()}) بنجاح! تم حجز مبلغ الضمان وبدء العمل والتنفيذ.`);
+      
       if (orderData.buyerId) {
         await db.collection('notifications').add({
           userId: orderData.buyerId,
-          title: isApprove ? '🟢 تم قبول طلبك' : '🔴 تم اعتذار البائع',
-          message: isApprove 
-            ? `وافق البائع على خدمتك (${orderData.title}). يمكنك الآن متابعة التنفيذ.`
-            : `اعتذر البائع عن تنفيذ طلبك (${orderData.title}). تم إرجاع العربون لمحفظتك.`,
-          type: 'order',
-          priority: 'high',
+          title: '🟢 تم قبول طلبك وبدء الضمان',
+          message: `وافق البائع ${userName} على طلبك (${orderData.title}) عبر الواتساب. تم حجز المبلغ وبدأ العمل.`,
+          type: 'order_update',
+          priority: 'normal',
           isRead: false,
           createdAt: admin.firestore.FieldValue.serverTimestamp()
         });
       }
-
-      console.log(`✅ [WhatsApp Automation] Order ${orderDoc.id} update to ${newStatus} by user ${userId}`);
-
-    } catch (err) {
-      console.error("❌ [WhatsApp Automation Error]:", err);
-      await whatsappClient.sendMessage(sender, "❌ حدث خطأ فني أثناء محاولة تحديث الطلب. يرجى المتابعة من لوحة تحكم المنصة.");
+      return;
     }
+
+    // 7. Receive/Release Funds Command (استلام [رمز الطلب])
+    const releaseMatch = body.match(/^(استلام|تحرير|release|complete)\s+([a-zA-Z0-9_\-]+)$/i);
+    if (releaseMatch || isReject) {
+      let shortId = releaseMatch ? releaseMatch[2].trim() : "";
+      const ordersRef = db.collection('orders');
+      
+      let matchedOrder = null;
+      if (shortId) {
+        const orderQuery = await ordersRef.get();
+        for (const doc of orderQuery.docs) {
+          if (doc.id.toLowerCase().endsWith(shortId.toLowerCase()) || doc.id.toLowerCase() === shortId.toLowerCase()) {
+            matchedOrder = doc;
+            break;
+          }
+        }
+      } else {
+        // Fallback for button reject actions (rejects latest pending order)
+        const latestOrder = await ordersRef
+          .where('sellerId', '==', userId)
+          .where('status', '==', 'pending')
+          .orderBy('createdAt', 'desc')
+          .limit(1)
+          .get();
+        if (!latestOrder.empty) {
+          matchedOrder = latestOrder.docs[0];
+          shortId = matchedOrder.id.slice(0, 4);
+        }
+      }
+
+      if (!matchedOrder) {
+        await whatsappClient.sendMessage(sender, `⚠️ لم نتمكن من العثور على طلب ينتهي بالرمز (${shortId || "غير محدد"}).`);
+        return;
+      }
+
+      const orderData = matchedOrder.data();
+      
+      // If it was a button reject action on a pending order:
+      if (isReject && orderData.status === 'pending') {
+        const isOrderSeller = orderData.sellerId === userId || orderData.sellerEmail === userData.email;
+        if (!isOrderSeller) {
+          await whatsappClient.sendMessage(sender, `⚠️ لا تملك صلاحية إلغاء هذا الطلب.`);
+          return;
+        }
+
+        await matchedOrder.ref.update({
+          status: 'cancelled',
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        await db.collection('orderLogs').add({
+          orderId: matchedOrder.id,
+          userId: userId,
+          action: 'تغيير الحالة: cancelled',
+          previousStatus: 'pending',
+          currentStatus: 'cancelled',
+          message: 'تم رفض وإلغاء الطلب عبر شات الواتساب',
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        await whatsappClient.sendMessage(sender, `❌ تم رفض وإلغاء الطلب (#ARB-${shortId.toUpperCase()}) بنجاح وإشعار المشتري.`);
+        
+        if (orderData.buyerId) {
+          await db.collection('notifications').add({
+            userId: orderData.buyerId,
+            title: '🔴 تم اعتذار البائع عن الطلب',
+            message: `اعتذر البائع ${userName} عن تلبية طلبك (${orderData.title}). تم إلغاء المعاملة وإرجاع العربون لمحفظتك.`,
+            type: 'order_update',
+            priority: 'high',
+            isRead: false,
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+        }
+        return;
+      }
+
+      // Normal Release Funds by Buyer
+      if (orderData.buyerId !== userId) {
+        await whatsappClient.sendMessage(sender, `⚠️ لا تملك صلاحية تحرير أموال هذا الطلب. أنت لست المشتري في هذه الصفقة.`);
+        return;
+      }
+
+      if (!['escrowed', 'delivered'].includes(orderData.status)) {
+        await whatsappClient.sendMessage(sender, `⚠️ لا يمكن استلام الطلب لأن حالته الحالية هي: (${orderData.status}).`);
+        return;
+      }
+
+      await matchedOrder.ref.update({
+        status: 'completed',
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      await db.collection('orderLogs').add({
+        orderId: matchedOrder.id,
+        userId: userId,
+        action: 'تغيير الحالة: completed',
+        previousStatus: orderData.status,
+        currentStatus: 'completed',
+        message: 'تم تأكيد الاستلام وتحرير المبلغ عبر شات الواتساب',
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      // Call payment capture endpoint in background
+      try {
+        await axios.post(`${process.env.APP_URL || 'http://localhost:5000'}/api/payment/capture`, {
+          orderId: matchedOrder.id,
+          amount: orderData.amount,
+          transactionId: orderData.paymentRef
+        });
+      } catch (err) {
+        console.error("Capture call failed from WhatsApp command:", err);
+      }
+
+      await whatsappClient.sendMessage(sender, `🎉 تم تأكيد استلام الطلب (#ARB-${shortId.toUpperCase()}) بنجاح! تم تحرير الرصيد المالي بالكامل للمعقب. شكراً لتعاملك مع منصة عربون.`);
+      
+      if (orderData.sellerId) {
+        await db.collection('notifications').add({
+          userId: orderData.sellerId,
+          title: '💰 تم استلام مستحقاتك المادية',
+          message: `أكد المشتري ${userName} استلام العمل لطلبك (${orderData.title}) عبر الواتساب. تم تحويل رصيد الصفقة لمحفظتك المتاحة.`,
+          type: 'payment',
+          priority: 'urgent',
+          isRead: false,
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      }
+      return;
+    }
+
+    // Default response for unmapped queries
+    await whatsappClient.sendMessage(sender, `💡 عذراً يا ${userName}، لم نتمكن من فهم طلبك.\nأرسل كلمة *قائمة* لعرض الأوامر والخدمات الذكية المتاحة لك.`);
+
+  } catch (err) {
+    console.error("❌ [WhatsApp Bot Handler Error]:", err);
+    await whatsappClient.sendMessage(sender, "❌ عذراً، واجهنا مشكلة تقنية أثناء معالجة طلبك عبر الواتساب. يرجى المحاولة لاحقاً.");
   }
 });
 
+async function startWhatsApp() {
+  try {
+    await restoreWhatsAppSession();
+    whatsappClient.initialize().catch((err: any) => {
+      console.error("❌ Failed to initialize WhatsApp client:", err);
+    });
+  } catch (err) {
+    console.error("❌ WhatsApp startup / restore failed:", err);
+    whatsappClient.initialize().catch(console.error);
+  }
+}
+
 try {
-  whatsappClient.initialize().catch((err: any) => {
-    console.error("❌ Failed to initialize WhatsApp client:", err);
-  });
+  startWhatsApp();
 } catch (err) {
-  console.error("❌ WhatsApp initialization error thrown:", err);
+  console.error("❌ WhatsApp startup invocation error:", err);
 }
 
 export function formatWhatsAppNumber(num: string): string {
@@ -190,24 +579,7 @@ export function formatWhatsAppNumber(num: string): string {
   return cleaned + '@c.us';
 }
 
-// Initialize Firebase Admin
-let db: admin.firestore.Firestore | null = null;
-
-try {
-  // Try to load from env or local file if available
-  // For AI Studio apps, we usually use the project ID from the config
-  const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
-  const firebaseConfig = JSON.parse(readFileSync(configPath, 'utf8'));
-  
-  if (!admin.apps.length) {
-    admin.initializeApp({
-      projectId: firebaseConfig.projectId,
-    });
-  }
-  db = admin.firestore();
-  console.log("[Firebase] Admin SDK initialized successfully");
-
-  // Real-time WhatsApp notifications listener
+// Real-time WhatsApp notifications listener
   if (db) {
     const startupTime = new Date();
     db.collection('notifications')
@@ -234,6 +606,28 @@ try {
               const userSnap = await userRef.get();
               if (userSnap.exists) {
                 const userData = userSnap.data() || {};
+                
+                // Send FCM Push Notification if recipient has fcmToken
+                if (userData.fcmToken) {
+                  try {
+                    await admin.messaging().send({
+                      token: userData.fcmToken,
+                      notification: {
+                        title: notifData.title,
+                        body: notifData.message,
+                      },
+                      data: {
+                        orderId: notifData.orderId || '',
+                        type: notifData.type || '',
+                        url: notifData.action?.url || '',
+                      }
+                    });
+                    console.log(`📡 [FCM Push] Sent native notification successfully to user ${userId}`);
+                  } catch (fcmErr) {
+                    console.warn(`⚠️ [FCM Push] Failed to send push to user ${userId}:`, fcmErr);
+                  }
+                }
+
                 const whatsappEnabled = userData.whatsappEnabled === true;
                 const whatsappNumber = userData.whatsappNumber;
                 
@@ -294,10 +688,68 @@ try {
       }, (err) => {
         console.error("❌ [WhatsApp Firestore Listener Error]:", err);
       });
+
+    // Real-time Cross-Platform Chat Forwarding Listener (collectionGroup messages)
+    db.collectionGroup('messages')
+      .where('createdAt', '>=', admin.firestore.Timestamp.fromDate(startupTime))
+      .onSnapshot((snapshot) => {
+        snapshot.docChanges().forEach(async (change) => {
+          if (change.type === 'added' && db) {
+            const msgDoc = change.doc;
+            const msgData = msgDoc.data();
+            
+            // Skip messages forwarded from WhatsApp to prevent infinite loops
+            if (msgData.isWhatsAppForwarded) return;
+
+            const orderId = msgData.orderId;
+            const senderId = msgData.senderId;
+            const text = msgData.text;
+
+            try {
+              const orderRef = db.collection('orders').doc(orderId);
+              const orderSnap = await orderRef.get();
+              if (!orderSnap.exists) return;
+              const orderData = orderSnap.data() || {};
+
+              let recipientId = null;
+              let senderName = "الطرف الآخر";
+
+              if (senderId === orderData.buyerId) {
+                recipientId = orderData.sellerId;
+                const buyerSnap = await db.collection('users').doc(orderData.buyerId).get();
+                senderName = buyerSnap.exists ? (buyerSnap.data().displayName || "المشتري") : "المشتري";
+              } else if (senderId === orderData.sellerId) {
+                recipientId = orderData.buyerId;
+                const sellerSnap = await db.collection('users').doc(orderData.sellerId).get();
+                senderName = sellerSnap.exists ? (sellerSnap.data().displayName || "البائع") : "البائع";
+              }
+
+              if (!recipientId || recipientId === 'unknown') return;
+
+              const recipientSnap = await db.collection('users').doc(recipientId).get();
+              if (!recipientSnap.exists) return;
+              const recipientData = recipientSnap.data() || {};
+
+              if (recipientData.whatsappEnabled && recipientData.whatsappNumber) {
+                const formattedNum = formatWhatsAppNumber(recipientData.whatsappNumber);
+                const shortId = orderId.slice(0, 4).toUpperCase();
+                
+                const alertMsg = `💬 *رسالة جديدة من [${senderName}] بخصوص الصفقة (#ARB-${shortId}):*\n"${text}"\n\n💡 *للرد السريع مباشرة من الواتساب، أرسل:*\n(رد ${shortId}: اكتب ردك هنا)`;
+                
+                if (whatsappStatus === "connected") {
+                  await whatsappClient.sendMessage(formattedNum, alertMsg);
+                  console.log(`📡 [WhatsApp Forward] Forwarded chat message from ${senderName} to ${recipientData.whatsappNumber}`);
+                }
+              }
+            } catch (forwardErr) {
+              console.error("❌ [WhatsApp Forward Chat Message Error]:", forwardErr);
+            }
+          }
+        });
+      }, (err) => {
+        console.error("❌ [WhatsApp messages collectionGroup Listener Error]:", err);
+      });
   }
-} catch (error) {
-  console.warn("[Firebase] Admin SDK initialization failed. Running without DB persistence in server.ts", error);
-}
 
 async function startServer() {
   const app = express();
@@ -330,21 +782,34 @@ async function startServer() {
   app.get("/api/admin/whatsapp/reset", async (req, res) => {
     try {
       console.log("♻️ [WhatsApp] Resetting session as requested...");
-      await whatsappClient.logout().catch(() => {});
+      try {
+        await whatsappClient.destroy();
+      } catch (e) {}
+      
       whatsappStatus = "disconnected";
       qrCodeStr = "";
       
       // Cleanup auth directory if it exists
-      const fs = await import('fs');
-      const authDir = path.join(__dirname, '.wwebjs_auth');
-      if (fs.existsSync(authDir)) {
-        fs.rmSync(authDir, { recursive: true, force: true });
+      if (fs.existsSync(wwebjsAuthPath)) {
+        fs.rmSync(wwebjsAuthPath, { recursive: true, force: true });
+      }
+
+      // Cleanup Storage Session Backup
+      try {
+        const bucket = admin.storage().bucket();
+        const [files] = await bucket.getFiles({ prefix: 'whatsapp_session/' });
+        for (const file of files) {
+          await file.delete().catch(() => {});
+        }
+        console.log("♻️ [WhatsApp Reset] Storage session backup deleted successfully.");
+      } catch (storageErr) {
+        console.error("❌ Failed to delete storage session backup during reset:", storageErr);
       }
 
       // Re-initialize
-      whatsappClient.initialize();
+      startWhatsApp();
       
-      res.json({ success: true, message: "تمت إعادة تشغيل الجلسة بنجاح. يرجى الانتظار لتوليد كود جديد." });
+      res.json({ success: true, message: "تمت إعادة تعيين الجلسة ومسح البيانات سحابياً ومحلياً بنجاح. يرجى الانتظار لتوليد كود جديد." });
     } catch (err: any) {
       res.status(500).json({ success: false, error: err.message });
     }

@@ -15,7 +15,8 @@ import { LoginModal } from '../components/auth/LoginModal';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { sendNotification, recordTransaction, recordOrderEvent, updateSellerPerformance } from '../lib/notificationService';
 import { calculateOrderFees, PaymentMethod } from '../lib/payment-utils';
-import { collection, query, where, orderBy, getDocs, getDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, getDocs, getDoc, addDoc } from 'firebase/firestore';
+import { toast } from 'sonner';
 
 export const OrderDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -32,6 +33,8 @@ export const OrderDetailsPage: React.FC = () => {
   const [completionComment, setCompletionComment] = useState('');
   const [orderLogs, setOrderLogs] = useState<any[]>([]);
   const [copied, setCopied] = useState(false);
+  const [showDisputeModal, setShowDisputeModal] = useState(false);
+  const [disputeReason, setDisputeReason] = useState('');
 
   const copyOrderLink = () => {
     const url = window.location.href;
@@ -189,6 +192,58 @@ export const OrderDetailsPage: React.FC = () => {
     }
   };
 
+  const handleRaiseDispute = async () => {
+    if (!order || !user || !disputeReason.trim()) return;
+    setActionLoading(true);
+    try {
+      await addDoc(collection(db, 'disputes'), {
+        orderId: order.id,
+        orderTitle: order.title,
+        buyerId: order.buyerId,
+        sellerId: order.sellerId,
+        amount: order.amount,
+        raisedById: user.uid,
+        reason: disputeReason,
+        status: 'open',
+        createdAt: serverTimestamp()
+      });
+
+      await updateDoc(doc(db, 'orders', order.id), {
+        status: 'disputed',
+        updatedAt: serverTimestamp()
+      });
+
+      await recordOrderEvent(
+        order.id,
+        user.uid,
+        'تغيير الحالة: disputed',
+        order.status,
+        'disputed',
+        `تم فتح نزاع رسمي للتدخل الإداري: ${disputeReason}`
+      );
+
+      const recipientId = isBuyer ? order.sellerId : order.buyerId;
+      if (recipientId && recipientId !== 'unknown') {
+        await sendNotification(
+          recipientId,
+          '🚨 تم فتح نزاع بخصوص طلبك',
+          `قام الطرف الآخر بفتح نزاع رسمي بخصوص الصفقة (#ARB-${order.id.slice(0, 4).toUpperCase()}). يرجى المتابعة مع الإدارة.`,
+          'dispute',
+          'urgent',
+          order.id
+        );
+      }
+
+      toast.success('تم فتح النزاع وإحالة القضية للوساطة الإدارية بنجاح');
+      setShowDisputeModal(false);
+      setDisputeReason('');
+    } catch (err) {
+      toast.error('حدث خطأ أثناء فتح النزاع، يرجى المحاولة لاحقاً');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   if (loading) return <div className="flex justify-center py-20"><div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>;
   if (!order) return null;
 
@@ -269,6 +324,15 @@ export const OrderDetailsPage: React.FC = () => {
             profile={profile}
             onClose={() => setShowPaymentModal(false)}
             onConfirm={handleConfirmPayment}
+          />
+        )}
+        {showDisputeModal && (
+          <DisputeModal 
+            loading={actionLoading}
+            reason={disputeReason}
+            setReason={setDisputeReason}
+            onClose={() => setShowDisputeModal(false)}
+            onConfirm={handleRaiseDispute}
           />
         )}
       </AnimatePresence>
@@ -397,10 +461,15 @@ export const OrderDetailsPage: React.FC = () => {
                     <button onClick={() => updateStatus('delivered', completionComment)} disabled={actionLoading || !completionComment.trim()} className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold">تسليم العمل</button>
                   </div>
                 )}
+                {order.status === 'escrowed' && isBuyer && (
+                  <div className="w-full md:w-auto">
+                    <button onClick={() => setShowDisputeModal(true)} disabled={actionLoading} className="bg-white text-red-600 border border-red-200 px-6 py-3 rounded-xl font-bold hover:bg-red-50 transition-colors w-full md:w-auto text-center">فتح نزاع</button>
+                  </div>
+                )}
                 {order.status === 'delivered' && isBuyer && (
-                  <div className="flex gap-4">
-                    <button onClick={() => updateStatus('completed')} disabled={actionLoading} className="bg-green-600 text-white px-8 py-3 rounded-xl font-bold flex-1">استلام وتحرير المبلغ</button>
-                    <button onClick={() => updateStatus('disputed')} disabled={actionLoading} className="bg-white text-red-600 border border-red-200 px-6 py-3 rounded-xl font-bold">فتح نزاع</button>
+                  <div className="flex gap-4 w-full">
+                    <button onClick={() => updateStatus('completed')} disabled={actionLoading} className="bg-green-600 text-white px-8 py-3 rounded-xl font-bold flex-1 hover:bg-green-700 transition-all">استلام وتحرير المبلغ</button>
+                    <button onClick={() => setShowDisputeModal(true)} disabled={actionLoading} className="bg-white text-red-600 border border-red-200 px-6 py-3 rounded-xl font-bold hover:bg-red-50 transition-colors">فتح نزاع</button>
                   </div>
                 )}
              </div>
@@ -504,6 +573,67 @@ const PaymentModal: React.FC<{
             {loading ? <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" /> : <><Shield className="w-5 h-5" /><span>تأكيد ودفع {fees.buyerTotal.toLocaleString()} ر.س</span></>}
           </button>
           <button onClick={onClose} className="w-full text-gray-400 font-bold hover:text-gray-600 transition-colors">إلغاء العملية</button>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+const DisputeModal: React.FC<{
+  loading: boolean;
+  reason: string;
+  setReason: (r: string) => void;
+  onClose: () => void;
+  onConfirm: () => void;
+}> = ({ loading, reason, setReason, onClose, onConfirm }) => {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <motion.div 
+        initial={{ scale: 0.95, opacity: 0 }} 
+        animate={{ scale: 1, opacity: 1 }} 
+        exit={{ scale: 0.95, opacity: 0 }} 
+        className="bg-white rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl border border-gray-100"
+      >
+        <div className="p-8 text-center border-b bg-red-50/50">
+          <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
+            <AlertTriangle className="w-8 h-8" />
+          </div>
+          <h3 className="text-2xl font-black text-gray-950">فتح نزاع رسمي</h3>
+          <p className="text-gray-500 text-sm mt-1">سيتم إحالة الطلب للمراجعة والتدخل من قبل وسيط المنصة</p>
+        </div>
+        <div className="p-8 space-y-6">
+          <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 flex gap-3 text-right">
+            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div className="text-xs text-amber-800 leading-relaxed font-bold">
+              تنبيه: فتح نزاع يؤدي إلى تجميد رصيد الصفقة بالكامل مؤقتاً. يرجى توضيح سبب الخلاف ورفع أي إثباتات أو محادثات تدعم موقفك لتسريع تسوية النزاع.
+            </div>
+          </div>
+          <div className="space-y-2">
+            <label className="block text-sm font-black text-gray-700 text-right">سبب النزاع بالتفصيل *</label>
+            <textarea
+              className="w-full border border-gray-200 rounded-2xl p-4 text-right min-h-[120px] focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all font-medium text-sm text-gray-800"
+              placeholder="اكتب هنا بالتفصيل ما الذي حدث وما هو سبب الخلاف المالي مع الطرف الآخر..."
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              disabled={loading}
+            />
+          </div>
+          <div className="flex gap-4 col-reverse">
+            <button
+              onClick={onConfirm}
+              disabled={loading || !reason.trim()}
+              className="flex-1 bg-red-600 hover:bg-red-700 text-white py-4 rounded-2xl font-bold transition-all disabled:opacity-50 disabled:hover:bg-red-600"
+            >
+              {loading ? 'جاري رفع الطلب...' : 'تأكيد فتح النزاع'}
+            </button>
+            <button
+              onClick={onClose}
+              disabled={loading}
+              className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-6 py-4 rounded-2xl font-bold transition-all"
+            >
+              إلغاء
+            </button>
+          </div>
         </div>
       </motion.div>
     </div>

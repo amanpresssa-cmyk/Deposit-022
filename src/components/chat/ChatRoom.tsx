@@ -244,9 +244,12 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ orderId }) => {
           </div>
         )}
         {order?.status === 'disputed' && (
-          <div className="bg-red-50 border border-red-100 p-4 rounded-2xl flex items-center justify-center gap-3 mb-4">
-            <AlertCircle className="w-5 h-5 text-red-600 animate-pulse" />
-            <p className="text-sm font-bold text-red-800">هذه الصفقة في حالة نزاع حالياً. يرجى انتظار تدخل الإدارة.</p>
+          <div className="bg-red-50 border border-red-100 p-4 rounded-2xl flex items-start gap-3 mb-4 text-right">
+            <AlertCircle className="w-5 h-5 text-red-600 animate-pulse shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs font-black text-red-800">نزاع مالي نشط</p>
+              <p className="text-[10px] text-red-700 leading-relaxed font-bold mt-0.5">الصفقة تحت التحكيم والتدخل الإداري حالياً. يرجى توثيق كل الاتفاقات وتوضيح المشكلة والطلبات بدقة هنا لمساعدة الإداري في إصدار قرار التسوية العادل.</p>
+            </div>
           </div>
         )}
         {messages.map((msg) => {
