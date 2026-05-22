@@ -254,9 +254,12 @@ service cloud.firestore {
     }
 
     match /support_tickets/{ticketId} {
-      allow create: if isSignedIn() && isValidSupportTicket(incoming()) && incoming().userId == request.auth.uid;
+      allow create: if isSignedIn() && (
+        (isValidSupportTicket(incoming()) && incoming().userId == request.auth.uid) ||
+        isAdmin()
+      );
       allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
-      allow update: if (isAdmin() && incoming().diff(existing()).affectedKeys().hasAny(['status', 'priority', 'updatedAt'])) ||
+      allow update: if isAdmin() ||
                        (isSignedIn() && isOwner(existing().userId) && incoming().diff(existing()).affectedKeys().hasOnly(['updatedAt', 'lastMessagePreview', 'lastMessageSenderId', 'lastMessageAt']));
       
       match /messages/{messageId} {
@@ -278,6 +281,41 @@ service cloud.firestore {
     match /system_logs/{logId} {
       allow read: if isAdmin();
       allow create: if true; // Always allow logging errors to assist support
+    }
+
+    // --- Audit Logs ---
+    match /auditLogs/{logId} {
+      allow create: if isSignedIn();
+      allow read: if isAdmin();
+    }
+
+    // --- Order Logs ---
+    match /orderLogs/{logId} {
+      allow create: if isSignedIn();
+      allow read: if isSignedIn() && (
+        isAdmin() || 
+        resource.data.userId == request.auth.uid ||
+        (exists(/databases/$(database)/documents/orders/$(resource.data.orderId)) && (
+          get(/databases/$(database)/documents/orders/$(resource.data.orderId)).data.buyerId == request.auth.uid ||
+          get(/databases/$(database)/documents/orders/$(resource.data.orderId)).data.sellerId == request.auth.uid
+        ))
+      );
+    }
+
+    // --- SMS Logs ---
+    match /sms_logs/{logId} {
+      allow create: if isSignedIn();
+      allow read: if isAdmin();
+    }
+
+    // --- Referrals ---
+    match /referrals/{referralId} {
+      allow create: if isSignedIn();
+      allow read: if isSignedIn() && (
+        isAdmin() ||
+        resource.data.inviterId == request.auth.uid ||
+        resource.data.inviteeId == request.auth.uid
+      );
     }
   }
 }

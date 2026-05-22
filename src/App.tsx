@@ -12,6 +12,7 @@ import { UserProfilePage } from './pages/UserProfilePage';
 import { AdminLayout } from './components/layout/AdminLayout';
 import { AdminOverview } from './pages/admin/AdminOverview';
 import { AdminUsers } from './pages/admin/AdminUsers';
+import { AdminUserDetails } from './pages/admin/AdminUserDetails';
 import { AdminFinance } from './pages/admin/AdminFinance';
 import { AdminDisputes } from './pages/admin/AdminDisputes';
 import { AdminSupport } from './pages/admin/AdminSupport';
@@ -320,6 +321,7 @@ export default function App() {
                     <Route path="/admin" element={<AdminLayout />}>
                       <Route index element={<AdminOverview />} />
                       <Route path="users" element={<AdminUsers />} />
+                      <Route path="users/:userId" element={<AdminUserDetails />} />
                       <Route path="finance" element={<AdminFinance />} />
                       <Route path="transactions" element={<AdminTransactions />} />
                       <Route path="revenue" element={<AdminRevenue />} />
