@@ -117,8 +117,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             // Process referral if exists
             if (pendingRefCode) {
               try {
-                const { collection, query, where, getDocs } = await import('firebase/firestore');
-                const q = query(collection(db, 'users'), where('referralCode', '==', pendingRefCode));
+                const { collection, query, where, getDocs, limit } = await import('firebase/firestore');
+                const q = query(collection(db, 'users'), where('referralCode', '==', pendingRefCode), limit(1));
                 const snap = await getDocs(q);
                 if (!snap.empty) {
                   const inviter = snap.docs[0].data();

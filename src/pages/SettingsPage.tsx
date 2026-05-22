@@ -22,7 +22,7 @@ import {
   ShieldAlert
 } from 'lucide-react';
 import { db } from '../lib/firebase';
-import { doc, updateDoc, serverTimestamp, getDocs, collection, query, where } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp, getDocs, collection, query, where, limit } from 'firebase/firestore';
 import { PhoneVerification } from '../components/PhoneVerification';
 import { IdentityVerification } from '../components/IdentityVerification';
 import { toast } from 'sonner';
@@ -94,7 +94,7 @@ export const SettingsPage: React.FC = () => {
 
       // 2. Phone Uniqueness Check
       if (formData.phoneNumber && formData.phoneNumber !== profile?.phoneNumber) {
-        const q = query(collection(db, 'users'), where('phoneNumber', '==', formData.phoneNumber));
+        const q = query(collection(db, 'users'), where('phoneNumber', '==', formData.phoneNumber), limit(1));
         const snap = await getDocs(q);
         if (!snap.empty) {
           toast.error(
