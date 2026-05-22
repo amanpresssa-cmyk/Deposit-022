@@ -4,6 +4,7 @@ import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
 import * as admin from 'firebase-admin';
 import { readFileSync } from "fs";
+import axios from "axios";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -58,30 +59,6 @@ async function startServer() {
     const geideaUrl = process.env.GEIDEA_API_URL || 'https://api.geidea.net/payment-api/v1';
     const isGe = !!(process.env.GEIDEA_MERCHANT_ID && process.env.GEIDEA_PASSWORD);
 
-    try {
-      const controller = new AbortController();
-      const id = setTimeout(() => controller.abort(), 3500);
-      
-      const response = await fetch(geideaUrl, { 
-        method: 'GET',
-        signal: controller.signal
-      });
-      clearTimeout(id);
-      
-      geideaLatency = Date.now() - startGeidea;
-      geideaStatus = "connected"; // Fetch connected and succeeded (or gave status)
-    } catch (err: any) {
-      geideaLatency = Date.now() - startGeidea;
-      // If we got abort or fetch failed, but we still have an IP or DNS route
-      if (err.name === 'AbortError') {
-        geideaStatus = "degraded";
-        geideaError = "تم قطع الاتصال بسبب تجاوز مهلة الاستجابة (3.5 ثانية)";
-      } else {
-        geideaStatus = "offline";
-        geideaError = err.message || "فشل الاتصال بالشبكة الخارجية";
-      }
-    }
-
     const startSms = Date.now();
     let smsLatency = -1;
     let smsStatus = "offline";
@@ -91,26 +68,54 @@ async function startServer() {
     const isSms = !!(process.env.SMS_GATEWAY_API_KEY);
 
     try {
-      const controller = new AbortController();
-      const id = setTimeout(() => controller.abort(), 3500);
+      // Run both checks concurrently with short connection timeouts
+      await Promise.all([
+        axios.get(geideaUrl, { timeout: 2000 })
+          .then(() => {
+            geideaLatency = Date.now() - startGeidea;
+            geideaStatus = "connected";
+          })
+          .catch((err) => {
+            geideaLatency = Date.now() - startGeidea;
+            if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+              geideaStatus = "degraded";
+              geideaError = "تم قطع الاتصال بسبب تجاوز مهلة الاستجابة (2 ثانية)";
+            } else {
+              // If we got a response from the server (even 404/403), the network route is up and connected!
+              if (err.response) {
+                geideaStatus = "connected";
+                geideaError = `استجابة البوابة: رمز ${err.response.status}`;
+              } else {
+                geideaStatus = "offline";
+                geideaError = err.message || "فشل الاتصال بالشبكة الخارجية";
+              }
+            }
+          }),
 
-      const response = await fetch(smsUrl, { 
-        method: 'GET', 
-        signal: controller.signal 
-      });
-      clearTimeout(id);
-
-      smsLatency = Date.now() - startSms;
-      smsStatus = "connected";
-    } catch (err: any) {
-      smsLatency = Date.now() - startSms;
-      if (err.name === 'AbortError') {
-        smsStatus = "degraded";
-        smsError = "تجاوز وقت الانتظار المحدد";
-      } else {
-        smsStatus = "offline";
-        smsError = err.message || "فشل الاتصال ببوابة الرسائل";
-      }
+        axios.get(smsUrl, { timeout: 2000 })
+          .then(() => {
+            smsLatency = Date.now() - startSms;
+            smsStatus = "connected";
+          })
+          .catch((err) => {
+            smsLatency = Date.now() - startSms;
+            if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+              smsStatus = "degraded";
+              smsError = "تجاوز وقت الانتظار المحدد (2 ثانية)";
+            } else {
+              // If we got any response, the network is up and connected!
+              if (err.response) {
+                smsStatus = "connected";
+                smsError = `استجابة البوابة: رمز ${err.response.status}`;
+              } else {
+                smsStatus = "offline";
+                smsError = err.message || "فشل الاتصال ببوابة الرسائل";
+              }
+            }
+          })
+      ]);
+    } catch (criticalErr: any) {
+      console.error("Critical gateway status unexpected error:", criticalErr);
     }
 
     res.json({

@@ -15,8 +15,13 @@ export const ProfilePrompt: React.FC = () => {
   const [hasCheckedServices, setHasCheckedServices] = useState(false);
 
   useEffect(() => {
-    const isAdmin = user.email === 'khyratfarmdates@gmail.com' || profile?.isAdmin;
-    if (!user || !profile || isAdmin || location.pathname.startsWith('/admin') || location.pathname === '/settings' || location.pathname === '/create-order') {
+    if (!user || !profile) {
+      setShowPrompt(false);
+      return;
+    }
+
+    const isAdmin = user.email === 'khyratfarmdates@gmail.com' || profile.isAdmin;
+    if (isAdmin || location.pathname.startsWith('/admin') || location.pathname === '/settings' || location.pathname === '/create-order') {
       setShowPrompt(false);
       return;
     }
