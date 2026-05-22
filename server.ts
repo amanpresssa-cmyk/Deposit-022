@@ -6,8 +6,189 @@ import * as admin from 'firebase-admin';
 import { readFileSync } from "fs";
 import axios from "axios";
 
+// @ts-ignore
+import pkg from "whatsapp-web.js";
+const { Client, LocalAuth, Buttons, List } = pkg;
+// @ts-ignore
+import qrcode from "qrcode-terminal";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+let whatsappStatus = "disconnected";
+let qrCodeStr = "";
+
+// Initialize WhatsApp Web Client with sandbox-safe parameters for Cloud environments
+const whatsappClient = new Client({
+  authStrategy: new LocalAuth({
+    dataPath: path.join(__dirname, '.wwebjs_auth')
+  }),
+  webVersionCache: {
+    type: 'remote',
+    remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-js/main/dist/wppconnect-wa.js'
+  },
+  puppeteer: {
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--no-zygote',
+      '--single-process'
+    ]
+  }
+});
+
+whatsappClient.on('qr', (qr: string) => {
+  whatsappStatus = "QR_READY";
+  qrCodeStr = qr;
+  console.log('================================================================');
+  console.log('🚨 [WhatsApp] QR RECEIVED! SCAN CODE IN THE WEB DASHBOARD OR BELOW:');
+  console.log('================================================================');
+  qrcode.generate(qr, { small: true });
+});
+
+whatsappClient.on('ready', () => {
+  whatsappStatus = "connected";
+  qrCodeStr = "";
+  console.log('================================================================');
+  console.log('✅ [WhatsApp] Client is authenticated and ready to send alerts!');
+  console.log('================================================================');
+});
+
+whatsappClient.on('auth_failure', (msg: string) => {
+  whatsappStatus = "auth_failure";
+  console.error('❌ [WhatsApp] Auth failure:', msg);
+});
+
+whatsappClient.on('disconnected', (reason: string) => {
+  whatsappStatus = "disconnected";
+  qrCodeStr = "";
+  console.log('🔌 [WhatsApp] Client disconnected:', reason);
+});
+
+// Logic to handle incoming messages (interactive button responses)
+whatsappClient.on('message', async (msg: any) => {
+  if (!db) return;
+
+  const sender = msg.from; // e.g. "9665... @c.us"
+  const cleanSender = sender.replace(/\D/g, '');
+  const body = msg.body.trim();
+  const selectedButtonId = msg.selectedButtonId;
+
+  // Process Approval/Rejection
+  const isApprove = selectedButtonId === 'APPROVE_ORDER' || body === 'موافقة' || body === '1';
+  const isReject = selectedButtonId === 'REJECT_ORDER' || body === 'رفض' || body === '2';
+
+  if (isApprove || isReject) {
+    try {
+      // 1. Find user by whatsappNumber
+      const usersRef = db.collection('users');
+      // We check for variants of the number
+      const userQuery = await usersRef.where('whatsappEnabled', '==', true).get();
+      let userDoc = null;
+      
+      for (const doc of userQuery.docs) {
+        const data = doc.data();
+        const num = (data.whatsappNumber || '').replace(/\D/g, '');
+        if (num && (cleanSender.endsWith(num) || num.endsWith(cleanSender))) {
+          userDoc = doc;
+          break;
+        }
+      }
+
+      if (!userDoc) return;
+      const userId = userDoc.id;
+
+      // 2. Find latest pending order for this user (as a seller)
+      const ordersRef = db.collection('orders');
+      const latestOrder = await ordersRef
+        .where('sellerId', '==', userId)
+        .where('status', '==', 'pending')
+        .orderBy('createdAt', 'desc')
+        .limit(1)
+        .get();
+
+      if (latestOrder.empty) {
+        await whatsappClient.sendMessage(sender, "⚠️ عذراً، لا يوجد لديك طلبات معلقة (في انتظار الموافقة) حالياً لتحويل حالتها.");
+        return;
+      }
+
+      const orderDoc = latestOrder.docs[0];
+      const orderData = orderDoc.data();
+      const newStatus = isApprove ? 'accepted' : 'rejected';
+      const statusText = isApprove ? 'مقبول ✅' : 'مرفوض ❌';
+
+      // 3. Update Order Level
+      await orderDoc.ref.update({
+        status: newStatus,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      // 4. Send Confirmation Notification to BOTH parties (optional but good)
+      const feedbackMsg = isApprove 
+        ? `✅ تم قبول الطلب رقم (${orderDoc.id.slice(-6)}) بنجاح! سيتم إخطار المشتري للمتابعة.`
+        : `❌ تم رفض الطلب رقم (${orderDoc.id.slice(-6)}). تم إيقاف العملية وإخطار المشتري.`;
+
+      await whatsappClient.sendMessage(sender, feedbackMsg);
+
+      // Add a system notification in Firestore
+      await db.collection('notifications').add({
+        userId: userId,
+        title: `تم تحديث حالة الطلب`,
+        message: `لقد قمت بتحديث حالة الطلب (${orderData.title}) إلى: ${statusText} عبر الواتساب.`,
+        type: 'order',
+        priority: 'high',
+        isRead: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      // Notify Buyer if exists
+      if (orderData.buyerId) {
+        await db.collection('notifications').add({
+          userId: orderData.buyerId,
+          title: isApprove ? '🟢 تم قبول طلبك' : '🔴 تم اعتذار البائع',
+          message: isApprove 
+            ? `وافق البائع على خدمتك (${orderData.title}). يمكنك الآن متابعة التنفيذ.`
+            : `اعتذر البائع عن تنفيذ طلبك (${orderData.title}). تم إرجاع العربون لمحفظتك.`,
+          type: 'order',
+          priority: 'high',
+          isRead: false,
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      }
+
+      console.log(`✅ [WhatsApp Automation] Order ${orderDoc.id} update to ${newStatus} by user ${userId}`);
+
+    } catch (err) {
+      console.error("❌ [WhatsApp Automation Error]:", err);
+      await whatsappClient.sendMessage(sender, "❌ حدث خطأ فني أثناء محاولة تحديث الطلب. يرجى المتابعة من لوحة تحكم المنصة.");
+    }
+  }
+});
+
+try {
+  whatsappClient.initialize().catch((err: any) => {
+    console.error("❌ Failed to initialize WhatsApp client:", err);
+  });
+} catch (err) {
+  console.error("❌ WhatsApp initialization error thrown:", err);
+}
+
+export function formatWhatsAppNumber(num: string): string {
+  let cleaned = num.replace(/\D/g, '');
+  if (cleaned.startsWith('00')) {
+    cleaned = cleaned.substring(2);
+  }
+  if (cleaned.startsWith('05') && cleaned.length === 10) {
+    cleaned = '966' + cleaned.substring(1);
+  }
+  if (cleaned.startsWith('5') && cleaned.length === 9) {
+    cleaned = '966' + cleaned;
+  }
+  return cleaned + '@c.us';
+}
 
 // Initialize Firebase Admin
 let db: admin.firestore.Firestore | null = null;
@@ -25,6 +206,95 @@ try {
   }
   db = admin.firestore();
   console.log("[Firebase] Admin SDK initialized successfully");
+
+  // Real-time WhatsApp notifications listener
+  if (db) {
+    const startupTime = new Date();
+    db.collection('notifications')
+      .where('createdAt', '>=', admin.firestore.Timestamp.fromDate(startupTime))
+      .onSnapshot((snapshot) => {
+        snapshot.docChanges().forEach(async (change) => {
+          if (change.type === 'added') {
+            const notifDoc = change.doc;
+            const notifData = notifDoc.data();
+            
+            // Skip already processed messages
+            if (notifData.whatsappProcessed) return;
+            
+            // Mark immediately as processed to prevent double processing
+            await notifDoc.ref.update({ whatsappProcessed: true });
+            
+            if (notifData.userId === 'ADMIN') return;
+            
+            const userId = notifData.userId;
+            if (!userId || !db) return;
+            
+            try {
+              const userRef = db.collection('users').doc(userId);
+              const userSnap = await userRef.get();
+              if (userSnap.exists) {
+                const userData = userSnap.data() || {};
+                const whatsappEnabled = userData.whatsappEnabled === true;
+                const whatsappNumber = userData.whatsappNumber;
+                
+                if (whatsappEnabled && whatsappNumber) {
+                  const formattedNum = formatWhatsAppNumber(whatsappNumber);
+                  
+                  if (whatsappStatus === "connected") {
+                    // Send interactive message if it's an order
+                    if (notifData.type === 'order' || notifData.title?.includes('طلب جديد')) {
+                      try {
+                        const buttons = new Buttons(
+                          `🔔 *${notifData.title}*\n\n${notifData.message}\n\n_هل تود قبول هذا الطلب الآن؟_`,
+                          [
+                            { id: 'APPROVE_ORDER', body: 'موافقة ✅' },
+                            { id: 'REJECT_ORDER', body: 'رفض ❌' }
+                          ],
+                          'نظام أتمتة عربون',
+                          'إدارة الطلبات'
+                        );
+                        await whatsappClient.sendMessage(formattedNum, buttons);
+                      } catch (btnErr) {
+                        // Fallback to text message if buttons fail
+                        const msgText = `🔔 *${notifData.title}*\n\n${notifData.message}\n\n💡 *للرد السريع:*\n- أرسل "موافقة" أو "1" للقبول\n- أرسل "رفض" أو "2" للاعتذار\n\n_منصة عربون للمشاريع_`;
+                        await whatsappClient.sendMessage(formattedNum, msgText);
+                      }
+                    } else {
+                      const msgText = `🔔 *${notifData.title}*\n\n${notifData.message}\n\n_منصة عربون للمشاريع_`;
+                      await whatsappClient.sendMessage(formattedNum, msgText);
+                    }
+                    console.log(`📡 [WhatsApp] Dispatched alert successfully to ${whatsappNumber}`);
+                  } else {
+                    console.warn(`⚠️ [WhatsApp] Message skipped (Status: ${whatsappStatus}). Number: ${whatsappNumber}`);
+                  }
+                } else {
+                  // Fallback Alert
+                  const hasFallbackAlert = userData.whatsappFallbackAlertSent === true;
+                  if (!hasFallbackAlert && notifData.isWhatsAppFallback !== true) {
+                    await db.collection('notifications').add({
+                      userId: userId,
+                      title: "💡 تابع عملياتك أولاً بأول",
+                      message: "بإمكانك الآن تفعيل ميزة استلام طلباتك وتنبيهاتك مباشرة عبر الواتساب من صفحة إعدادات الحساب لتسهيل المتابعة!",
+                      type: "system",
+                      priority: "normal",
+                      isWhatsAppFallback: true,
+                      isRead: false,
+                      createdAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
+                    await userRef.update({ whatsappFallbackAlertSent: true });
+                    console.log(`💡 [WhatsApp] Fallback user tips scheduled for user ${userId}`);
+                  }
+                }
+              }
+            } catch (userErr) {
+              console.error("❌ [WhatsApp Trigger User Check Error]:", userErr);
+            }
+          }
+        });
+      }, (err) => {
+        console.error("❌ [WhatsApp Firestore Listener Error]:", err);
+      });
+  }
 } catch (error) {
   console.warn("[Firebase] Admin SDK initialization failed. Running without DB persistence in server.ts", error);
 }
@@ -33,6 +303,7 @@ async function startServer() {
   const app = express();
   // نستخدم المنفذ الذي يوفره النظام (PORT) أو 3000 كخيار افتراضي
   const PORT = Number(process.env.PORT) || 3000;
+  let viteInstance: any = null;
 
   // --- Parsing Middlewares ---
   app.use(express.json());
@@ -46,6 +317,105 @@ async function startServer() {
   };
 
   const isGeideaConfigured = !!(GEIDEA_CONFIG.merchantId && GEIDEA_CONFIG.password);
+
+  // --- WhatsApp Pairing and Status Endpoints ---
+  app.get("/api/admin/whatsapp/status", (req, res) => {
+    res.json({
+      status: whatsappStatus,
+      qrActive: !!qrCodeStr,
+      timestamp: Date.now()
+    });
+  });
+
+  app.get("/api/admin/whatsapp/reset", async (req, res) => {
+    try {
+      console.log("♻️ [WhatsApp] Resetting session as requested...");
+      await whatsappClient.logout().catch(() => {});
+      whatsappStatus = "disconnected";
+      qrCodeStr = "";
+      
+      // Cleanup auth directory if it exists
+      const fs = await import('fs');
+      const authDir = path.join(__dirname, '.wwebjs_auth');
+      if (fs.existsSync(authDir)) {
+        fs.rmSync(authDir, { recursive: true, force: true });
+      }
+
+      // Re-initialize
+      whatsappClient.initialize();
+      
+      res.json({ success: true, message: "تمت إعادة تشغيل الجلسة بنجاح. يرجى الانتظار لتوليد كود جديد." });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.get("/api/admin/whatsapp/qr", (req, res) => {
+    if (whatsappStatus === "connected") {
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      return res.send(`
+        <div style="font-family: system-ui, -apple-system, sans-serif; text-align: center; padding: 40px; max-width: 500px; margin: 40px auto; border: 1px solid #e5e7eb; border-radius: 24px; background: #f0fdf4; border-top: 5px solid #22c55e;">
+          <h1 style="color: #16a34a; font-weight: 800; font-size: 26px; margin-bottom: 12px;">✅ الواتساب متصل بنجاح!</h1>
+          <p style="color: #15803d; font-size: 16px; margin-bottom: 24px;">السيرفر الآن يرسل إشعارات المنصة تلقائياً للعملاء.</p>
+          <button onclick="if(confirm('هل أنت متأكد من رغبتك في تسجيل الخروج؟')) window.location.href='/api/admin/whatsapp/reset'" style="background: #ef4444; color: white; border: none; padding: 12px 24px; border-radius: 12px; font-weight: 700; cursor: pointer; font-size: 14px;">تسجيل الخروج وقطع الاتصال</button>
+        </div>
+      `);
+    }
+
+    if (!qrCodeStr) {
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      return res.send(`
+        <div style="font-family: system-ui, -apple-system, sans-serif; text-align: center; padding: 40px; max-width: 500px; margin: 40px auto; border: 1px solid #e5e7eb; border-radius: 24px; background: #fafafa;">
+          <h1 style="color: #374151; font-weight: 800; font-size: 24px; margin-bottom: 12px;">⏳ جاري تجهيز الاتصال...</h1>
+          <p style="color: #6b7280; font-size: 15px; margin-bottom: 24px;">الحالة الحالية: <span style="font-weight: bold; color: #4b5563;">${whatsappStatus}</span></p>
+          <div style="border: 3px solid #e5e7eb; border-top-color: #3b82f6; border-radius: 50%; width: 40px; height: 40px; margin: 0 auto; animation: spin 1s linear infinite;"></div>
+          <p style="color: #9ca3af; font-size: 13px; margin-top: 24px;">سنقوم بتحديث الصفحة تلقائياً فور جاهزية الرمز.</p>
+          <style>@keyframes spin { 100% { transform: rotate(360deg); } }</style>
+          <script>setTimeout(() => window.location.reload(), 3000);</script>
+        </div>
+      `);
+    }
+
+    const qrImgUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrCodeStr)}`;
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.send(`
+      <div style="font-family: system-ui, -apple-system, sans-serif; text-align: center; padding: 32px; max-width: 480px; margin: 40px auto; border: 1px solid #e5e7eb; border-radius: 28px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); background: white;">
+        <div style="margin-bottom: 24px;">
+           <h2 style="color: #111827; font-weight: 800; font-size: 24px; margin-bottom: 8px;">🔗 ربط إشعارات الواتساب</h2>
+           <p style="color: #4b5563; font-size: 15px; line-height: 1.6;">افتح تطبيق الواتساب بجوالك -> الأجهزة المرتبطة -> ربط جهاز -> وقم بمسح الرمز التالي:</p>
+        </div>
+        
+        <div style="background: #f9fafb; padding: 20px; border-radius: 24px; display: inline-block; margin-bottom: 20px; border: 2px solid #f3f4f6;">
+          <img src="${qrImgUrl}" alt="Scan QR Code" style="display: block; width: 280px; height: 280px;" />
+        </div>
+        
+        <div style="margin-top: 12px; padding-top: 20px; border-top: 1px solid #f3f4f6;">
+          <div style="font-size: 13px; color: #6b7280; font-weight: 500; margin-bottom: 12px;">حالة النظام: <span style="color: #d97706; font-weight: 800; text-transform: uppercase;">${whatsappStatus}</span></div>
+          <button onclick="if(confirm('هل تريد إعادة توليد رمز جديد؟')) window.location.href='/api/admin/whatsapp/reset'" style="background: none; border: none; font-size: 13px; color: #3b82f6; text-decoration: underline; cursor: pointer; font-weight: 600;">مشكلة في المسح؟ أعد توليد الرمز ♻️</button>
+        </div>
+
+        <script>
+          let checkInterval = setInterval(async () => {
+            try {
+              const res = await fetch('/api/admin/whatsapp/status');
+              const data = await res.json();
+              if (data.status === 'connected') {
+                clearInterval(checkInterval);
+                window.location.reload();
+              }
+              // If status is disconnected and we have a QR, maybe it expired
+              if (data.status === 'disconnected') {
+                 window.location.reload();
+              }
+            } catch(e){}
+          }, 3000);
+
+          // Force reload every 60 seconds to ensure QR is fresh
+          setTimeout(() => window.location.reload(), 60000);
+        </script>
+      </div>
+    `);
+  });
 
   // --- Payment API Routes ---
 
@@ -299,12 +669,115 @@ async function startServer() {
     res.json({ received: true });
   });
 
+  // --- Dynamic Meta Tag Injection for SEO (Escrow Services) ---
+  app.get("/service/:id", async (req, res, next) => {
+    const { id } = req.params;
+    console.log(`[SEO Middleware] Intercepted route for service detail: /service/${id}`);
+
+    let title = "خدمة مميزة على منصة عربون";
+    let description = "تصفح تفاصيل هذه الخدمة المميزة واضمن حقك المالي عبر منصة عربون للوساطة الآمنة.";
+    let amount: any = null;
+    let category = "";
+    let sellerName = "";
+
+    if (db) {
+      try {
+        const docRef = db.collection('orders').doc(id);
+        const docSnap = await docRef.get();
+        if (docSnap.exists) {
+          const data = docSnap.data();
+          if (data) {
+            title = data.title || title;
+            description = data.description || description;
+            amount = data.amount || null;
+            category = data.category || "";
+
+            // Fetch seller name optionally
+            if (data.sellerId) {
+              const userSnap = await db.collection('users').doc(data.sellerId).get();
+              if (userSnap.exists) {
+                const userData = userSnap.data();
+                sellerName = userData?.name || "";
+              }
+            }
+          }
+        }
+      } catch (firestoreError) {
+        console.error("[SEO Middleware] Error getting Firestore document:", firestoreError);
+      }
+    }
+
+    let html = "";
+    try {
+      if (process.env.NODE_ENV !== "production" && viteInstance) {
+        // Read root index.html
+        const rawHtml = readFileSync(path.join(process.cwd(), "index.html"), "utf8");
+        // Let Vite transform it first (adds CSS/JS modules scripts)
+        html = await viteInstance.transformIndexHtml(req.originalUrl || req.url, rawHtml);
+      } else {
+        // Production mode, read compiled dist/index.html
+        html = readFileSync(path.join(process.cwd(), "dist", "index.html"), "utf8");
+      }
+    } catch (fileError) {
+      console.error("[SEO Middleware] index.html not found, falling back:", fileError);
+      return next();
+    }
+
+    const titleText = `${title} | منصة عربون`;
+    const descText = description.replace(/"/gi, '&quot;').slice(0, 160) + (description.length > 160 ? "..." : "");
+    const canonicalUrl = `https://arboon.sa/service/${id}`;
+
+    // Replace basic tags
+    html = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${titleText}</title>`);
+    html = html.replace(/<meta\s+name="description"\s+content="[\s\S]*?"\s*\/?>/i, `<meta name="description" content="${descText}" />`);
+    
+    // Replace Open Graph metadata
+    html = html.replace(/<meta\s+property="og:title"\s+content="[\s\S]*?"\s*\/?>/i, `<meta property="og:title" content="${titleText}" />`);
+    html = html.replace(/<meta\s+property="og:description"\s+content="[\s\S]*?"\s*\/?>/i, `<meta property="og:description" content="${descText}" />`);
+    html = html.replace(/<meta\s+property="og:url"\s+content="[\s\S]*?"\s*\/?>/i, `<meta property="og:url" content="${canonicalUrl}" />`);
+    
+    // Replace Twitter metadata
+    html = html.replace(/<meta\s+property="twitter:title"\s+content="[\s\S]*?"\s*\/?>/i, `<meta property="twitter:title" content="${titleText}" />`);
+    html = html.replace(/<meta\s+property="twitter:description"\s+content="[\s\S]*?"\s*\/?>/i, `<meta property="twitter:description" content="${descText}" />`);
+    html = html.replace(/<meta\s+property="twitter:url"\s+content="[\s\S]*?"\s*\/?>/i, `<meta property="twitter:url" content="${canonicalUrl}" />`);
+    
+    // Replace Canonical Link
+    html = html.replace(/<link\s+rel="canonical"\s+href="[\s\S]*?"\s*\/?>/i, `<link rel="canonical" href="${canonicalUrl}" />`);
+
+    // Dynamic JSON-LD Structured Schema
+    const serviceSchema = {
+      "@context": "https://schema.org",
+      "@type": "Product",
+      "name": title,
+      "description": description,
+      "image": "https://i.imgur.com/625ci9a.png",
+      "category": category || "Escrow Service",
+      "offers": {
+        "@type": "Offer",
+        "price": amount ? String(amount) : "0",
+        "priceCurrency": "SAR",
+        "availability": "https://schema.org/InStock",
+        "seller": {
+          "@type": "Person",
+          "name": sellerName || "بائع مستقل على عربون"
+        }
+      }
+    };
+
+    const schemaScript = `<script type="application/ld+json">\n${JSON.stringify(serviceSchema, null, 2)}\n    </script>`;
+    html = html.replace(/<script\s+type="application\/ld\+json">[\s\S]*?<\/script>/i, schemaScript);
+
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    return res.status(200).send(html);
+  });
+
   // --- Vite / Static Assets Middleware (MUST BE AFTER API ROUTES) ---
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
+    viteInstance = vite;
     app.use(vite.middlewares);
   } else {
     // في حالة الإنتاج (Production / Deployment)

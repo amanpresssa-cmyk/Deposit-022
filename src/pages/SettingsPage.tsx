@@ -52,7 +52,34 @@ export const SettingsPage: React.FC = () => {
     payoutAccountName: profile?.payoutAccountName || '',
     isPrivate: profile?.isPrivate || false,
     twoFactorEnabled: profile?.twoFactorEnabled || false,
+    whatsappEnabled: profile?.whatsappEnabled === true,
+    whatsappNumber: profile?.whatsappNumber || '',
   });
+
+  React.useEffect(() => {
+    if (profile) {
+      setFormData(prev => ({
+        ...prev,
+        displayName: profile.displayName || user?.displayName || '',
+        bio: profile.bio || '',
+        bannerUrl: profile.bannerUrl || '',
+        phoneNumber: profile.phoneNumber || '',
+        theme: profile.theme || 'light',
+        notificationsEnabled: profile.notificationsEnabled !== false,
+        pushNotificationsEnabled: profile.pushNotificationsEnabled !== false,
+        orderNotificationsEnabled: profile.orderNotificationsEnabled !== false,
+        systemAlertsEnabled: profile.systemAlertsEnabled !== false,
+        emailNotifications: profile.emailNotifications !== false,
+        payoutBank: profile.payoutBank || '',
+        payoutIban: profile.payoutIban || '',
+        payoutAccountName: profile.payoutAccountName || '',
+        isPrivate: profile.isPrivate || false,
+        twoFactorEnabled: profile.twoFactorEnabled || false,
+        whatsappEnabled: profile.whatsappEnabled === true,
+        whatsappNumber: profile.whatsappNumber || '',
+      }));
+    }
+  }, [profile, user]);
 
   const handleSave = async () => {
     if (!user) return;
@@ -104,6 +131,8 @@ export const SettingsPage: React.FC = () => {
         payoutAccountName: formData.payoutAccountName,
         isPrivate: formData.isPrivate,
         twoFactorEnabled: formData.twoFactorEnabled,
+        whatsappEnabled: formData.whatsappEnabled,
+        whatsappNumber: formData.whatsappNumber,
         updatedAt: serverTimestamp()
       };
 
@@ -342,7 +371,7 @@ export const SettingsPage: React.FC = () => {
                       animate={{ opacity: 1, y: 0 }}
                       className="p-8 md:p-12 space-y-8"
                     >
-                      <h2 className="text-2xl font-black text-gray-900 mb-8">الأمان والخصوصية</h2>
+                      <h2 className="text-2xl font-black text-gray-900 mb-8 font-mono tracking-tight text-right">الأمان والخصوصية</h2>
 
                       <div className="grid gap-4">
                         <div className="p-6 bg-gray-50 rounded-[2rem] flex items-center justify-between border border-gray-100 group hover:bg-white hover:shadow-lg hover:shadow-blue-50/50 transition-all">
@@ -379,6 +408,48 @@ export const SettingsPage: React.FC = () => {
                           >
                              <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all shadow-sm ${formData.pushNotificationsEnabled ? 'right-1' : 'right-7'}`} />
                           </button>
+                        </div>
+
+                        {/* WhatsApp Notification Block */}
+                        <div className="p-6 bg-green-50/30 rounded-[2rem] border border-green-100/50 flex flex-col gap-6 group hover:bg-white hover:shadow-lg hover:shadow-green-50/50 transition-all text-right">
+                          <div className="flex items-center justify-between w-full">
+                            <div className="flex gap-4">
+                              <div className="bg-green-100 p-4 rounded-[1.5rem] text-green-600 shrink-0 group-hover:scale-110 transition-transform flex items-center justify-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-message-square"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                              </div>
+                              <div className="text-right">
+                                <p className="font-black text-gray-900">إشعارات الواتساب التلقائية</p>
+                                <p className="text-xs text-gray-400 mt-1 font-medium italic">استقبل تنبيهات طلباتك وعقود الضمان مباشرة عبر الواتساب</p>
+                              </div>
+                            </div>
+                            <button 
+                              type="button"
+                              onClick={() => setFormData({...formData, whatsappEnabled: !formData.whatsappEnabled})}
+                              className={`w-14 h-8 rounded-full transition-all relative ${formData.whatsappEnabled ? 'bg-green-600' : 'bg-gray-300'}`}
+                            >
+                               <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all shadow-sm ${formData.whatsappEnabled ? 'right-1' : 'right-7'}`} />
+                            </button>
+                          </div>
+                          
+                          {formData.whatsappEnabled && (
+                            <motion.div 
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: "auto" }}
+                              className="space-y-2 text-right border-t border-green-100/40 pt-4"
+                            >
+                              <label className="text-xs font-black text-green-800 block mr-1">رقم الواتساب بالصيغة الدولية (مثال: +9665xxxxxxxx)</label>
+                              <div className="relative">
+                                <input 
+                                  type="tel"
+                                  value={formData.whatsappNumber}
+                                  onChange={(e) => setFormData({...formData, whatsappNumber: e.target.value})}
+                                  className="w-full bg-white dark:bg-gray-800 border border-green-200 dark:border-gray-700 rounded-2xl p-4 pr-12 focus:ring-4 focus:ring-green-100 outline-none transition-all font-bold text-left tracking-widest"
+                                  placeholder="+9665xxxxxxxx"
+                                />
+                                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-lg">💬</span>
+                              </div>
+                            </motion.div>
+                          )}
                         </div>
 
                         <div className="p-6 bg-gray-50 rounded-[2rem] flex items-center justify-between border border-gray-100 group hover:bg-white hover:shadow-lg hover:shadow-blue-50/50 transition-all">
