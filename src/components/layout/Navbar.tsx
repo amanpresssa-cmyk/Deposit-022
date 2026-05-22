@@ -266,7 +266,20 @@ export const Navbar: React.FC = () => {
                           filteredNotifications.map((n) => (
                             <div
                               key={n.id}
-                              className={`group p-4 rounded-2xl transition-all border border-transparent mb-1 relative flex gap-4 ${n.isRead ? 'hover:bg-gray-50 opacity-75' : 'bg-blue-50/40 hover:bg-blue-50/60 border-blue-100/60 shadow-sm'}`}
+                              onClick={async () => {
+                                if (!n.isRead) await markNotificationAsRead(n.id);
+                                setShowNotifications(false);
+                                if (n.action?.url) {
+                                  navigate(n.action.url);
+                                } else if (n.orderId) {
+                                  navigate(`/order/${n.orderId}`);
+                                } else if (n.type === 'message') {
+                                  navigate('/dashboard?tab=messages');
+                                } else {
+                                  navigate('/dashboard?tab=notifications');
+                                }
+                              }}
+                              className={`group p-4 rounded-2xl transition-all border border-transparent mb-1 relative flex gap-4 cursor-pointer hover:bg-gray-100 ease-in-out active:scale-[0.99] border-gray-100 ${n.isRead ? 'opacity-75' : 'bg-blue-50/30 border-blue-100 shadow-sm'}`}
                             >
                               {!n.isRead && (
                                 <div className="absolute top-4 left-4 w-2 h-2 bg-blue-600 rounded-full shadow-[0_0_8px_rgba(37,99,235,0.5)] animate-pulse" />
@@ -297,7 +310,8 @@ export const Navbar: React.FC = () => {
                                 <div className="mt-3 flex items-center gap-2">
                                   {n.action ? (
                                     <button 
-                                      onClick={async () => {
+                                      onClick={async (e) => {
+                                        e.stopPropagation();
                                         if (!n.isRead) await markNotificationAsRead(n.id);
                                         setShowNotifications(false);
                                         navigate(n.action.url);
@@ -308,23 +322,23 @@ export const Navbar: React.FC = () => {
                                       <ChevronRight className="w-3 h-3" />
                                     </button>
                                   ) : n.orderId && (
-                                    <Link 
-                                      to={`/order/${n.orderId}`}
-                                      onClick={async () => {
+                                    <button 
+                                      onClick={async (e) => {
+                                        e.stopPropagation();
                                         if (!n.isRead) await markNotificationAsRead(n.id);
                                         setShowNotifications(false);
+                                        navigate(`/order/${n.orderId}`);
                                       }}
-                                      className="px-4 py-1.5 bg-gray-900 text-white rounded-lg text-[10px] font-black hover:bg-blue-600 transition-all flex items-center gap-2"
+                                      className="px-4 py-1.5 bg-gray-900 text-white rounded-lg text-[10px] font-black hover:bg-blue-600 transition-all flex items-center gap-2 text-right"
                                     >
                                       تفاصيل الطلب
                                       <LayoutDashboard className="w-3 h-3" />
-                                    </Link>
+                                    </button>
                                   )}
                                   
                                   {!n.isRead && (
                                     <button 
                                       onClick={(e) => {
-                                        e.preventDefault();
                                         e.stopPropagation();
                                         markNotificationAsRead(n.id);
                                       }}

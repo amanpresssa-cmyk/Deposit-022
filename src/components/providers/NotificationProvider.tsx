@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { collection, query, where, orderBy, onSnapshot, limit } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../hooks/useAuth';
@@ -21,32 +21,50 @@ const NotificationContext = createContext<NotificationContextType>({
 export const useNotifications = () => useContext(NotificationContext);
 
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [isFirstLoad, setIsFirstLoad] = useState(true);
+  const isFirstLoadRef = useRef(true);
 
   useEffect(() => {
     if (!user) {
       setNotifications([]);
       setUnreadCount(0);
-      setIsFirstLoad(true);
+      isFirstLoadRef.current = true;
       return;
     }
 
-    const q = query(
+    const isAdmin = user.email === 'khyratfarmdates@gmail.com' || profile?.isAdmin;
+
+    const qUser = query(
       collection(db, 'notifications'),
       where('userId', '==', user.uid),
-      orderBy('createdAt', 'desc'),
       limit(50)
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    let userNotifications: any[] = [];
+    let adminNotifications: any[] = [];
+
+    const handleUpdate = (userItems: any[], adminItems: any[]) => {
+      const allItems = [...userItems, ...adminItems];
+      // Sort in-memory desc by createdAt
+      allItems.sort((a: any, b: any) => {
+        const timeA = a.createdAt?.toDate?.()?.getTime() || a.createdAt?.seconds * 1000 || 0;
+        const timeB = b.createdAt?.toDate?.()?.getTime() || b.createdAt?.seconds * 1000 || 0;
+        return timeB - timeA;
+      });
+
+      setNotifications(allItems);
+      setUnreadCount(allItems.filter((n: any) => !n.isRead).length);
+      isFirstLoadRef.current = false;
+    };
+
+    const unsubscribeUser = onSnapshot(qUser, (snapshot) => {
       const items = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      
+
       // Real-time toast for new unread notifications
-      if (!isFirstLoad) {
+      if (!isFirstLoadRef.current) {
         snapshot.docChanges().forEach((change) => {
           if (change.type === 'added') {
             const newNotif = change.doc.data() as any;
@@ -57,15 +75,47 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         });
       }
 
-      setNotifications(items);
-      setUnreadCount(items.filter((n: any) => !n.isRead).length);
-      setIsFirstLoad(false);
+      userNotifications = items;
+      handleUpdate(userNotifications, adminNotifications);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'notifications');
     });
 
-    return () => unsubscribe();
-  }, [user, isFirstLoad]);
+    let unsubscribeAdmin = () => {};
+    if (isAdmin) {
+      const qAdmin = query(
+        collection(db, 'notifications'),
+        where('userId', '==', 'ADMIN'),
+        limit(50)
+      );
+
+      unsubscribeAdmin = onSnapshot(qAdmin, (snapshot) => {
+        const items = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        // Real-time toast for new unread admin notifications
+        if (!isFirstLoadRef.current) {
+          snapshot.docChanges().forEach((change) => {
+            if (change.type === 'added') {
+              const newNotif = change.doc.data() as any;
+              if (!newNotif.isRead) {
+                 showToastNotification({ ...newNotif, id: change.doc.id });
+              }
+            }
+          });
+        }
+
+        adminNotifications = items;
+        handleUpdate(userNotifications, adminNotifications);
+      }, (error) => {
+        console.error('Admin notification stream error:', error);
+      });
+    }
+
+    return () => {
+      unsubscribeUser();
+      unsubscribeAdmin();
+    };
+  }, [user, profile]);
 
   const showToastNotification = (notif: any) => {
     const getIcon = () => {

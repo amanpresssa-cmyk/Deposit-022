@@ -15,15 +15,20 @@ import {
   Zap,
   ChevronDown,
   ChevronRight,
-  X
+  X,
+  BarChart3
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+import { useNotifications } from '../providers/NotificationProvider';
+import { markNotificationAsRead } from '../../lib/notificationService';
 import { motion, AnimatePresence } from 'motion/react';
 
 export const AdminLayout: React.FC = () => {
   const { profile, logout } = useAuth();
+  const { notifications, unreadCount } = useNotifications();
   const navigate = useNavigate();
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(window.innerWidth > 1024);
+  const [showNotifications, setShowNotifications] = React.useState(false);
   const [openMenus, setOpenMenus] = React.useState<Record<string, boolean>>({
     finance: false,
     system: false
@@ -53,6 +58,13 @@ export const AdminLayout: React.FC = () => {
       label: 'نظرة عامة', 
       icon: <LayoutDashboard className="w-5 h-5" />, 
       path: '/admin' 
+    },
+    { 
+      type: 'single',
+      id: 'analytics', 
+      label: 'التحليلات الذكية', 
+      icon: <BarChart3 className="w-5 h-5" />, 
+      path: '/admin/analytics' 
     },
     { 
       type: 'single',
@@ -248,11 +260,73 @@ export const AdminLayout: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-             <button className="relative p-1.5 text-gray-400 hover:text-blue-600 transition-all">
-                <Bell className="w-4 h-4" />
-                <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-red-500 rounded-full border border-white"></span>
-             </button>
+          <div className="flex items-center gap-3 bg-white">
+             <div className="relative">
+               <button 
+                 onClick={() => setShowNotifications(!showNotifications)}
+                 className="relative p-1.5 text-gray-400 hover:text-blue-600 transition-all focus:outline-none"
+               >
+                  <Bell className="w-5 h-5 pointer-events-none" />
+                  {unreadCount > 0 && (
+                    <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white animate-bounce pointer-events-none" />
+                  )}
+               </button>
+
+               <AnimatePresence>
+                 {showNotifications && (
+                   <motion.div
+                     initial={{ opacity: 0, y: 12, scale: 0.95 }}
+                     animate={{ opacity: 1, y: 0, scale: 1 }}
+                     exit={{ opacity: 0, y: 12, scale: 0.95 }}
+                     className="absolute left-0 mt-3 w-80 bg-white rounded-2xl border border-gray-100 shadow-2xl overflow-hidden z-50 text-right"
+                   >
+                     <div className="px-5 py-3 border-b border-gray-50 flex justify-between items-center bg-gray-50/50">
+                       <span className="text-xs font-black text-gray-900">إشعارات الإدارة ({unreadCount})</span>
+                       <button onClick={() => setShowNotifications(false)} className="text-[10px] text-gray-400 hover:text-gray-600 font-bold">إغلاق</button>
+                     </div>
+                     <div className="max-h-72 overflow-y-auto divide-y divide-gray-50">
+                       {notifications.length === 0 ? (
+                         <div className="p-8 text-center text-xs text-gray-400 font-bold">لا توجد إشعارات جديدة</div>
+                       ) : (
+                         notifications.slice(0, 10).map((n) => (
+                           <div 
+                             key={n.id} 
+                             onClick={async () => {
+                               setShowNotifications(false);
+                               if (!n.isRead && n.id) await markNotificationAsRead(n.id);
+                               if (n.action?.url) navigate(n.action.url);
+                               else if (n.orderId || n.type === 'payment' || n.type === 'settlement') navigate(`/admin/transactions`);
+                               else if (n.type === 'dispute') navigate(`/admin/disputes`);
+                               else if (n.type === 'message' || n.ticketId) navigate(`/admin/support`);
+                               else navigate(`/admin`);
+                             }}
+                             className={`p-4 text-right hover:bg-gray-50 cursor-pointer transition-colors ${!n.isRead ? 'bg-blue-50/20' : ''}`}
+                           >
+                             <div className="flex justify-between items-start gap-2">
+                               <p className="text-[11px] font-black text-gray-900 leading-tight block">{n.title}</p>
+                               {!n.isRead && <span className="w-1.5 h-1.5 bg-blue-600 rounded-full animate-ping shrink-0" />}
+                             </div>
+                             <p className="text-[10px] text-gray-500 mt-1 leading-relaxed line-clamp-2">{n.message}</p>
+                             <span className="text-[8px] text-gray-400 block mt-1.5">
+                               {n.createdAt?.toDate ? new Date(n.createdAt.toDate()).toLocaleTimeString('ar-SA', {hour: '2-digit', minute:'2-digit'}) : 'الآن'}
+                             </span>
+                           </div>
+                         ))
+                       )}
+                     </div>
+                     <div className="p-3 border-t border-gray-50 text-center bg-gray-50/30">
+                       <Link 
+                         to="/admin/support" 
+                         onClick={() => setShowNotifications(false)}
+                         className="text-[10px] font-black text-blue-600 hover:underline block"
+                       >
+                         عرض جميع تذاكر الدعم والنزاعات ←
+                       </Link>
+                     </div>
+                   </motion.div>
+                 )}
+               </AnimatePresence>
+             </div>
              <Link 
                to="/?view=site"
                className="text-[10px] font-black text-gray-500 hover:text-blue-600 transition-all border-r border-gray-100 pr-3 flex items-center gap-1.5"

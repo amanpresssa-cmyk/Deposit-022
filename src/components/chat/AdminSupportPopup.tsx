@@ -18,14 +18,20 @@ export const AdminSupportPopup: React.FC<AdminSupportPopupProps> = ({ onReply })
     const q = query(
       collection(db, 'notifications'),
       where('userId', '==', 'ADMIN'),
-      where('isRead', '==', false),
-      orderBy('createdAt', 'desc'),
-      limit(1)
+      where('isRead', '==', false)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (!snapshot.empty) {
-        const notif = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+        const items = snapshot.docs.map(d => ({ id: d.id, ...d.data() as any }));
+        // Sort client-side by createdAt desc
+        items.sort((a, b) => {
+          const timeA = a.createdAt?.toDate?.()?.getTime() || 0;
+          const timeB = b.createdAt?.toDate?.()?.getTime() || 0;
+          return timeB - timeA;
+        });
+
+        const notif = items[0];
         if (!isFirstLoad) {
           // Play sound
           try {

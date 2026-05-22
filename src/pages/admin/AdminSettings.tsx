@@ -38,6 +38,357 @@ interface Toast {
   type: 'success' | 'error';
 }
 
+const processSignatureOrStamp = (file: File, type: 'signature' | 'stamp'): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('تعذر إعداد بيئة معالجة الصور ثنائية الأبعاد (Canvas Context)'));
+          return;
+        }
+
+        // Limit processing dimension to 1200px max to protect CPU memory and ensure quick pixel scanning
+        const maxProcessDim = 1200;
+        let w = img.width;
+        let h = img.height;
+        if (w > maxProcessDim || h > maxProcessDim) {
+          if (w > h) {
+            h = Math.round((h * maxProcessDim) / w);
+            w = maxProcessDim;
+          } else {
+            w = Math.round((w * maxProcessDim) / h);
+            h = maxProcessDim;
+          }
+        }
+
+        canvas.width = w;
+        canvas.height = h;
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+
+        const imgData = ctx.getImageData(0, 0, w, h);
+        const data = imgData.data;
+
+        // Bounding Box algorithm for finding signature/stamp "ink" and cutting off screenshots/background clutter.
+        // We crop out white space, yellow-light backgrounds, and status bar lines.
+        let minX = w;
+        let maxX = 0;
+        let minY = h;
+        let maxY = 0;
+        let inkPixelCount = 0;
+
+        // Signature is usually dark/colored line strokes (blue pen, black ink) on paper.
+        // Stamp is usually circular or rectangular solid color pattern (red, blue, or violet).
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const idx = (y * w + x) * 4;
+            const r = data[idx];
+            const g = data[idx + 1];
+            const b = data[idx + 2];
+
+            const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
+            const maxVal = Math.max(r, g, b);
+            const minVal = Math.min(r, g, b);
+            const colorDiff = maxVal - minVal;
+
+            let isInk = false;
+            if (type === 'signature') {
+              // Signatures are slim/thin dark lines or colored pen strokes
+              // Brightness less than 185 (dark ink), or high color distinction (blue/purple pen, colorDiff > 35)
+              isInk = (brightness < 185) || (colorDiff > 35 && brightness < 225);
+            } else {
+              // Stamps are circular/solid red/blue/purple inks. Matches lower brightness or high color saturation
+              isInk = (brightness < 195) || (colorDiff > 30 && brightness < 228);
+            }
+
+            if (isInk) {
+              if (x < minX) minX = x;
+              if (x > maxX) maxX = x;
+              if (y < minY) minY = y;
+              if (y > maxY) maxY = y;
+              inkPixelCount++;
+            }
+          }
+        }
+
+        const originalWidth = maxX - minX + 1;
+        const originalHeight = maxY - minY + 1;
+
+        // REJECT IF NO LOGICAL SIGNATURE OR STAMP FOUND
+        // A minimal threshold of ink pixel density ensures we reject empty screenshots, blank screens, or uniform solid backdrops.
+        if (inkPixelCount < 180 || originalWidth < 12 || originalHeight < 12) {
+          reject(new Error(
+            type === 'signature' 
+              ? 'صورة التوقيع غير صالحة أو غير واضحة. يرجى رفع صورة تحتوي على التوقيع بخط واضح على خلفية بيضاء أو فاتحة، مع تجنب الصور الفارغة أو الصور المشوهة بالكامل.'
+              : 'صورة الختم غير صالحة أو غير واضحة. يرجى رفع صورة الختم الدائري أو المربع باللون الأحمر أو الأزرق بشكل واجهة واضحة، مع تجنب لقطات الشاشة الفارغة.'
+          ));
+          return;
+        }
+
+        // Add safety padding of e.g. 6% of size or at least 20px to prevent clipping edges
+        const paddingValue = Math.max(20, Math.round(Math.min(w, h) * 0.06));
+        const cropMinX = Math.max(0, minX - paddingValue);
+        const cropMaxX = Math.min(w - 1, maxX + paddingValue);
+        const cropMinY = Math.max(0, minY - paddingValue);
+        const cropMaxY = Math.min(h - 1, maxY + paddingValue);
+
+        const boxWidth = cropMaxX - cropMinX + 1;
+        const boxHeight = cropMaxY - cropMinY + 1;
+
+        // Create secondary canvas to isolate, crop, and run background removal
+        const cropCanvas = document.createElement('canvas');
+        const cropCtx = cropCanvas.getContext('2d');
+        if (!cropCtx) {
+          reject(new Error('خطأ في إعداد معالج الصور التلقائي'));
+          return;
+        }
+
+        cropCanvas.width = boxWidth;
+        cropCanvas.height = boxHeight;
+
+        const cropData = ctx.getImageData(cropMinX, cropMinY, boxWidth, boxHeight);
+        const pixels = cropData.data;
+
+        // Perform transparent background extraction and ink crisp enhancement
+        for (let i = 0; i < pixels.length; i += 4) {
+          const r = pixels[i];
+          const g = pixels[i + 1];
+          const b = pixels[i + 2];
+
+          const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
+          const maxVal = Math.max(r, g, b);
+          const minVal = Math.min(r, g, b);
+          const colorDiff = maxVal - minVal;
+
+          // Transparent filter threshold
+          // If pixel is light/white/yellow (brightness > 200 and not heavily saturated color), make it fully transparent (transparentise)
+          if (brightness > 195 && colorDiff < 30) {
+            pixels[i + 3] = 0; // Transparent alpha
+          } else if (brightness > 175 && colorDiff < 20) {
+            // Anti-aliasing margin feathering
+            const alphaRatio = (195 - brightness) / 20;
+            pixels[i + 3] = Math.max(0, Math.min(255, Math.round(alphaRatio * 255)));
+          } else {
+            // Ink pixel: Boost ink crisp/vibrancy for a professional outcome
+            if (type === 'signature') {
+              // Enhance pen stroke darkness
+              const factor = 1.1; // Dark contrast factor
+              pixels[i] = Math.max(0, Math.round(r * 0.8));
+              pixels[i + 1] = Math.max(0, Math.round(g * 0.8));
+              pixels[i + 2] = Math.max(0, Math.round(b * 0.8));
+            } else {
+              // Stamp colors: rich red or rich blue
+              if (colorDiff > 25) {
+                pixels[i] = Math.min(255, Math.round(r * 1.15));
+                pixels[i + 1] = Math.min(255, Math.round(g * 0.9));
+                pixels[i + 2] = Math.min(255, Math.round(b * 0.9));
+              } else {
+                pixels[i] = Math.max(0, Math.round(r * 0.75));
+                pixels[i + 1] = Math.max(0, Math.round(g * 0.75));
+                pixels[i + 2] = Math.max(0, Math.round(b * 0.75));
+              }
+            }
+            pixels[i + 3] = 255; // Keep background-removed foreground elements opaque
+          }
+        }
+
+        cropCtx.putImageData(cropData, 0, 0);
+
+        // Final Scale down to match ideal document/print rendering sizes (while saving Firestore space, base64 < 80kb)
+        // Signatures are best fit at around 320px width, Stamps around 180px
+        const targetMaxDim = type === 'signature' ? 320 : 180;
+        let finalW = boxWidth;
+        let finalH = boxHeight;
+        if (finalW > targetMaxDim || finalH > targetMaxDim) {
+          if (finalW > finalH) {
+            finalH = Math.round((finalH * targetMaxDim) / finalW);
+            finalW = targetMaxDim;
+          } else {
+            finalW = Math.round((finalW * targetMaxDim) / finalH);
+            finalH = targetMaxDim;
+          }
+        }
+
+        const finalCanvas = document.createElement('canvas');
+        const finalCtx = finalCanvas.getContext('2d');
+        if (!finalCtx) {
+          reject(new Error('خطأ في إعداد التصدير النهائي للصورة'));
+          return;
+        }
+
+        finalCanvas.width = finalW;
+        finalCanvas.height = finalH;
+        finalCtx.drawImage(cropCanvas, 0, 0, finalW, finalH);
+
+        resolve(finalCanvas.toDataURL('image/png', 0.95));
+      };
+      img.onerror = () => reject(new Error('تعذر قراءة أو تحميل ملف الصورة المصدرية.'));
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => reject(new Error('فشل قراءة الملف المختار من الذاكرة المحليّة.'));
+    reader.readAsDataURL(file);
+  });
+};
+
+const processLogoOrFavicon = (file: File, type: 'logo' | 'favicon'): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('تعذر إعداد بيئة معالجة الصور ثنائية الأبعاد (Canvas Context)'));
+          return;
+        }
+
+        // Limit processing dimension to 1200px max
+        const maxProcessDim = 1200;
+        let w = img.width;
+        let h = img.height;
+        if (w > maxProcessDim || h > maxProcessDim) {
+          if (w > h) {
+            h = Math.round((h * maxProcessDim) / w);
+            w = maxProcessDim;
+          } else {
+            w = Math.round((w * maxProcessDim) / h);
+            h = maxProcessDim;
+          }
+        }
+
+        canvas.width = w;
+        canvas.height = h;
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+
+        const imgData = ctx.getImageData(0, 0, w, h);
+        const data = imgData.data;
+
+        // Auto Bounding Box detection for non-white / colorful content
+        let minX = w;
+        let maxX = 0;
+        let minY = h;
+        let maxY = 0;
+        let contentPixelCount = 0;
+
+        for (let y = 0; y < h; y++) {
+          if (y < h * 0.05 || y > h * 0.95) continue;
+
+          for (let x = 0; x < w; x++) {
+            if (x < w * 0.03 || x > w * 0.97) continue;
+
+            const idx = (y * w + x) * 4;
+            const r = data[idx];
+            const g = data[idx + 1];
+            const b = data[idx + 2];
+
+            const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
+            if (brightness < 242) {
+              if (x < minX) minX = x;
+              if (x > maxX) maxX = x;
+              if (y < minY) minY = y;
+              if (y > maxY) maxY = y;
+              contentPixelCount++;
+            }
+          }
+        }
+
+        let boxWidth = maxX - minX + 1;
+        let boxHeight = maxY - minY + 1;
+        let useCropping = true;
+
+        if (contentPixelCount < 100 || boxWidth < 10 || boxHeight < 10) {
+          minX = 0;
+          minY = 0;
+          boxWidth = w;
+          boxHeight = h;
+          useCropping = false;
+        }
+
+        const cropCanvas = document.createElement('canvas');
+        const cropCtx = cropCanvas.getContext('2d');
+        if (!cropCtx) {
+          reject(new Error('خطأ في إعداد معالج الصور التلقائي'));
+          return;
+        }
+
+        cropCanvas.width = boxWidth;
+        cropCanvas.height = boxHeight;
+
+        if (useCropping) {
+          cropCtx.drawImage(img, minX, minY, boxWidth, boxHeight, 0, 0, boxWidth, boxHeight);
+        } else {
+          cropCtx.drawImage(img, 0, 0, w, h, 0, 0, boxWidth, boxHeight);
+        }
+
+        const cropImgData = cropCtx.getImageData(0, 0, boxWidth, boxHeight);
+        const pixels = cropImgData.data;
+
+        for (let i = 0; i < pixels.length; i += 4) {
+          const r = pixels[i];
+          const g = pixels[i + 1];
+          const b = pixels[i + 2];
+          const a = pixels[i + 3];
+
+          if (a > 0) {
+            const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
+            const maxVal = Math.max(r, g, b);
+            const minVal = Math.min(r, g, b);
+            const colorDiff = maxVal - minVal;
+
+            if (brightness > 240 && colorDiff < 15) {
+              pixels[i + 3] = 0;
+            } else if (brightness > 215 && colorDiff < 15) {
+              const alphaRatio = (240 - brightness) / 25;
+              pixels[i + 3] = Math.max(0, Math.min(255, Math.round(alphaRatio * 255)));
+            }
+          }
+        }
+
+        cropCtx.putImageData(cropImgData, 0, 0);
+
+        const targetMaxDim = type === 'logo' ? 400 : 96;
+        let finalW = boxWidth;
+        let finalH = boxHeight;
+
+        if (finalW > targetMaxDim || finalH > targetMaxDim) {
+          if (finalW > finalH) {
+            finalH = Math.round((finalH * targetMaxDim) / finalW);
+            finalW = targetMaxDim;
+          } else {
+            finalW = Math.round((finalW * targetMaxDim) / finalH);
+            finalH = targetMaxDim;
+          }
+        }
+
+        const finalCanvas = document.createElement('canvas');
+        const finalCtx = finalCanvas.getContext('2d');
+        if (!finalCtx) {
+          reject(new Error('خطأ في إعداد التصدير النهائي للشعار'));
+          return;
+        }
+
+        finalCanvas.width = finalW;
+        finalCanvas.height = finalH;
+        finalCtx.drawImage(cropCanvas, 0, 0, finalW, finalH);
+
+        resolve(finalCanvas.toDataURL('image/png', 0.95));
+      };
+      img.onerror = () => reject(new Error('تعذر قراءة أو تحميل ملف الصورة المصدرية.'));
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => reject(new Error('فشل قراءة الملف المختار من الذاكرة المحليّة.'));
+    reader.readAsDataURL(file);
+  });
+};
+
 export const AdminSettings: React.FC = () => {
   const { profile, user } = useAuth();
   const isAdmin = user?.email === 'khyratfarmdates@gmail.com' || profile?.isAdmin;
@@ -47,8 +398,110 @@ export const AdminSettings: React.FC = () => {
   const [saving, setSaving] = useState<string | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
 
+  // Signature / Stamp Processing States
+  const [sigProcessing, setSigProcessing] = useState(false);
+  const [sigError, setSigError] = useState<string | null>(null);
+  const [stampProcessing, setStampProcessing] = useState(false);
+  const [stampError, setStampError] = useState<string | null>(null);
+  const [isSigDragOver, setIsSigDragOver] = useState(false);
+  const [isStampDragOver, setIsStampDragOver] = useState(false);
+
+  // Logo / Favicon Processing States
+  const [logoProcessing, setLogoProcessing] = useState(false);
+  const [logoError, setLogoError] = useState<string | null>(null);
+  const [isLogoDragOver, setIsLogoDragOver] = useState(false);
+  const [faviconProcessing, setFaviconProcessing] = useState(false);
+  const [faviconError, setFaviconError] = useState<string | null>(null);
+  const [isFaviconDragOver, setIsFaviconDragOver] = useState(false);
+
+  const handleSignatureUpload = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      setSigError('يرجى اختيار ملف صورة صالح (PNG، JPG، JPEG)');
+      return;
+    }
+    setSigProcessing(true);
+    setSigError(null);
+    try {
+      const processedBase64 = await processSignatureOrStamp(file, 'signature');
+      setGeneral(p => ({ ...p, signatureUrl: processedBase64 }));
+      showToast('تمت معالجة وتفريغ التوقيع وتلقينه بنجاح');
+    } catch (err: any) {
+      setSigError(err.message || 'فشل معالجة صورة التوقيع');
+      showToast('فشل في معالجة التوقيع المرفوع', 'error');
+    } finally {
+      setSigProcessing(false);
+    }
+  };
+
+  const handleStampUpload = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      setStampError('يرجى اختيار ملف صورة صالح (PNG، JPG، JPEG)');
+      return;
+    }
+    setStampProcessing(true);
+    setStampError(null);
+    try {
+      const processedBase64 = await processSignatureOrStamp(file, 'stamp');
+      setGeneral(p => ({ ...p, stampUrl: processedBase64 }));
+      showToast('تمت معالجة وتفريغ الختم بنجاح');
+    } catch (err: any) {
+      setStampError(err.message || 'فشل معالجة صورة الختم');
+      showToast('فشل في معالجة الختم المرفوع', 'error');
+    } finally {
+      setStampProcessing(false);
+    }
+  };
+
+  const handleLogoUpload = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      setLogoError('يرجى اختيار ملف صورة صالح (PNG، JPG، JPEG)');
+      return;
+    }
+    setLogoProcessing(true);
+    setLogoError(null);
+    try {
+      const processedBase64 = await processLogoOrFavicon(file, 'logo');
+      setGeneral(p => ({ ...p, logoUrl: processedBase64 }));
+      showToast('تمت معالجة وتفريغ الشعار بنجاح');
+    } catch (err: any) {
+      setLogoError(err.message || 'فشل معالجة صورة الشعار');
+      showToast('فشل في معالجة الشعار المرفوع', 'error');
+    } finally {
+      setLogoProcessing(false);
+    }
+  };
+
+  const handleFaviconUpload = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      setFaviconError('يرجى اختيار ملف صورة صالح (PNG، JPG، JPEG)');
+      return;
+    }
+    setFaviconProcessing(true);
+    setFaviconError(null);
+    try {
+      const processedBase64 = await processLogoOrFavicon(file, 'favicon');
+      setGeneral(p => ({ ...p, faviconUrl: processedBase64 }));
+      showToast('تمت معالجة وتفريغ الأيقونة بنجاح');
+    } catch (err: any) {
+      setFaviconError(err.message || 'فشل معالجة صورة الأيقونة');
+      showToast('فشل في معالجة الأيقونة المرفوعة', 'error');
+    } finally {
+      setFaviconProcessing(false);
+    }
+  };
+
   // Settings States
-  const [general, setGeneral] = useState({ platformName: '', platformTagline: '', logoUrl: '', faviconUrl: '' });
+  const [general, setGeneral] = useState({ 
+    platformName: '', 
+    platformTagline: '', 
+    logoUrl: '', 
+    faviconUrl: '',
+    signatoryName: '',
+    signatoryTitle: '',
+    signatureUrl: '',
+    stampUrl: '',
+    stampText: ''
+  });
   const [homeCard, setHomeCard] = useState({ imageUrl: '', quote: '', author: '' });
   const [announcement, setAnnouncement] = useState({ text: '', type: 'info', isActive: false, link: '' });
   const [appearance, setAppearance] = useState({ primaryColor: '#2563eb', theme: 'light', font: 'inter' });
@@ -74,7 +527,7 @@ export const AdminSettings: React.FC = () => {
     if (!isAdmin) return;
 
     const unsubs = [
-      onSnapshot(doc(db, 'app_settings', 'general'), d => d.exists() && setGeneral(d.data() as any), (err) => handleFirestoreError(err, OperationType.GET, 'app_settings/general')),
+      onSnapshot(doc(db, 'app_settings', 'general'), d => d.exists() && setGeneral(prev => ({ ...prev, ...d.data() })), (err) => handleFirestoreError(err, OperationType.GET, 'app_settings/general')),
       onSnapshot(doc(db, 'app_settings', 'home_card'), d => d.exists() && setHomeCard(d.data() as any), (err) => handleFirestoreError(err, OperationType.GET, 'app_settings/home_card')),
       onSnapshot(doc(db, 'app_settings', 'announcement'), d => d.exists() && setAnnouncement(d.data() as any), (err) => handleFirestoreError(err, OperationType.GET, 'app_settings/announcement')),
       onSnapshot(doc(db, 'app_settings', 'appearance'), d => d.exists() && setAppearance(d.data() as any), (err) => handleFirestoreError(err, OperationType.GET, 'app_settings/appearance')),
@@ -204,33 +657,386 @@ export const AdminSettings: React.FC = () => {
                          className="w-full bg-gray-50 rounded-2xl p-4 text-sm font-bold border border-transparent focus:border-blue-500 outline-none transition-all"
                        />
                     </div>
-                    <div className="space-y-2">
-                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1 block">رابط الشعار (Logo URL)</label>
-                       <div className="relative">
-                          <ImageIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          <input 
-                            type="text" 
-                            value={general.logoUrl}
-                            onChange={e => setGeneral(p => ({...p, logoUrl: e.target.value}))}
-                            placeholder="https://example.com/logo.png"
-                            className="w-full bg-gray-50 rounded-2xl p-4 pl-12 text-sm font-bold border border-transparent focus:border-blue-500 outline-none transition-all"
-                            dir="ltr"
-                          />
-                       </div>
+                     {/* Platform Logo Customization block */}
+                     <div className="space-y-2">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1 block">شعار المنصة الرسمي (شعار علوي)</label>
+                        
+                        {general.logoUrl ? (
+                          <div className="border border-gray-100 bg-gray-50/50 p-4 rounded-2xl space-y-4">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] bg-green-50 text-green-600 px-2.5 py-0.5 rounded-full font-black">الشعار جاهز ومفرّغ تلقائياً</span>
+                              <button
+                                type="button"
+                                onClick={() => setGeneral(p => ({ ...p, logoUrl: '' }))}
+                                className="text-red-500 hover:text-red-600 text-[10px] font-black flex items-center gap-1 transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                حذف الشعار
+                              </button>
+                            </div>
+                            <div 
+                              className="w-full h-24 rounded-xl flex items-center justify-center p-2 relative overflow-hidden"
+                              style={{
+                                backgroundImage: `radial-gradient(#e5e7eb 20%, transparent 20%), radial-gradient(#e5e7eb 20%, transparent 20%)`,
+                                backgroundPosition: '0 0, 8px 8px',
+                                backgroundSize: '16px 16px',
+                                backgroundColor: '#fcfcfc'
+                              }}
+                            >
+                              <img 
+                                src={general.logoUrl} 
+                                alt="شعار المنصة" 
+                                className="max-h-full max-w-full object-contain filter drop-shadow-sm select-none"
+                                referrerPolicy="no-referrer"
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <div
+                            onDragOver={(e) => { e.preventDefault(); setIsLogoDragOver(true); }}
+                            onDragLeave={() => setIsLogoDragOver(false)}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              setIsLogoDragOver(false);
+                              if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                                handleLogoUpload(e.dataTransfer.files[0]);
+                              }
+                            }}
+                            className={`border-2 border-dashed rounded-2xl p-6 transition-all text-center flex flex-col items-center justify-center relative ${
+                              isLogoDragOver 
+                                ? 'border-blue-500 bg-blue-50/40' 
+                                : 'border-gray-200 bg-gray-50 hover:bg-gray-100/50'
+                            }`}
+                          >
+                            <input 
+                              type="file"
+                              accept="image/*"
+                              id="logo-file-upload"
+                              className="hidden"
+                              onChange={(e) => {
+                                if (e.target.files && e.target.files[0]) {
+                                  handleLogoUpload(e.target.files[0]);
+                                }
+                              }}
+                            />
+                            {logoProcessing ? (
+                              <div className="space-y-2 py-2">
+                                <Upload className="w-6 h-6 text-blue-500 animate-bounce mx-auto" />
+                                <span className="text-xs font-black text-gray-950 block">جاري معالجة وتفريغ الشعار...</span>
+                                <span className="text-[9px] text-gray-400 font-bold block">نقوم بمسح الحواف وعزل الخلفية للشفافية</span>
+                              </div>
+                            ) : (
+                              <label htmlFor="logo-file-upload" className="cursor-pointer space-y-2 py-1 w-full block">
+                                <Upload className="w-6 h-6 text-gray-400 mx-auto transition-transform hover:scale-110" />
+                                <span className="text-xs font-black text-gray-700 block">اضغط لرفع الشعار أو اسحبه هنا</span>
+                                <span className="text-[9px] text-gray-400 font-black block">نقوم بتهيئة الشعار وتفريغ لونه الأبيض تلقائياً ليلائم جميع الخلفيات</span>
+                              </label>
+                            )}
+                          </div>
+                        )}
+                        
+                        {logoError && (
+                          <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-600 text-[10px] font-bold flex items-start gap-2 leading-relaxed animate-pulse">
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                            <span>{logoError}</span>
+                          </div>
+                        )}
+                     </div>
+
+                     {/* Platform Favicon Customization block */}
+                     <div className="space-y-2">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1 block">أيقونة المنصة الصغيرة (Favicon)</label>
+                        
+                        {general.faviconUrl ? (
+                          <div className="border border-gray-100 bg-gray-50/50 p-4 rounded-2xl space-y-4">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] bg-green-50 text-green-600 px-2.5 py-0.5 rounded-full font-black">جاهزة ومفرّغ تلقائياً</span>
+                              <button
+                                type="button"
+                                onClick={() => setGeneral(p => ({ ...p, faviconUrl: '' }))}
+                                className="text-red-500 hover:text-red-600 text-[10px] font-black flex items-center gap-1 transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                حذف الأيقونة
+                              </button>
+                            </div>
+                            <div 
+                              className="w-16 h-16 mx-auto rounded-xl flex items-center justify-center p-2 relative overflow-hidden"
+                              style={{
+                                backgroundImage: `radial-gradient(#e5e7eb 20%, transparent 20%), radial-gradient(#e5e7eb 20%, transparent 20%)`,
+                                backgroundPosition: '0 0, 4px 4px',
+                                backgroundSize: '8px 8px',
+                                backgroundColor: '#fcfcfc'
+                              }}
+                            >
+                              <img 
+                                src={general.faviconUrl} 
+                                alt="أيقونة المنصة" 
+                                className="max-h-full max-w-full object-contain filter drop-shadow-sm select-none"
+                                referrerPolicy="no-referrer"
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <div
+                            onDragOver={(e) => { e.preventDefault(); setIsFaviconDragOver(true); }}
+                            onDragLeave={() => setIsFaviconDragOver(false)}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              setIsFaviconDragOver(false);
+                              if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                                handleFaviconUpload(e.dataTransfer.files[0]);
+                              }
+                            }}
+                            className={`border-2 border-dashed rounded-2xl p-6 transition-all text-center flex flex-col items-center justify-center relative ${
+                              isFaviconDragOver 
+                                ? 'border-blue-500 bg-blue-50/40' 
+                                : 'border-gray-200 bg-gray-50 hover:bg-gray-100/50'
+                            }`}
+                          >
+                            <input 
+                              type="file"
+                              accept="image/*"
+                              id="favicon-file-upload"
+                              className="hidden"
+                              onChange={(e) => {
+                                if (e.target.files && e.target.files[0]) {
+                                  handleFaviconUpload(e.target.files[0]);
+                                }
+                              }}
+                            />
+                            {faviconProcessing ? (
+                              <div className="space-y-2 py-2">
+                                <Upload className="w-6 h-6 text-blue-500 animate-bounce mx-auto" />
+                                <span className="text-xs font-black text-gray-950 block">جاري عزل وتوليد رمز favicon...</span>
+                              </div>
+                            ) : (
+                              <label htmlFor="favicon-file-upload" className="cursor-pointer space-y-2 py-1 w-full block">
+                                <Upload className="w-6 h-6 text-gray-400 mx-auto transition-transform hover:scale-110" />
+                                <span className="text-xs font-black text-gray-700 block">اضغط لرفع الرمز أو اسحبه هنا</span>
+                                <span className="text-[9px] text-gray-400 font-black block">نقوم بتهيئة الصورة وتفريغ الشفافية بمقاس مثلي ومربع ۹٦×۹٦</span>
+                              </label>
+                            )}
+                          </div>
+                        )}
+                        
+                        {faviconError && (
+                          <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-600 text-[10px] font-bold flex items-start gap-2 leading-relaxed animate-pulse">
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                            <span>{faviconError}</span>
+                          </div>
+                        )}
+                     </div>
+
+                    {/* Report Signature & Stamp Customization */}
+                    <div className="md:col-span-2 pt-6 border-t border-gray-100">
+                      <h4 className="text-xs font-black text-blue-600 uppercase tracking-wider mb-1">تخصيص أختام وتوقيعات التقارير الرسمية</h4>
+                      <p className="text-[10px] text-gray-400 font-bold leading-normal">تتحكم هذه الحقول بالختم والتوقيع اللذين يظهران تلقائياً في أسفل تقارير النظام المطبوعة والمصدرة بصيغة PDF.</p>
                     </div>
+
                     <div className="space-y-2">
-                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1 block">رابط الأيقونة (Favicon URL)</label>
-                       <div className="relative">
-                          <Globe className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          <input 
-                            type="text" 
-                            value={general.faviconUrl}
-                            onChange={e => setGeneral(p => ({...p, faviconUrl: e.target.value}))}
-                            placeholder="https://example.com/favicon.ico"
-                            className="w-full bg-gray-50 rounded-2xl p-4 pl-12 text-sm font-bold border border-transparent focus:border-blue-500 outline-none transition-all"
-                            dir="ltr"
-                          />
-                       </div>
+                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1 block">اسم الموقّع المعتمد</label>
+                       <input 
+                         type="text" 
+                         value={general.signatoryName || ''}
+                         onChange={e => setGeneral(p => ({...p, signatoryName: e.target.value}))}
+                         placeholder="مثال: أحمد عبد الله الراضي"
+                         className="w-full bg-gray-50 rounded-2xl p-4 text-sm font-bold border border-transparent focus:border-blue-500 outline-none transition-all"
+                       />
+                    </div>
+
+                    <div className="space-y-2">
+                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1 block">المسمى الوظيفي للموقّع</label>
+                       <input 
+                         type="text" 
+                         value={general.signatoryTitle || ''}
+                         onChange={e => setGeneral(p => ({...p, signatoryTitle: e.target.value}))}
+                         placeholder="مثال: المدير العام والمشرف المالي"
+                         className="w-full bg-gray-50 rounded-2xl p-4 text-sm font-bold border border-transparent focus:border-blue-500 outline-none transition-all"
+                       />
+                    </div>
+
+                     {/* Certified Signature Upload Block */}
+                     <div className="space-y-2">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1 block">صورة التوقيع الرسمي المعتمد</label>
+                        
+                        {general.signatureUrl ? (
+                          <div className="border border-gray-100 bg-gray-50/50 p-4 rounded-2xl space-y-4">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] bg-green-50 text-green-600 px-2.5 py-0.5 rounded-full font-black">جاهز ومفرّغ تلقائياً</span>
+                              <button
+                                type="button"
+                                onClick={() => setGeneral(p => ({ ...p, signatureUrl: '' }))}
+                                className="text-red-500 hover:text-red-600 text-[10px] font-black flex items-center gap-1 transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                حذف التوقيع
+                              </button>
+                            </div>
+                            <div 
+                              className="w-full h-24 rounded-xl flex items-center justify-center p-2 relative overflow-hidden"
+                              style={{
+                                backgroundImage: `radial-gradient(#e5e7eb 20%, transparent 20%), radial-gradient(#e5e7eb 20%, transparent 20%)`,
+                                backgroundPosition: '0 0, 8px 8px',
+                                backgroundSize: '16px 16px',
+                                backgroundColor: '#fcfcfc'
+                              }}
+                            >
+                              <img 
+                                src={general.signatureUrl} 
+                                alt="الموقع المحاسبي المعتمد" 
+                                className="max-h-full max-w-full object-contain filter drop-shadow-sm select-none"
+                                referrerPolicy="no-referrer"
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <div
+                            onDragOver={(e) => { e.preventDefault(); setIsSigDragOver(true); }}
+                            onDragLeave={() => setIsSigDragOver(false)}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              setIsSigDragOver(false);
+                              if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                                handleSignatureUpload(e.dataTransfer.files[0]);
+                              }
+                            }}
+                            className={`border-2 border-dashed rounded-2xl p-6 transition-all text-center flex flex-col items-center justify-center relative ${
+                              isSigDragOver 
+                                ? 'border-blue-500 bg-blue-50/40' 
+                                : 'border-gray-200 bg-gray-50 hover:bg-gray-100/50'
+                            }`}
+                          >
+                            <input 
+                              type="file"
+                              accept="image/*"
+                              id="signature-file-upload"
+                              className="hidden"
+                              onChange={(e) => {
+                                if (e.target.files && e.target.files[0]) {
+                                  handleSignatureUpload(e.target.files[0]);
+                                }
+                              }}
+                            />
+                            {sigProcessing ? (
+                              <div className="space-y-2 py-2">
+                                <Upload className="w-6 h-6 text-blue-500 animate-bounce mx-auto" />
+                                <span className="text-xs font-black text-gray-950 block">جاري فحص وتفريغ التوقيع المحاسبي...</span>
+                                <span className="text-[9px] text-gray-400 font-bold block">نقوم بمسح البيكسلات، عزل الخلفيات، وتجاهل لقطات شاشات الهاتف تلقائياً</span>
+                              </div>
+                            ) : (
+                              <label htmlFor="signature-file-upload" className="cursor-pointer space-y-2 py-1 w-full block">
+                                <Upload className="w-6 h-6 text-gray-400 mx-auto transition-transform hover:scale-110" />
+                                <span className="text-xs font-black text-gray-700 block">اضغط لرفع الرمز أو إسحبه إلى هنا</span>
+                                <span className="text-[9px] text-gray-400 font-black block">نظام تنظيف ذكي للقطات الجوال والتحجيم الآلي للشفافية</span>
+                              </label>
+                            )}
+                          </div>
+                        )}
+                        
+                        {sigError && (
+                          <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-600 text-[10px] font-bold flex items-start gap-2 leading-relaxed animate-pulse">
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                            <span>{sigError}</span>
+                          </div>
+                        )}
+                     </div>
+
+                     {/* Certified Stamp Upload Block */}
+                     <div className="space-y-2">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1 block">صورة الختم الرسمي المعتمد</label>
+                        
+                        {general.stampUrl ? (
+                          <div className="border border-gray-100 bg-gray-50/50 p-4 rounded-2xl space-y-4">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] bg-green-50 text-green-600 px-2.5 py-0.5 rounded-full font-black">جاهز ومفرّغ تلقائياً</span>
+                              <button
+                                type="button"
+                                onClick={() => setGeneral(p => ({ ...p, stampUrl: '' }))}
+                                className="text-red-500 hover:text-red-600 text-[10px] font-black flex items-center gap-1 transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                حذف الختم
+                              </button>
+                            </div>
+                            <div 
+                              className="w-full h-32 rounded-xl flex items-center justify-center p-3 relative overflow-visible"
+                              style={{
+                                backgroundImage: `radial-gradient(#e5e7eb 20%, transparent 20%), radial-gradient(#e5e7eb 20%, transparent 20%)`,
+                                backgroundPosition: '0 0, 8px 8px',
+                                backgroundSize: '16px 16px',
+                                backgroundColor: '#fcfcfc'
+                              }}
+                            >
+                              <img 
+                                src={general.stampUrl} 
+                                alt="ختم التوثيق المحاسبي" 
+                                className="max-h-full max-w-full object-contain filter drop-shadow select-none transition-transform duration-300 hover:scale-[1.03]"
+                                referrerPolicy="no-referrer"
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <div
+                            onDragOver={(e) => { e.preventDefault(); setIsStampDragOver(true); }}
+                            onDragLeave={() => setIsStampDragOver(false)}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              setIsStampDragOver(false);
+                              if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                                handleStampUpload(e.dataTransfer.files[0]);
+                              }
+                            }}
+                            className={`border-2 border-dashed rounded-2xl p-6 transition-all text-center flex flex-col items-center justify-center relative ${
+                              isStampDragOver 
+                                ? 'border-blue-500 bg-blue-50/40' 
+                                : 'border-gray-200 bg-gray-50 hover:bg-gray-100/50'
+                            }`}
+                          >
+                            <input 
+                              type="file"
+                              accept="image/*"
+                              id="stamp-file-upload"
+                              className="hidden"
+                              onChange={(e) => {
+                                if (e.target.files && e.target.files[0]) {
+                                  handleStampUpload(e.target.files[0]);
+                                }
+                              }}
+                            />
+                            {stampProcessing ? (
+                              <div className="space-y-2 py-2">
+                                <Upload className="w-6 h-6 text-blue-500 animate-bounce mx-auto" />
+                                <span className="text-xs font-black text-gray-950 block">جاري فحص وتفريغ الختم والواجهة...</span>
+                                <span className="text-[9px] text-gray-400 font-bold block">نقوم بمسح محيط الختم، عزل الخلفيات غير المرغوبة، وضبط الحدود</span>
+                              </div>
+                            ) : (
+                              <label htmlFor="stamp-file-upload" className="cursor-pointer space-y-2 py-1 w-full block">
+                                <Upload className="w-6 h-6 text-gray-400 mx-auto transition-transform hover:scale-110" />
+                                <span className="text-xs font-black text-gray-700 block">اضغط لرفع الختم أو إسحبه إلى هنا</span>
+                                <span className="text-[9px] text-gray-400 font-black block">نظام عزل وتنقيب الختم من الصور الملتقطة واللقطات العشوائية</span>
+                              </label>
+                            )}
+                          </div>
+                        )}
+                        
+                        {stampError && (
+                          <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-600 text-[10px] font-bold flex items-start gap-2 leading-relaxed animate-pulse">
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                            <span>{stampError}</span>
+                          </div>
+                        )}
+                     </div>
+
+                    <div className="space-y-2 md:col-span-2">
+                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1 block">النص الأساسي للختم الرسمي الدائري</label>
+                       <input 
+                         type="text" 
+                         value={general.stampText || ''}
+                         onChange={e => setGeneral(p => ({...p, stampText: e.target.value}))}
+                         placeholder="مثال: ختم الاعتماد المالي والمطابقة لمنصة عربون"
+                         className="w-full bg-gray-50 rounded-2xl p-4 text-sm font-bold border border-transparent focus:border-blue-500 outline-none transition-all"
+                       />
                     </div>
                   </div>
                   <button 

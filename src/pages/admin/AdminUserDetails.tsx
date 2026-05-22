@@ -11,8 +11,9 @@ import {
   ShieldCheck, Search, Star, UserX, UserCheck, ExternalLink, Clock, AlertCircle, Ban, 
   Wallet, X, FileText, Calendar, User, Mail, Smartphone, Activity, CheckCircle2, 
   ArrowUpRight, ArrowDownLeft, Settings, MessageSquare, Send, ArrowRight, CheckSquare, 
-  Square, ShieldAlert, Award
+  Square, ShieldAlert, Award, Globe
 } from 'lucide-react';
+
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import { recordAuditLog } from '../../lib/notificationService';
@@ -83,6 +84,18 @@ export const AdminUserDetails: React.FC = () => {
       if (snapshot.exists()) {
         const uData = snapshot.data();
         setTargetUser({ uid: snapshot.id, ...uData } as UserProfile);
+        
+        // Auto-check stages based on what user entered (automated ID and OTP verification)
+        const hasId = !!uData.idNumber;
+        const isVerified = uData.verificationStatus === 'verified' || uData.isVerified === true;
+        if (hasId || isVerified) {
+          setVerifyStage1_Name(true);
+          setVerifyStage1_DOB(true);
+          setVerifyStage2_Image(true);
+          setVerifyStage2_DocCorrect(true);
+          setVerifyStage3_Nafath(true);
+          setVerifyStage4_Pledge(true);
+        }
       } else {
         setTargetUser(null);
         toast.error('لم يتم العثور على مستند المستخدم المحدد');
@@ -661,6 +674,23 @@ export const AdminUserDetails: React.FC = () => {
                </div>
             </div>
 
+            {/* رابط عرض صفحة العضو العامة */}
+            <div className="pt-2">
+               <Link
+                  to={`/seller/${targetUser.uid}`}
+                  className="w-full py-3.5 px-4 bg-blue-50/50 dark:bg-blue-950/15 border border-blue-100/60 dark:border-blue-900/35 hover:bg-blue-100/40 dark:hover:bg-blue-900/25 rounded-2xl flex items-center justify-between transition-all"
+               >
+                  <div className="flex items-center gap-2">
+                     <Globe className="w-4 h-4 text-blue-500" />
+                     <span className="text-xs font-black text-gray-700 dark:text-gray-300">عرض الصفحة الشخصية للعامة</span>
+                  </div>
+                  <span className="text-[10px] font-black text-blue-600 bg-blue-100/50 dark:bg-blue-950/40 px-2 py-1 rounded-lg border border-blue-200/50 dark:border-blue-800/40 flex items-center gap-1">
+                     <span>زيارة الصفحة</span>
+                     <ExternalLink className="w-3 h-3" />
+                  </span>
+               </Link>
+            </div>
+
             {/* Block message if blocked */}
             {targetUser.isBlocked && targetUser.blockReason && (
                <div className="p-4 bg-red-50 border-2 border-red-100 rounded-3xl text-right">
@@ -849,7 +879,7 @@ export const AdminUserDetails: React.FC = () => {
                         <div className="space-y-3 bg-gray-50 dark:bg-gray-900/60 p-5 rounded-2xl border border-gray-100 dark:border-gray-800">
                            <h4 className="text-xs font-black text-purple-600 uppercase tracking-widest flex items-center gap-1.5">
                               <span className="w-2 h-2 rounded-full bg-purple-500"></span>
-                              المرحلة الثانية: فحص صور المستند المرفق بصرياً
+                              المرحلة الثانية: الربط الرقمي والتحقق من الهوية الوطنية
                            </h4>
                            
                            <div className="space-y-2.5">
@@ -865,8 +895,8 @@ export const AdminUserDetails: React.FC = () => {
                                     )}
                                  </div>
                                  <div>
-                                    <p className="text-xs font-black text-gray-850 dark:text-gray-200">الصور المرفقة للهوية ملونة ومقروءة بوضوح</p>
-                                    <p className="text-[10px] text-gray-400">خلو الصور من الكتم الفلاشي أو التعتيم وصلاحيتها للقراءة الآلية لوثائق البنوك</p>
+                                    <p className="text-xs font-black text-gray-850 dark:text-gray-200">التحقق الرقمي من هوية العميل عبر بوابة يمام/نفاذ</p>
+                                    <p className="text-[10px] text-gray-400">التأكد الخبير من تطابق رقم الهوية والرمز المؤقت الرقمي مباشرة دون ملفات مرفوعة يدوياً</p>
                                  </div>
                               </button>
 
@@ -882,8 +912,8 @@ export const AdminUserDetails: React.FC = () => {
                                     )}
                                  </div>
                                  <div>
-                                    <p className="text-xs font-black text-gray-850 dark:text-gray-200">أصل السجل وخلوه من محاولات التعديل الرقمي</p>
-                                    <p className="text-[10px] text-gray-400">التأكد الخبير من عدم التلاعب بوجهات المستند عبر برامج التصميم</p>
+                                    <p className="text-xs font-black text-gray-850 dark:text-gray-200">صحة التطابق مع رقم الجوال المرتبط بالهوية الوطنية</p>
+                                    <p className="text-[10px] text-gray-400">التحقق من أن رقم المستلم في الهيئة يطابق كود التأكيد المستلم من مزود الخدمة الموحد</p>
                                  </div>
                               </button>
                            </div>

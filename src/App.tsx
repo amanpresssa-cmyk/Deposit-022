@@ -21,6 +21,7 @@ import { AdminRevenue } from './pages/admin/AdminRevenue';
 import { AdminSettlements } from './pages/admin/AdminSettlements';
 import { AdminSettings } from './pages/admin/AdminSettings';
 import { SystemLogsPage } from './pages/admin/SystemLogsPage';
+import { AdminAnalyticsDashboard } from './pages/admin/AdminAnalyticsDashboard';
 import { useLocation } from 'react-router-dom';
 import { HelpCenterPage } from './pages/HelpCenterPage';
 import { TermsPage } from './pages/TermsPage';
@@ -330,6 +331,7 @@ export default function App() {
                       <Route path="support" element={<AdminSupport />} />
                       <Route path="logs" element={<SystemLogsPage />} />
                       <Route path="settings" element={<AdminSettings />} />
+                      <Route path="analytics" element={<AdminAnalyticsDashboard />} />
                     </Route>
                   )}
 

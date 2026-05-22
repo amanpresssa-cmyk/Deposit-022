@@ -5,6 +5,7 @@ import { db } from '../lib/firebase';
 import { UserProfile, Service, Review, Order } from '../types';
 import { useAuth } from '../hooks/useAuth';
 import { motion } from 'motion/react';
+import { toast } from 'sonner';
 import { 
   ShieldCheck, Star, MapPin, Calendar, MessageCircle, 
   Share2, ArrowRight, ExternalLink, Globe, LayoutGrid, 
@@ -15,7 +16,7 @@ import { ar } from 'date-fns/locale';
 
 export const SellerProfilePage: React.FC = () => {
   const { sellerId } = useParams<{ sellerId: string }>();
-  const { user, profile } = useAuth();
+  const { user, profile, login } = useAuth();
   const [seller, setSeller] = useState<UserProfile | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -39,11 +40,21 @@ export const SellerProfilePage: React.FC = () => {
 
         // Fetch user's orders to see if they've traded with this seller
         if (user) {
-          const q1 = query(collection(db, 'orders'), where('buyerId', '==', user.uid), where('sellerId', '==', sellerId));
-          const q2 = query(collection(db, 'orders'), where('buyerId', '==', sellerId), where('sellerId', '==', user.uid));
-          const [s1, s2] = await Promise.all([getDocs(q1), getDocs(q2)]);
-          const userOrders = [...s1.docs, ...s2.docs].map(d => ({ id: d.id, ...d.data() } as Order));
-          setOrders(userOrders);
+          try {
+            const q1 = query(collection(db, 'orders'), where('buyerId', '==', user.uid));
+            const q2 = query(collection(db, 'orders'), where('sellerId', '==', user.uid));
+            const [s1, s2] = await Promise.all([getDocs(q1), getDocs(q2)]);
+            const allOrders = [...s1.docs, ...s2.docs].map(d => ({ id: d.id, ...d.data() } as Order));
+            const filteredOrders = allOrders.filter(o => o.sellerId === sellerId || o.buyerId === sellerId);
+            setOrders(filteredOrders);
+          } catch (queryErr) {
+            console.warn("Index-free order load failed, trying direct query:", queryErr);
+            const q1 = query(collection(db, 'orders'), where('buyerId', '==', user.uid), where('sellerId', '==', sellerId));
+            const q2 = query(collection(db, 'orders'), where('buyerId', '==', sellerId), where('sellerId', '==', user.uid));
+            const [s1, s2] = await Promise.all([getDocs(q1), getDocs(q2)]);
+            const userOrders = [...s1.docs, ...s2.docs].map(d => ({ id: d.id, ...d.data() } as Order));
+            setOrders(userOrders);
+          }
         }
 
         // Fetch services
@@ -120,21 +131,53 @@ export const SellerProfilePage: React.FC = () => {
     setTimeout(() => setCopied(false), 3000);
   };
 
-  const handleChat = () => {
+  const handleChat = async () => {
     if (!seller) return;
+
+    if (!user) {
+      toast.info('يرجى تسجيل الدخول أولاً لتتمكن من التواصل مع البائع');
+      try {
+        await login();
+      } catch (err) {
+        console.error("Login failed:", err);
+      }
+      return;
+    }
+
+    if (user.uid === sellerId) {
+      toast.error('لا يمكنك التواصل مع نفسك كبائع');
+      return;
+    }
+    
     // Check if we have an existing order with this seller
     const existingOrder = orders.find(o => o.sellerId === sellerId || o.buyerId === sellerId);
     
     if (existingOrder) {
       navigate(`/dashboard?tab=messages&orderId=${existingOrder.id}`);
     } else {
-      // If no order, redirect to create order to initiate contact/negotiation
-      navigate(`/create-order?email=${encodeURIComponent(seller.email || '')}&title=${encodeURIComponent('مناقشة مشروع جديد')}`);
+      // If no order, redirect to create order with targetId to automatically retrieve their verified contact details and initiate contact/negotiation
+      navigate(`/create-order?email=${encodeURIComponent(seller.email || '')}&title=${encodeURIComponent('مناقشة مشروع جديد')}&targetId=${sellerId}`);
     }
   };
 
-  const handleOrder = (service?: Service) => {
+  const handleOrder = async (service?: Service) => {
     if (!seller) return;
+
+    if (!user) {
+      toast.info('يرجى تسجيل الدخول أولاً لتتمكن من طلب خدمة');
+      try {
+        await login();
+      } catch (err) {
+        console.error("Login failed:", err);
+      }
+      return;
+    }
+
+    if (user.uid === sellerId) {
+      toast.error('لا يمكنك طلب خدمة من حسابك الخاص');
+      return;
+    }
+
     let url = `/create-order?email=${encodeURIComponent(seller.email || '')}&targetId=${sellerId}`;
     if (service) {
       url += `&title=${encodeURIComponent(service.title)}&amount=${service.price}&category=${encodeURIComponent(service.category)}`;

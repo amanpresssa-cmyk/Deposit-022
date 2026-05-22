@@ -33,18 +33,8 @@ async function startServer() {
   // نستخدم المنفذ الذي يوفره النظام (PORT) أو 3000 كخيار افتراضي
   const PORT = Number(process.env.PORT) || 3000;
 
-  // في حالة التطوير (Development)
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    // في حالة الإنتاج (Production / Deployment)
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-  }
+  // --- Parsing Middlewares ---
+  app.use(express.json());
 
   // --- Geidea Payment Integration Helpers ---
   const GEIDEA_CONFIG = {
@@ -57,7 +47,97 @@ async function startServer() {
   const isGeideaConfigured = !!(GEIDEA_CONFIG.merchantId && GEIDEA_CONFIG.password);
 
   // --- Payment API Routes ---
-  app.use(express.json());
+
+  // API to check gateway health, credentials, and live connection latency
+  app.get("/api/admin/gateway-status", async (req, res) => {
+    const startGeidea = Date.now();
+    let geideaLatency = -1;
+    let geideaStatus = "offline";
+    let geideaError = "";
+
+    const geideaUrl = process.env.GEIDEA_API_URL || 'https://api.geidea.net/payment-api/v1';
+    const isGe = !!(process.env.GEIDEA_MERCHANT_ID && process.env.GEIDEA_PASSWORD);
+
+    try {
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), 3500);
+      
+      const response = await fetch(geideaUrl, { 
+        method: 'GET',
+        signal: controller.signal
+      });
+      clearTimeout(id);
+      
+      geideaLatency = Date.now() - startGeidea;
+      geideaStatus = "connected"; // Fetch connected and succeeded (or gave status)
+    } catch (err: any) {
+      geideaLatency = Date.now() - startGeidea;
+      // If we got abort or fetch failed, but we still have an IP or DNS route
+      if (err.name === 'AbortError') {
+        geideaStatus = "degraded";
+        geideaError = "تم قطع الاتصال بسبب تجاوز مهلة الاستجابة (3.5 ثانية)";
+      } else {
+        geideaStatus = "offline";
+        geideaError = err.message || "فشل الاتصال بالشبكة الخارجية";
+      }
+    }
+
+    const startSms = Date.now();
+    let smsLatency = -1;
+    let smsStatus = "offline";
+    let smsError = "";
+
+    const smsUrl = process.env.SMS_GATEWAY_URL || 'https://api.yamamah.com';
+    const isSms = !!(process.env.SMS_GATEWAY_API_KEY);
+
+    try {
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), 3500);
+
+      const response = await fetch(smsUrl, { 
+        method: 'GET', 
+        signal: controller.signal 
+      });
+      clearTimeout(id);
+
+      smsLatency = Date.now() - startSms;
+      smsStatus = "connected";
+    } catch (err: any) {
+      smsLatency = Date.now() - startSms;
+      if (err.name === 'AbortError') {
+        smsStatus = "degraded";
+        smsError = "تجاوز وقت الانتظار المحدد";
+      } else {
+        smsStatus = "offline";
+        smsError = err.message || "فشل الاتصال ببوابة الرسائل";
+      }
+    }
+
+    res.json({
+      payment: {
+        provider: 'Geidea Payment Gateway (بوابة جيديا للدفع)',
+        isConfigured: isGe,
+        merchantId: process.env.GEIDEA_MERCHANT_ID ? `${process.env.GEIDEA_MERCHANT_ID.slice(0, 4)}...***` : 'غير معرّف',
+        terminalId: process.env.GEIDEA_TERMINAL_ID ? `${process.env.GEIDEA_TERMINAL_ID.slice(0, 4)}...***` : 'غير معرّف',
+        baseUrl: geideaUrl,
+        status: geideaStatus,
+        latency: geideaLatency,
+        error: geideaError,
+        checkedAt: new Date().toISOString()
+      },
+      sms: {
+        provider: 'Yamama SMS Mediator (بوابة اليمامة للرسائل القصيرة)',
+        isConfigured: isSms,
+        apiKey: process.env.SMS_GATEWAY_API_KEY ? `***...${process.env.SMS_GATEWAY_API_KEY.slice(-4)}` : 'غير معرّف',
+        senderId: process.env.SMS_GATEWAY_SENDER_ID || 'عربون / ARBOON',
+        baseUrl: smsUrl,
+        status: smsStatus,
+        latency: smsLatency,
+        error: smsError,
+        checkedAt: new Date().toISOString()
+      }
+    });
+  });
 
   // Webhook for Geidea Payout Confirmation (Platform Fees)
   app.post("/api/webhooks/geidea-payout", async (req, res) => {
@@ -214,8 +294,17 @@ async function startServer() {
     res.json({ received: true });
   });
 
-  if (process.env.NODE_ENV === "production") {
+  // --- Vite / Static Assets Middleware (MUST BE AFTER API ROUTES) ---
+  if (process.env.NODE_ENV !== "production") {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: "spa",
+    });
+    app.use(vite.middlewares);
+  } else {
+    // في حالة الإنتاج (Production / Deployment)
     const distPath = path.join(process.cwd(), "dist");
+    app.use(express.static(distPath));
     app.get("*", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
     });

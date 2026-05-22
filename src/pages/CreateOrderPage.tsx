@@ -8,7 +8,7 @@ import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { sendOrderSMS } from '../lib/smsService';
 
 export const CreateOrderPage: React.FC = () => {
-  const { user } = useAuth();
+  const { user, login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [loading, setLoading] = useState(false);
@@ -59,6 +59,26 @@ export const CreateOrderPage: React.FC = () => {
       });
     }
   }, [location.search]);
+
+  if (!user) {
+    return (
+      <div className="max-w-md mx-auto my-12 p-8 bg-white rounded-3xl border border-gray-100 shadow-sm text-center space-y-6">
+        <div className="bg-blue-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto text-blue-600">
+          <Shield className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-black text-gray-900">سجل دخولك لبدء صفقة جديدة</h2>
+        <p className="text-sm text-gray-500 leading-relaxed">
+          لتتمكن من إنشاء صفقة ضمان مالي آمنة ومتابعة محادثات البائعين وحجم صفقاتك، يرجى تسجيل الدخول أولاً عن طريق حساب جوجل الموثق.
+        </p>
+        <button
+          onClick={login}
+          className="w-full bg-[#2563eb] text-white py-4 rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-xl shadow-blue-100 flex items-center justify-center gap-2 text-lg"
+        >
+          <span>تسجيل الدخول باستخدام جوجل</span>
+        </button>
+      </div>
+    );
+  }
 
   const categories = ['عقارات', 'سيارات', 'خدمات إلكترونية', 'تعقيب معاملات', 'برمجة وتطوير', 'صناعة تطبيقات', 'مواقع إلكترونية', 'استضافات', 'أجهزة إلكترونية', 'عام'];
 

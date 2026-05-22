@@ -44,8 +44,14 @@ export const AdminSupport: React.FC = () => {
       handleFirestoreError(error, OperationType.GET, 'support_tickets');
     });
 
-    const unsubAlerts = onSnapshot(query(collection(db, 'notifications'), where('userId', '==', 'ADMIN'), orderBy('createdAt', 'desc')), (snapshot) => {
-      setAlerts(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    const unsubAlerts = onSnapshot(query(collection(db, 'notifications'), where('userId', '==', 'ADMIN')), (snapshot) => {
+      const sortedDocs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      sortedDocs.sort((a: any, b: any) => {
+        const timeA = a.createdAt?.toDate?.()?.getTime() || 0;
+        const timeB = b.createdAt?.toDate?.()?.getTime() || 0;
+        return timeB - timeA;
+      });
+      setAlerts(sortedDocs);
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'notifications/ADMIN');
     });

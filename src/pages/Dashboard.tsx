@@ -441,7 +441,7 @@ export const Dashboard: React.FC = () => {
                <StatCard title="مؤشر الثقة" value={`${confidenceScore}%`} icon={ShieldCheck} color="indigo" highlight progress={confidenceScore} />
             </div>
 
-            {!profile?.isVerified && (
+            {!profile?.isVerified && !profile?.isAdmin && user?.email !== 'khyratfarmdates@gmail.com' && (
               <div className="flex flex-col gap-4 md:gap-8 max-w-2xl">
                 <motion.div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-xl md:rounded-[2.5rem] p-3 md:p-8 text-white relative overflow-hidden shadow-lg shadow-blue-100/20">
                   <div className="relative z-10 flex flex-col md:flex-row items-center md:items-center justify-between gap-3 md:gap-8">
