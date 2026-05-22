@@ -27,6 +27,7 @@ import { PhoneVerification } from '../components/PhoneVerification';
 import { IdentityVerification } from '../components/IdentityVerification';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
+import { sendNotification } from '../lib/notificationService';
 
 export const SettingsPage: React.FC = () => {
   const { user, profile, toggle2FA } = useAuth();
@@ -136,7 +137,25 @@ export const SettingsPage: React.FC = () => {
         updatedAt: serverTimestamp()
       };
 
+      const isNewlyEnablingWhatsApp = formData.whatsappEnabled === true && profile?.whatsappEnabled !== true;
+      const isUpdatingWhatsAppNumber = formData.whatsappEnabled === true && profile?.whatsappEnabled === true && formData.whatsappNumber !== profile?.whatsappNumber;
+
       await updateDoc(userRef, updateData);
+
+      if (isNewlyEnablingWhatsApp || isUpdatingWhatsAppNumber) {
+        try {
+          await sendNotification(
+            user.uid,
+            '🎉 تم تفعيل تنبيهات الواتساب بنجاح',
+            `أهلاً بك في نظام أتمتة عربون للواتساب! 🤖🌟\n\nتم ربط حسابك بنجاح. من الآن فصاعداً، ستصلك إشعارات صفقاتك وتحديثاتها مباشرة هنا.\n\n💡 *أوامر سريعة يمكنك تجربتها الآن:*\n- أرسل *(رصيدي)* أو الرقم *(1)* لمعرفة رصيد محفظتك المتاح والمحجوز.\n- أرسل *(طلباتي)* أو الرقم *(2)* لمشاهدة صفقاتك المعلقة وحالاتها.\n\nشرفنا انضمامك لعائلتنا! ✨`,
+            'system',
+            'normal'
+          );
+          console.log("📡 Welcome WhatsApp notification triggered successfully.");
+        } catch (notifErr) {
+          console.error("Failed to send welcome WhatsApp notification:", notifErr);
+        }
+      }
       
       setSavedStatus(true);
       toast.success('تم حفظ التغييرات بنجاح');

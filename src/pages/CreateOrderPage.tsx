@@ -6,6 +6,7 @@ import { db } from '../lib/firebase';
 import { Shield, ChevronRight, AlertCircle, Search, Smartphone, Mail, CreditCard } from 'lucide-react';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { sendOrderSMS } from '../lib/smsService';
+import { sendNotification } from '../lib/notificationService';
 
 export const CreateOrderPage: React.FC = () => {
   const { user, login } = useAuth();
@@ -151,6 +152,28 @@ export const CreateOrderPage: React.FC = () => {
       };
 
       const docRef = await addDoc(collection(db, 'orders'), orderData);
+
+      // Trigger automatic platform, push, and WhatsApp notifications if target user is registered
+      if (targetUserId && targetUserId !== 'unknown') {
+        const titleText = myRole === 'buyer' ? '🔔 طلب خدمة جديد بانتظار قبولك' : '🔔 عرض خدمة جديد بانتظار تعميدك';
+        const messageText = myRole === 'buyer'
+          ? `لقد قام العميل ${user?.displayName || 'مشتري'} بطلب خدمتك (${formData.title.trim()}) بقيمة ${amountNum} ر.س. يرجى قبول الطلب للبدء.`
+          : `لقد قام المعقب ${user?.displayName || 'معقب'} بإنشاء صفقة جديدة لك (${formData.title.trim()}) بقيمة ${amountNum} ر.س. يرجى تعميد الصفقة ودفع الضمان المالي لحفظ حقوقك.`;
+
+        try {
+          await sendNotification(
+            targetUserId,
+            titleText,
+            messageText,
+            'order_update',
+            'normal',
+            docRef.id
+          );
+          console.log(`📡 Notification recorded in Firestore for user ${targetUserId}`);
+        } catch (notifErr) {
+          console.error("Failed to send order creation notification:", notifErr);
+        }
+      }
       
       // Smart Logic: Send SMS invitation if phone is provided
       if (formData.targetPhone) {

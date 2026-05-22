@@ -23,6 +23,7 @@ import { ar } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { calculateOrderFees } from '../lib/payment-utils';
 import { LoginModal } from '../components/auth/LoginModal';
+import { sendNotification } from '../lib/notificationService';
 
 export const ServiceDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -94,6 +95,22 @@ export const ServiceDetailsPage: React.FC = () => {
       };
 
       const docRef = await addDoc(collection(db, 'orders'), newOrder);
+      
+      // Trigger automatic platform, push, and WhatsApp notifications to the seller
+      try {
+        await sendNotification(
+          service.sellerId,
+          '🔔 طلب جديد على خدمتك',
+          `لقد قام العميل ${user?.displayName || 'مشتري'} بطلب خدمتك (${service.title}) بقيمة ${service.amount} ر.س. يرجى مراجعة تفاصيل الطلب والموافقة عليه للبدء.`,
+          'order_update',
+          'normal',
+          docRef.id
+        );
+        console.log(`📡 Notification recorded in Firestore for seller ${service.sellerId}`);
+      } catch (notifErr) {
+        console.error("Failed to send catalog order notification:", notifErr);
+      }
+
       toast.success('تم إنشاء الطلب بنجاح! ننتظر موافقة البائع.');
       navigate(`/order/${docRef.id}`);
     } catch (err) {
