@@ -122,63 +122,92 @@ async function restoreWhatsAppSession() {
 
 let whatsappStatus = "disconnected";
 let qrCodeStr = "";
+let whatsappClient: any;
 
-// Initialize WhatsApp Web Client with sandbox-safe parameters for Cloud environments
-const whatsappClient = new Client({
-  authStrategy: new LocalAuth({
-    dataPath: wwebjsAuthPath
-  }),
-  webVersionCache: {
-    type: 'remote',
-    remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-js/main/dist/wppconnect-wa.js'
-  },
-  puppeteer: {
-    headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-      '--no-zygote',
-      '--single-process'
-    ]
+// Helper to clean stale Chrome singleton locks to prevent Puppeteer from hanging on startup
+function cleanSingletonLock(dir: string) {
+  if (!fs.existsSync(dir)) return;
+  try {
+    const files = fs.readdirSync(dir);
+    for (const file of files) {
+      const fullPath = path.join(dir, file);
+      const stat = fs.statSync(fullPath);
+      if (stat.isDirectory()) {
+        cleanSingletonLock(fullPath);
+      } else if (file === 'SingletonLock') {
+        try {
+          fs.unlinkSync(fullPath);
+          console.log(`♻️ [WhatsApp Init] Cleaned stale SingletonLock at ${fullPath}`);
+        } catch (unlinkErr) {
+          console.warn(`⚠️ [WhatsApp Init] Could not delete SingletonLock at ${fullPath}:`, unlinkErr);
+        }
+      }
+    }
+  } catch (err) {
+    console.error("❌ [WhatsApp Init] Error reading directory for lockfiles:", err);
   }
-});
+}
 
-whatsappClient.on('qr', (qr: string) => {
-  whatsappStatus = "QR_READY";
-  qrCodeStr = qr;
-  console.log('================================================================');
-  console.log('🚨 [WhatsApp] QR RECEIVED! SCAN CODE IN THE WEB DASHBOARD OR BELOW:');
-  console.log('================================================================');
-  qrcode.generate(qr, { small: true });
-});
-
-whatsappClient.on('ready', () => {
-  whatsappStatus = "connected";
-  qrCodeStr = "";
-  console.log('================================================================');
-  console.log('✅ [WhatsApp] Client is authenticated and ready to send alerts!');
-  console.log('================================================================');
-  
-  backupWhatsAppSession().catch(err => {
-    console.error("❌ [WhatsApp Backup Trigger] Failed:", err);
+// Instantiate WhatsApp Web Client cleanly and bind all event listeners
+function createWhatsAppClient() {
+  whatsappClient = new Client({
+    authStrategy: new LocalAuth({
+      dataPath: wwebjsAuthPath
+    }),
+    webVersionCache: {
+      type: 'remote',
+      remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-js/main/dist/wppconnect-wa.js'
+    },
+    puppeteer: {
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--no-zygote',
+        '--single-process'
+      ]
+    }
   });
-});
 
-whatsappClient.on('auth_failure', (msg: string) => {
-  whatsappStatus = "auth_failure";
-  console.error('❌ [WhatsApp] Auth failure:', msg);
-});
+  whatsappClient.on('qr', (qr: string) => {
+    whatsappStatus = "QR_READY";
+    qrCodeStr = qr;
+    console.log('================================================================');
+    console.log('🚨 [WhatsApp] QR RECEIVED! SCAN CODE IN THE WEB DASHBOARD OR BELOW:');
+    console.log('================================================================');
+    qrcode.generate(qr, { small: true });
+  });
 
-whatsappClient.on('disconnected', (reason: string) => {
-  whatsappStatus = "disconnected";
-  qrCodeStr = "";
-  console.log('🔌 [WhatsApp] Client disconnected:', reason);
-});
+  whatsappClient.on('ready', () => {
+    whatsappStatus = "connected";
+    qrCodeStr = "";
+    console.log('================================================================');
+    console.log('✅ [WhatsApp] Client is authenticated and ready to send alerts!');
+    console.log('================================================================');
+    
+    backupWhatsAppSession().catch(err => {
+      console.error("❌ [WhatsApp Backup Trigger] Failed:", err);
+    });
+  });
+
+  whatsappClient.on('auth_failure', (msg: string) => {
+    whatsappStatus = "auth_failure";
+    console.error('❌ [WhatsApp] Auth failure:', msg);
+  });
+
+  whatsappClient.on('disconnected', (reason: string) => {
+    whatsappStatus = "disconnected";
+    qrCodeStr = "";
+    console.log('🔌 [WhatsApp] Client disconnected:', reason);
+  });
+
+  whatsappClient.on('message', handleWhatsAppMessage);
+}
 
 // Logic to handle incoming messages (interactive button responses and commands)
-whatsappClient.on('message', async (msg: any) => {
+async function handleWhatsAppMessage(msg: any) {
   if (!db) return;
 
   const sender = msg.from; // e.g. "9665xxxxxxxx@c.us"
@@ -543,18 +572,27 @@ whatsappClient.on('message', async (msg: any) => {
 
   } catch (err) {
     console.error("❌ [WhatsApp Bot Handler Error]:", err);
-    await whatsappClient.sendMessage(sender, "❌ عذراً، واجهنا مشكلة تقنية أثناء معالجة طلبك عبر الواتساب. يرجى المحاولة لاحقاً.");
+    if (whatsappClient) {
+      await whatsappClient.sendMessage(sender, "❌ عذراً، واجهنا مشكلة تقنية أثناء معالجة طلبك عبر الواتساب. يرجى المحاولة لاحقاً.");
+    }
   }
-});
+}
 
 async function startWhatsApp() {
   try {
     await restoreWhatsAppSession();
+    // Clean stale Puppeteer locks before initializing
+    cleanSingletonLock(wwebjsAuthPath);
+    
+    // Create new client instance cleanly and initialize
+    createWhatsAppClient();
     whatsappClient.initialize().catch((err: any) => {
       console.error("❌ Failed to initialize WhatsApp client:", err);
     });
   } catch (err) {
     console.error("❌ WhatsApp startup / restore failed:", err);
+    cleanSingletonLock(wwebjsAuthPath);
+    createWhatsAppClient();
     whatsappClient.initialize().catch(console.error);
   }
 }

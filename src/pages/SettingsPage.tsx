@@ -83,7 +83,7 @@ export const SettingsPage: React.FC = () => {
   }, [profile, user]);
 
   const handleSave = async () => {
-    if (!user) return;
+    if (!user || loading) return;
     setLoading(true);
     try {
       // 1. IBAN Validation (Saudi IBAN: SA + 22 digits)
