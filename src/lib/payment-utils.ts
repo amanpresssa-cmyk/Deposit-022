@@ -14,7 +14,7 @@ export function calculateOrderFees(amount: number, method: PaymentMethod = 'cred
   // رسوم عربون ثابتة 3% تضاف على المشتري
   const arboonFee = amount * 0.03;
   
-  // رسوم بوابة التقسيط (تابي/تمارا تأخذ حوالي 7% من البائع)
+  // رسوم بوابة التقسيط (تابي/تمارا تأخذ حوالي 7%، نقوم بتحميلها على المشتري بناءً على سياسة المنصة)
   let installmentFee = 0;
   let gatewayName = 'بطاقة بنكية';
 
@@ -25,10 +25,10 @@ export function calculateOrderFees(amount: number, method: PaymentMethod = 'cred
 
   return {
     baseAmount: amount,
-    buyerTotal: parseFloat((amount + arboonFee).toFixed(2)),
+    buyerTotal: parseFloat((amount + arboonFee + installmentFee).toFixed(2)),
     arboonFee: parseFloat(arboonFee.toFixed(2)),
     installmentFee: parseFloat(installmentFee.toFixed(2)),
-    sellerNetShare: parseFloat((amount - installmentFee).toFixed(2)),
+    sellerNetShare: parseFloat(amount.toFixed(2)),
     gatewayName
   };
 }
