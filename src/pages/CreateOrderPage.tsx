@@ -144,7 +144,7 @@ export const CreateOrderPage: React.FC = () => {
         title: formData.title.trim(),
         description: formData.description.trim(),
         amount: amountNum,
-        status: 'pending',
+        status: 'awaiting_acceptance',
         visibility: 'public',
         category: formData.category,
         createdAt: serverTimestamp(),

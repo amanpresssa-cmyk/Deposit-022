@@ -438,79 +438,65 @@ async function handleWhatsAppMessage(msg: any) {
       return;
     }
 
-    // 6. Accept/Escrow Deal Command (تعميد [رمز الطلب])
-    const acceptMatch = body.match(/^(تعميد|موافقة|approve|accept)\s+([a-zA-Z0-9_\-]+)$/i);
-    if (acceptMatch || isApprove) {
-      let shortId = acceptMatch ? acceptMatch[2].trim() : "";
+    // 6. Handle Awaiting Acceptance Response (موافقة 1 / رفض 2)
+    if (isApprove || isReject) {
       const ordersRef = db.collection('orders');
       
+      const qs1 = await ordersRef.where('sellerId', '==', userId).where('status', '==', 'awaiting_acceptance').get();
+      const qs2 = await ordersRef.where('buyerId', '==', userId).where('status', '==', 'awaiting_acceptance').get();
+      
+      let candidates: any[] = [];
+      qs1.docs.forEach(d => candidates.push(d));
+      qs2.docs.forEach(d => candidates.push(d));
+      
       let matchedOrder = null;
-      if (shortId) {
-        const orderQuery = await ordersRef.get();
-        for (const doc of orderQuery.docs) {
-          if (doc.id.toLowerCase().endsWith(shortId.toLowerCase()) || doc.id.toLowerCase() === shortId.toLowerCase()) {
-            matchedOrder = doc;
-            break;
-          }
-        }
-      } else {
-        // Fallback to latest pending order for buttons
-        const latestOrder = await ordersRef
-          .where('sellerId', '==', userId)
-          .where('status', '==', 'pending')
-          .orderBy('createdAt', 'desc')
-          .limit(1)
-          .get();
-        if (!latestOrder.empty) {
-          matchedOrder = latestOrder.docs[0];
-          shortId = matchedOrder.id.slice(0, 4);
-        }
+      if (candidates.length > 0) {
+        candidates.sort((a, b) => (b.data().createdAt?.toMillis() || 0) - (a.data().createdAt?.toMillis() || 0));
+        matchedOrder = candidates[0];
       }
 
       if (!matchedOrder) {
-        await whatsappClient.sendMessage(sender, `⚠️ لم نتمكن من العثور على طلب معلق ينتهي بالرمز (${shortId || "غير محدد"}).`);
+        await whatsappClient.sendMessage(sender, `⚠️ لم نجد أي طلبات بانتظار موافقتك حالياً.`);
         return;
       }
 
       const orderData = matchedOrder.data();
-      const isOrderSeller = orderData.sellerId === userId || orderData.sellerEmail === userData.email;
-      if (!isOrderSeller) {
-        await whatsappClient.sendMessage(sender, `⚠️ لا تملك صلاحية قبول هذا الطلب. أنت لست البائع المعين في هذه الصفقة.`);
+      if (orderData.creatorId === userId) {
+        await whatsappClient.sendMessage(sender, `⚠️ لا يمكنك الموافقة على طلب قمت بإنشائه. بانتظار موافقة الطرف الآخر.`);
         return;
       }
 
-      if (orderData.status !== 'pending') {
-        await whatsappClient.sendMessage(sender, `⚠️ لا يمكن قبول هذا الطلب لأن حالته الحالية هي: (${orderData.status}).`);
-        return;
-      }
+      const shortId = matchedOrder.id.slice(0, 4);
 
-      await matchedOrder.ref.update({
-        status: 'escrowed',
-        sellerId: userId, // Claim
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-      });
+      if (isApprove) {
+        await matchedOrder.ref.update({
+          status: 'pending',
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
 
-      await db.collection('orderLogs').add({
-        orderId: matchedOrder.id,
-        userId: userId,
-        action: 'تغيير الحالة: escrowed',
-        previousStatus: 'pending',
-        currentStatus: 'escrowed',
-        message: 'تم قبول وتعميد الطلب عبر شات الواتساب',
-        createdAt: admin.firestore.FieldValue.serverTimestamp()
-      });
+        await db.collection('orderLogs').add({
+          orderId: matchedOrder.id, userId, action: 'تغيير الحالة: pending', previousStatus: 'awaiting_acceptance', currentStatus: 'pending', message: 'تمت الموافقة على الطلب عبر الواتساب', createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
 
-      await whatsappClient.sendMessage(sender, `✅ تم قبول وتعميد الطلب (#ARB-${shortId.toUpperCase()}) بنجاح! تم حجز مبلغ الضمان وبدء العمل والتنفيذ.`);
-      
-      if (orderData.buyerId) {
+        await whatsappClient.sendMessage(sender, `✅ تمت الموافقة على الطلب (#ARB-${shortId.toUpperCase()}) بنجاح! بانتظار المشتري لإتمام الدفع وتعميد الطلب.`);
+        
         await db.collection('notifications').add({
-          userId: orderData.buyerId,
-          title: '🟢 تم قبول طلبك وبدء الضمان',
-          message: `وافق البائع ${userName} على طلبك (${orderData.title}) عبر الواتساب. تم حجز المبلغ وبدأ العمل.`,
-          type: 'order_update',
-          priority: 'normal',
-          isRead: false,
-          createdAt: admin.firestore.FieldValue.serverTimestamp()
+          userId: orderData.creatorId, title: '🟢 تمت الموافقة على طلبك', message: `وافق الطرف الآخر ${userName} على طلبك (${orderData.title}). يمكنك الآن الدفع لبدء العمل.`, type: 'order_update', priority: 'normal', whatsappProcessed: false, isRead: false, createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      } else {
+        await matchedOrder.ref.update({
+          status: 'cancelled',
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        await db.collection('orderLogs').add({
+          orderId: matchedOrder.id, userId, action: 'تغيير الحالة: cancelled', previousStatus: 'awaiting_acceptance', currentStatus: 'cancelled', message: 'تم رفض الطلب عبر الواتساب', createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        await whatsappClient.sendMessage(sender, `❌ تم رفض وإلغاء الطلب (#ARB-${shortId.toUpperCase()}) بنجاح.`);
+        
+        await db.collection('notifications').add({
+          userId: orderData.creatorId, title: '🔴 تم رفض الطلب', message: `اعتذر الطرف الآخر ${userName} عن قبول طلبك (${orderData.title}). تم الإلغاء.`, type: 'order_update', priority: 'normal', whatsappProcessed: false, isRead: false, createdAt: admin.firestore.FieldValue.serverTimestamp()
         });
       }
       return;
@@ -768,11 +754,30 @@ export function formatWhatsAppNumber(num: string): string {
               if (whatsappStatus === 'connected') {
                 const formattedNum = formatWhatsAppNumber(whatsappNumber);
                 const isOrder = notifData.type === 'order' || notifData.type === 'order_update' || (notifData.title || '').includes('طلب');
-                const msg = isOrder
+                const plainText = isOrder
                   ? `🔔 *${notifData.title}*\n\n${notifData.message}\n\n💡 *للرد السريع:*\n- أرسل "موافقة" أو "1" للقبول\n- أرسل "رفض" أو "2" للاعتذار\n\n_منصة عربون للمشاريع_`
                   : `🔔 *${notifData.title}*\n\n${notifData.message}\n\n_منصة عربون للمشاريع_`;
-                await whatsappClient.sendMessage(formattedNum, msg);
-                console.log(`✅ [WhatsApp Listener] Sent to ${formattedNum}`);
+                
+                try {
+                  if (isOrder) {
+                    await whatsappClient.sendMessage(formattedNum, {
+                      text: plainText,
+                      footer: 'اختر الإجراء المناسب:',
+                      buttons: [
+                        { buttonId: 'btn_accept', buttonText: { displayText: 'موافقة (1)' }, type: 1 },
+                        { buttonId: 'btn_reject', buttonText: { displayText: 'رفض (2)' }, type: 1 }
+                      ],
+                      headerType: 1
+                    });
+                  } else {
+                    await whatsappClient.sendMessage(formattedNum, { text: plainText });
+                  }
+                  console.log(`✅ [WhatsApp Listener] Sent to ${formattedNum}`);
+                } catch (btnErr) {
+                  // Fallback for standard non-business numbers that block buttons
+                  await whatsappClient.sendMessage(formattedNum, { text: plainText }).catch(() => {});
+                  console.log(`✅ [WhatsApp Listener] Sent (Fallback Text) to ${formattedNum}`);
+                }
               } else {
                 console.warn(`⚠️ [WhatsApp Listener] Skipped — status="${whatsappStatus}"`);
               }
@@ -809,11 +814,29 @@ export function formatWhatsAppNumber(num: string): string {
           if (u.whatsappEnabled && u.whatsappNumber) {
             const fmtNum = formatWhatsAppNumber(u.whatsappNumber);
             const isOrder = d.type === 'order' || d.type === 'order_update' || (d.title || '').includes('طلب');
-            const msg = isOrder
+            const plainText = isOrder
               ? `🔔 *${d.title}*\n\n${d.message}\n\n💡 *للرد السريع:*\n- أرسل "موافقة" أو "1" للقبول\n- أرسل "رفض" أو "2" للاعتذار\n\n_منصة عربون للمشاريع_`
               : `🔔 *${d.title}*\n\n${d.message}\n\n_منصة عربون للمشاريع_`;
-            await whatsappClient.sendMessage(fmtNum, msg);
-            console.log(`✅ [WhatsApp Poll] Sent to ${fmtNum}`);
+            
+            try {
+              if (isOrder) {
+                await whatsappClient.sendMessage(fmtNum, {
+                  text: plainText,
+                  footer: 'اختر الإجراء المناسب:',
+                  buttons: [
+                    { buttonId: 'btn_accept', buttonText: { displayText: 'موافقة (1)' }, type: 1 },
+                    { buttonId: 'btn_reject', buttonText: { displayText: 'رفض (2)' }, type: 1 }
+                  ],
+                  headerType: 1
+                });
+              } else {
+                await whatsappClient.sendMessage(fmtNum, { text: plainText });
+              }
+              console.log(`✅ [WhatsApp Poll] Sent to ${fmtNum}`);
+            } catch (btnErr) {
+              await whatsappClient.sendMessage(fmtNum, { text: plainText }).catch(() => {});
+              console.log(`✅ [WhatsApp Poll] Sent (Fallback Text) to ${fmtNum}`);
+            }
           }
         }
       } catch (pollErr) {

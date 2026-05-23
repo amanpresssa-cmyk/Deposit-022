@@ -123,21 +123,6 @@ export const sendNotification = async (
       createdAt: serverTimestamp()
     });
 
-    // ── Directly trigger WhatsApp message via server (more reliable than Firestore listener) ──
-    try {
-      fetch('/api/whatsapp/send-notification', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, title, message, type, orderId: orderId || '' })
-      }).then(r => r.json()).then(result => {
-        if (result.sent) {
-          console.log(`📡 [WhatsApp] Message sent to ${result.sentTo}`);
-        } else {
-          console.log(`ℹ️ [WhatsApp] Not sent: ${result.reason}`);
-        }
-      }).catch(() => {});
-    } catch { /* non-blocking */ }
-
     // Official System Log
     await recordAuditLog({
       action: 'notification_sent',

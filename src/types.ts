@@ -66,7 +66,7 @@ export interface Notification {
   createdAt: any;
 }
 
-export type OrderStatus = 'pending' | 'escrowed' | 'delivered' | 'completed' | 'disputed' | 'cancelled';
+export type OrderStatus = 'awaiting_acceptance' | 'pending' | 'escrowed' | 'delivered' | 'completed' | 'disputed' | 'cancelled';
 
 export interface Order {
   id: string;

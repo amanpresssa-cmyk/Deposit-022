@@ -445,15 +445,27 @@ export const OrderDetailsPage: React.FC = () => {
           </AnimatePresence>
 
           <div className="p-8 bg-gray-50/50 rounded-3xl border border-gray-100">
-             <div className="flex flex-wrap gap-4">
-                {order.sellerId === 'unknown' && (isSellerByEmail || isSellerByPhone) && (
-                   <button onClick={claimOrder} disabled={actionLoading} className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold">قبول الصفقة</button>
+              <div className="flex flex-wrap gap-4">
+                {order.status === 'awaiting_acceptance' && order.creatorId !== user.uid && (isBuyer || isSeller || isSellerByEmail || isSellerByPhone) && (
+                  <div className="flex gap-4 w-full">
+                    <button onClick={() => updateStatus('pending')} disabled={actionLoading} className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold flex-1 hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/20">موافقة وقبول الطلب</button>
+                    <button onClick={() => updateStatus('cancelled')} disabled={actionLoading} className="bg-red-50 text-red-600 border border-red-200 px-6 py-3 rounded-xl font-bold hover:bg-red-100 transition-all">رفض</button>
+                  </div>
+                )}
+                {order.status === 'awaiting_acceptance' && order.creatorId === user.uid && (
+                  <div className="w-full text-center text-gray-500 font-bold bg-gray-50 p-4 rounded-xl border border-gray-100">بانتظار موافقة الطرف الآخر على الطلب...</div>
+                )}
+                {order.sellerId === 'unknown' && (isSellerByEmail || isSellerByPhone) && order.status !== 'awaiting_acceptance' && (
+                   <button onClick={claimOrder} disabled={actionLoading} className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold">تحديث ربط الحساب</button>
                 )}
                 {order.status === 'pending' && isBuyer && (
-                  <button onClick={() => setShowPaymentModal(true)} disabled={actionLoading} className="bg-green-600 text-white px-8 py-3 rounded-xl font-bold flex items-center gap-2">
+                  <button onClick={() => setShowPaymentModal(true)} disabled={actionLoading} className="bg-green-600 text-white px-8 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-green-600/20">
                     <CreditCard className="w-5 h-5" />
                     دفع وتعميد الطلب
                   </button>
+                )}
+                {order.status === 'pending' && isSeller && (
+                  <div className="w-full text-center text-gray-500 font-bold bg-gray-50 p-4 rounded-xl border border-gray-100">بانتظار المشتري لإتمام الدفع...</div>
                 )}
                 {order.status === 'escrowed' && isSeller && (
                   <div className="w-full space-y-4">
