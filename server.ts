@@ -22,14 +22,44 @@ let db: admin.firestore.Firestore | null = null;
 try {
   const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
   const firebaseConfig = JSON.parse(readFileSync(configPath, 'utf8'));
-  
+
   if (!admin.apps.length) {
+    // Try to load service account from environment or file
+    const serviceAccountPath = path.join(process.cwd(), 'service-account.json');
+    const credentialJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+
+    let credential: admin.credential.Credential;
+    if (credentialJson) {
+      // Production: service account JSON stored as env variable
+      const parsed = JSON.parse(credentialJson);
+      credential = admin.credential.cert(parsed);
+      console.log('[Firebase] Using service account from FIREBASE_SERVICE_ACCOUNT_JSON env var');
+    } else if (existsSync(serviceAccountPath)) {
+      // Local dev: service account file
+      const parsed = JSON.parse(readFileSync(serviceAccountPath, 'utf8'));
+      credential = admin.credential.cert(parsed);
+      console.log('[Firebase] Using service account from service-account.json file');
+    } else {
+      // Fallback: Application Default Credentials (works in Google Cloud)
+      credential = admin.credential.applicationDefault();
+      console.log('[Firebase] Using Application Default Credentials (no service account found)');
+    }
+
     admin.initializeApp({
+      credential,
       projectId: firebaseConfig.projectId,
-      storageBucket: firebaseConfig.storageBucket || `${firebaseConfig.projectId}.firebasestorage.app`
+      storageBucket: firebaseConfig.storageBucket || `${firebaseConfig.projectId}.firebasestorage.app`,
     });
   }
+
+  // Use custom database ID if specified in config
+  const databaseId = firebaseConfig.firestoreDatabaseId || '(default)';
+  console.log(`[Firebase] Using Firestore database: "${databaseId}"`);
   db = admin.firestore();
+  if (databaseId && databaseId !== '(default)') {
+    db.settings({ databaseId });
+  }
+
   console.log("[Firebase] Admin SDK initialized successfully at startup");
 } catch (err) {
   console.error("❌ Failed to initialize Firebase Admin SDK at startup:", err);
