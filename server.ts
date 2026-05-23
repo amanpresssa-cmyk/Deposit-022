@@ -8,8 +8,9 @@ import fs from "fs";
 import axios from "axios";
 
 // @ts-ignore
-import pkg from "whatsapp-web.js";
-const { Client, LocalAuth, Buttons, List } = pkg;
+import makeWASocket, { DisconnectReason, useMultiFileAuthState, fetchLatestBaileysVersion } from '@whiskeysockets/baileys';
+import pino from 'pino';
+import { Boom } from '@hapi/boom';
 // @ts-ignore
 import qrcode from "qrcode-terminal";
 
@@ -125,144 +126,131 @@ let qrCodeStr = "";
 let whatsappClient: any;
 let whatsappInitError = "";
 
-// Helper to clean stale Chrome singleton locks to prevent Puppeteer from hanging on startup
-function cleanSingletonLock(dir: string) {
-  if (!fs.existsSync(dir)) return;
-  try {
-    const files = fs.readdirSync(dir);
-    for (const file of files) {
-      const fullPath = path.join(dir, file);
-      const stat = fs.statSync(fullPath);
-      if (stat.isDirectory()) {
-        cleanSingletonLock(fullPath);
-      } else if (file === 'SingletonLock') {
-        try {
-          fs.unlinkSync(fullPath);
-          console.log(`♻️ [WhatsApp Init] Cleaned stale SingletonLock at ${fullPath}`);
-        } catch (unlinkErr) {
-          console.warn(`⚠️ [WhatsApp Init] Could not delete SingletonLock at ${fullPath}:`, unlinkErr);
+// BaileysClientWrapper: A pure Node.js WebSocket WhatsApp Client (zero browser dependency, zero missing libraries!)
+class BaileysClientWrapper {
+  public sock: any = null;
+  private isInitializing = false;
+
+  async initialize() {
+    if (this.isInitializing) return;
+    this.isInitializing = true;
+    whatsappInitError = "";
+    
+    console.log("📡 [WhatsApp Baileys] Initializing WebSocket client connection...");
+    
+    try {
+      const { state, saveCreds } = await useMultiFileAuthState(wwebjsAuthPath);
+      const { version } = await fetchLatestBaileysVersion().catch(() => ({ version: [2, 3000, 1015901307] }));
+      
+      this.sock = makeWASocket({
+        auth: state,
+        logger: pino({ level: 'silent' }),
+        version: version as any,
+        printQRInTerminal: false
+      });
+      
+      this.sock.ev.on('creds.update', saveCreds);
+      
+      this.sock.ev.on('connection.update', (update: any) => {
+        const { connection, lastDisconnect, qr } = update;
+        
+        if (qr) {
+          whatsappStatus = "QR_READY";
+          qrCodeStr = qr;
+          console.log('================================================================');
+          console.log('🚨 [WhatsApp Baileys] QR RECEIVED! SCAN CODE IN THE WEB DASHBOARD:');
+          console.log('================================================================');
+          qrcode.generate(qr, { small: true });
         }
+        
+        if (connection === 'close') {
+          const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
+          console.log('🔌 [WhatsApp Baileys] Connection closed. Reconnecting:', shouldReconnect);
+          whatsappStatus = "disconnected";
+          qrCodeStr = "";
+          this.isInitializing = false;
+          
+          if (shouldReconnect) {
+            setTimeout(() => {
+              this.initialize().catch(err => console.error("❌ Failed to reconnect:", err));
+            }, 3000);
+          }
+        } else if (connection === 'open') {
+          whatsappStatus = "connected";
+          qrCodeStr = "";
+          console.log('================================================================');
+          console.log('✅ [WhatsApp Baileys] Client is connected and ready to send alerts!');
+          console.log('================================================================');
+          
+          backupWhatsAppSession().catch(err => {
+            console.error("❌ [WhatsApp Baileys Backup Trigger] Failed:", err);
+          });
+        }
+      });
+      
+      this.sock.ev.on('messages.upsert', async (m: any) => {
+        if (m.type === 'notify') {
+          for (const msg of m.messages) {
+            if (!msg.key.fromMe && msg.message) {
+              const sender = msg.key.remoteJid;
+              if (!sender) continue;
+              
+              // Extract text body from message
+              const body = msg.message.conversation || 
+                           msg.message.extendedTextMessage?.text || 
+                           msg.message.buttonsResponseMessage?.selectedButtonId || '';
+                           
+              if (body) {
+                // Convert sender format from s.whatsapp.net to c.us to maintain compatibility with handleWhatsAppMessage
+                const cleanSender = sender.replace('@s.whatsapp.net', '@c.us');
+                handleWhatsAppMessage({
+                  from: cleanSender,
+                  body: body.trim()
+                }).catch(err => console.error("❌ [WhatsApp Baileys Handler Error]:", err));
+              }
+            }
+          }
+        }
+      });
+      
+    } catch (err: any) {
+      console.error("❌ [WhatsApp Baileys Init Error]:", err);
+      whatsappInitError = err.message || String(err);
+      this.isInitializing = false;
+      throw err;
+    }
+  }
+
+  async sendMessage(jid: string, text: string) {
+    const baileysJid = jid.replace('@c.us', '@s.whatsapp.net');
+    if (this.sock) {
+      try {
+        await this.sock.sendMessage(baileysJid, { text });
+        console.log(`📡 [WhatsApp Baileys] Sent message to ${baileysJid}`);
+      } catch (err) {
+        console.error(`❌ [WhatsApp Baileys] Failed to send message to ${baileysJid}:`, err);
       }
-    }
-  } catch (err) {
-    console.error("❌ [WhatsApp Init] Error reading directory for lockfiles:", err);
-  }
-}
-
-// Helper to dynamically check for system Chrome/Chromium installation paths on Linux
-function getChromiumExecutablePath(): string | undefined {
-  if (process.platform !== 'linux') {
-    return undefined; // Let Puppeteer handle it automatically on Windows/macOS
-  }
-
-  const paths = [
-    '/usr/bin/google-chrome-stable',
-    '/usr/bin/google-chrome',
-    '/usr/bin/chromium-browser',
-    '/usr/bin/chromium',
-    '/snap/bin/chromium',
-    '/usr/bin/chrome'
-  ];
-
-  for (const p of paths) {
-    if (fs.existsSync(p)) {
-      console.log(`📡 [WhatsApp Puppeteer] Found system browser at: ${p}`);
-      return p;
+    } else {
+      console.warn("⚠️ [WhatsApp Baileys] Socket not connected. Message not sent.");
     }
   }
 
-  // Try parsing path via which
-  try {
-    const { execSync } = require('child_process');
-    const stdout = execSync('which google-chrome-stable || which google-chrome || which chromium-browser || which chromium', { stdio: 'pipe' });
-    const pathStr = stdout.toString().trim();
-    if (pathStr && fs.existsSync(pathStr)) {
-      console.log(`📡 [WhatsApp Puppeteer] Found system browser via PATH: ${pathStr}`);
-      return pathStr;
+  async destroy() {
+    if (this.sock) {
+      try {
+        this.sock.end(undefined);
+      } catch (e) {}
+      this.sock = null;
     }
-  } catch (e) {}
-
-  return undefined;
-}
-
-// Ensure Chrome/Chromium is installed on the server before initializing Puppeteer
-async function ensureChromeInstalled() {
-  if (process.platform !== 'linux') return;
-
-  const systemChrome = getChromiumExecutablePath();
-  if (systemChrome) {
-    console.log("📡 [WhatsApp Puppeteer] System browser is available, skipping local installation check.");
-    return;
-  }
-
-  console.log("⏳ [WhatsApp Puppeteer] System Chrome not found. Checking/Installing local Puppeteer Chrome browser...");
-  try {
-    const { execSync } = require('child_process');
-    const out = execSync('npx puppeteer browsers install chrome', { stdio: 'pipe' });
-    console.log("✅ [WhatsApp Puppeteer] Browser installation completed successfully:", out.toString().trim());
-  } catch (err: any) {
-    console.error("⚠️ [WhatsApp Puppeteer] Failed to run auto-browser installation command:", err.message || err);
+    this.isInitializing = false;
+    whatsappStatus = "disconnected";
+    qrCodeStr = "";
   }
 }
 
 // Instantiate WhatsApp Web Client cleanly and bind all event listeners
 function createWhatsAppClient() {
-  const systemChromePath = getChromiumExecutablePath();
-  whatsappClient = new Client({
-    authStrategy: new LocalAuth({
-      dataPath: wwebjsAuthPath
-    }),
-    webVersionCache: {
-      type: 'remote',
-      remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/{version}.html'
-    },
-    puppeteer: {
-      headless: true,
-      executablePath: systemChromePath,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-        '--no-zygote',
-        '--disable-extensions'
-      ]
-    }
-  });
-
-  whatsappClient.on('qr', (qr: string) => {
-    whatsappStatus = "QR_READY";
-    qrCodeStr = qr;
-    console.log('================================================================');
-    console.log('🚨 [WhatsApp] QR RECEIVED! SCAN CODE IN THE WEB DASHBOARD OR BELOW:');
-    console.log('================================================================');
-    qrcode.generate(qr, { small: true });
-  });
-
-  whatsappClient.on('ready', () => {
-    whatsappStatus = "connected";
-    qrCodeStr = "";
-    console.log('================================================================');
-    console.log('✅ [WhatsApp] Client is authenticated and ready to send alerts!');
-    console.log('================================================================');
-    
-    backupWhatsAppSession().catch(err => {
-      console.error("❌ [WhatsApp Backup Trigger] Failed:", err);
-    });
-  });
-
-  whatsappClient.on('auth_failure', (msg: string) => {
-    whatsappStatus = "auth_failure";
-    console.error('❌ [WhatsApp] Auth failure:', msg);
-  });
-
-  whatsappClient.on('disconnected', (reason: string) => {
-    whatsappStatus = "disconnected";
-    qrCodeStr = "";
-    console.log('🔌 [WhatsApp] Client disconnected:', reason);
-  });
-
-  whatsappClient.on('message', handleWhatsAppMessage);
+  whatsappClient = new BaileysClientWrapper();
 }
 
 // Logic to handle incoming messages (interactive button responses and commands)
@@ -640,26 +628,19 @@ async function handleWhatsAppMessage(msg: any) {
 async function startWhatsApp() {
   try {
     await restoreWhatsAppSession();
-    // Clean stale Puppeteer locks before initializing
-    cleanSingletonLock(wwebjsAuthPath);
     
-    // Auto-install Chrome if missing on server
-    await ensureChromeInstalled();
-    
-    // Create new client instance cleanly and initialize
+    // Create and initialize the pure Node.js Baileys client wrapper
     createWhatsAppClient();
     whatsappClient.initialize().catch((err: any) => {
-      console.error("❌ Failed to initialize WhatsApp client:", err);
+      console.error("❌ Failed to initialize WhatsApp Baileys client:", err);
       whatsappInitError = err.message || String(err);
     });
   } catch (err: any) {
-    console.error("❌ WhatsApp startup / restore failed:", err);
+    console.error("❌ WhatsApp Baileys startup / restore failed:", err);
     whatsappInitError = err.message || String(err);
-    cleanSingletonLock(wwebjsAuthPath);
-    await ensureChromeInstalled();
     createWhatsAppClient();
     whatsappClient.initialize().catch((subErr: any) => {
-      console.error("❌ Failed to initialize WhatsApp client after restore crash:", subErr);
+      console.error("❌ Failed to initialize WhatsApp Baileys client after crash:", subErr);
       whatsappInitError = subErr.message || String(subErr);
     });
   }
@@ -743,22 +724,8 @@ export function formatWhatsAppNumber(num: string): string {
                   if (whatsappStatus === "connected") {
                     // Send interactive message if it's an order
                     if (notifData.type === 'order' || notifData.title?.includes('طلب جديد')) {
-                      try {
-                        const buttons = new Buttons(
-                          `🔔 *${notifData.title}*\n\n${notifData.message}\n\n_هل تود قبول هذا الطلب الآن؟_`,
-                          [
-                            { id: 'APPROVE_ORDER', body: 'موافقة ✅' },
-                            { id: 'REJECT_ORDER', body: 'رفض ❌' }
-                          ],
-                          'نظام أتمتة عربون',
-                          'إدارة الطلبات'
-                        );
-                        await whatsappClient.sendMessage(formattedNum, buttons);
-                      } catch (btnErr) {
-                        // Fallback to text message if buttons fail
-                        const msgText = `🔔 *${notifData.title}*\n\n${notifData.message}\n\n💡 *للرد السريع:*\n- أرسل "موافقة" أو "1" للقبول\n- أرسل "رفض" أو "2" للاعتذار\n\n_منصة عربون للمشاريع_`;
-                        await whatsappClient.sendMessage(formattedNum, msgText);
-                      }
+                      const msgText = `🔔 *${notifData.title}*\n\n${notifData.message}\n\n💡 *للرد السريع:*\n- أرسل "موافقة" أو "1" للقبول\n- أرسل "رفض" أو "2" للاعتذار\n\n_منصة عربون للمشاريع_`;
+                      await whatsappClient.sendMessage(formattedNum, msgText);
                     } else {
                       const msgText = `🔔 *${notifData.title}*\n\n${notifData.message}\n\n_منصة عربون للمشاريع_`;
                       await whatsappClient.sendMessage(formattedNum, msgText);
@@ -918,6 +885,31 @@ async function startServer() {
       startWhatsApp();
       
       res.json({ success: true, message: "تمت إعادة تعيين الجلسة ومسح البيانات سحابياً ومحلياً بنجاح. يرجى الانتظار لتوليد كود جديد." });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Get the platform's WhatsApp phone number from Firestore settings
+  app.get("/api/admin/whatsapp/platform-phone", async (req, res) => {
+    try {
+      if (!db) return res.json({ phone: '' });
+      const snap = await db.collection('settings').doc('whatsapp').get();
+      const phone = snap.exists ? (snap.data()?.platformPhone || '') : '';
+      res.json({ phone });
+    } catch (err: any) {
+      res.status(500).json({ phone: '', error: err.message });
+    }
+  });
+
+  // Save the platform's WhatsApp phone number to Firestore settings
+  app.post("/api/admin/whatsapp/platform-phone", async (req, res) => {
+    try {
+      if (!db) return res.status(503).json({ success: false, error: 'DB not ready' });
+      const { phone } = req.body;
+      if (!phone || typeof phone !== 'string') return res.status(400).json({ success: false, error: 'Invalid phone' });
+      await db.collection('settings').doc('whatsapp').set({ platformPhone: phone.trim() }, { merge: true });
+      res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ success: false, error: err.message });
     }
