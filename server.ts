@@ -676,24 +676,51 @@ export function formatWhatsAppNumber(num: string): string {
           if (change.type === 'added') {
             const notifDoc = change.doc;
             const notifData = notifDoc.data();
-            
+
+            console.log(`📨 [WhatsApp Listener] New notification detected:`, {
+              id: notifDoc.id,
+              userId: notifData.userId,
+              type: notifData.type,
+              title: notifData.title?.substring(0, 40),
+              whatsappProcessed: notifData.whatsappProcessed
+            });
+
             // Skip already processed messages
-            if (notifData.whatsappProcessed) return;
-            
-            // Mark immediately as processed to prevent double processing
-            await notifDoc.ref.update({ whatsappProcessed: true });
-            
-            if (notifData.userId === 'ADMIN') return;
-            
+            if (notifData.whatsappProcessed) {
+              console.log(`⏭️ [WhatsApp Listener] Skipping already processed notification ${notifDoc.id}`);
+              return;
+            }
+
+            if (notifData.userId === 'ADMIN') {
+              console.log(`⏭️ [WhatsApp Listener] Skipping ADMIN notification`);
+              return;
+            }
+
             const userId = notifData.userId;
-            if (!userId || !db) return;
-            
+            if (!userId || !db) {
+              console.warn(`⚠️ [WhatsApp Listener] Missing userId or db - skipping`);
+              return;
+            }
+
+            // Mark as processed immediately to prevent double-processing
+            try {
+              await notifDoc.ref.update({ whatsappProcessed: true });
+            } catch (markErr) {
+              console.warn(`⚠️ [WhatsApp Listener] Could not mark as processed:`, markErr);
+            }
+
             try {
               const userRef = db.collection('users').doc(userId);
               const userSnap = await userRef.get();
               if (userSnap.exists) {
                 const userData = userSnap.data() || {};
-                
+
+                console.log(`👤 [WhatsApp Listener] User ${userId} data:`, {
+                  whatsappEnabled: userData.whatsappEnabled,
+                  whatsappNumber: userData.whatsappNumber,
+                  hasFcmToken: !!userData.fcmToken
+                });
+
                 // Send FCM Push Notification if recipient has fcmToken
                 if (userData.fcmToken) {
                   try {
@@ -709,33 +736,38 @@ export function formatWhatsAppNumber(num: string): string {
                         url: notifData.action?.url || '',
                       }
                     });
-                    console.log(`📡 [FCM Push] Sent native notification successfully to user ${userId}`);
+                    console.log(`📡 [FCM Push] Sent successfully to user ${userId}`);
                   } catch (fcmErr) {
-                    console.warn(`⚠️ [FCM Push] Failed to send push to user ${userId}:`, fcmErr);
+                    console.warn(`⚠️ [FCM Push] Failed for user ${userId}:`, fcmErr);
                   }
                 }
 
                 const whatsappEnabled = userData.whatsappEnabled === true;
                 const whatsappNumber = userData.whatsappNumber;
-                
+
+                console.log(`🔍 [WhatsApp Listener] Check: enabled=${whatsappEnabled}, number=${whatsappNumber}, serverStatus=${whatsappStatus}`);
+
                 if (whatsappEnabled && whatsappNumber) {
                   const formattedNum = formatWhatsAppNumber(whatsappNumber);
-                  
+                  console.log(`📞 [WhatsApp Listener] Formatted number: ${formattedNum}`);
+
                   if (whatsappStatus === "connected") {
-                    // Send interactive message if it's an order
-                    if (notifData.type === 'order' || notifData.title?.includes('طلب جديد')) {
+                    // Send interactive message if it's an order (type = 'order' OR 'order_update')
+                    const isOrderNotif = notifData.type === 'order' || notifData.type === 'order_update' || notifData.title?.includes('طلب');
+                    if (isOrderNotif) {
                       const msgText = `🔔 *${notifData.title}*\n\n${notifData.message}\n\n💡 *للرد السريع:*\n- أرسل "موافقة" أو "1" للقبول\n- أرسل "رفض" أو "2" للاعتذار\n\n_منصة عربون للمشاريع_`;
                       await whatsappClient.sendMessage(formattedNum, msgText);
                     } else {
                       const msgText = `🔔 *${notifData.title}*\n\n${notifData.message}\n\n_منصة عربون للمشاريع_`;
                       await whatsappClient.sendMessage(formattedNum, msgText);
                     }
-                    console.log(`📡 [WhatsApp] Dispatched alert successfully to ${whatsappNumber}`);
+                    console.log(`✅ [WhatsApp] Message dispatched successfully to ${whatsappNumber} (${formattedNum})`);
                   } else {
-                    console.warn(`⚠️ [WhatsApp] Message skipped (Status: ${whatsappStatus}). Number: ${whatsappNumber}`);
+                    console.warn(`⚠️ [WhatsApp] Message SKIPPED — server status is: "${whatsappStatus}". Number: ${whatsappNumber}`);
                   }
                 } else {
-                  // Fallback Alert
+                  console.log(`ℹ️ [WhatsApp] User ${userId} has no WhatsApp configured (enabled=${whatsappEnabled}, number=${whatsappNumber})`);
+                  // Fallback Alert: encourage user to enable WhatsApp
                   const hasFallbackAlert = userData.whatsappFallbackAlertSent === true;
                   if (!hasFallbackAlert && notifData.isWhatsAppFallback !== true) {
                     await db.collection('notifications').add({
@@ -749,15 +781,18 @@ export function formatWhatsAppNumber(num: string): string {
                       createdAt: admin.firestore.FieldValue.serverTimestamp()
                     });
                     await userRef.update({ whatsappFallbackAlertSent: true });
-                    console.log(`💡 [WhatsApp] Fallback user tips scheduled for user ${userId}`);
+                    console.log(`💡 [WhatsApp] Fallback tip notification sent to user ${userId}`);
                   }
                 }
+              } else {
+                console.warn(`⚠️ [WhatsApp Listener] User document ${userId} does NOT exist in Firestore`);
               }
             } catch (userErr) {
               console.error("❌ [WhatsApp Trigger User Check Error]:", userErr);
             }
           }
         });
+
       }, (err) => {
         console.error("❌ [WhatsApp Firestore Listener Error]:", err);
       });
