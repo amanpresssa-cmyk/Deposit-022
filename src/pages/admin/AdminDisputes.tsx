@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { collection, query, orderBy, onSnapshot, doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, getDoc, updateDoc, serverTimestamp, increment } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../hooks/useAuth';
 import { handleFirestoreError, OperationType } from '../../lib/error-handler';
@@ -165,6 +165,12 @@ export const AdminDisputes: React.FC = () => {
       // Execute Capture API
       await capturePayment(selectedDispute.orderId, selectedDispute.amount, orderData?.paymentRef);
 
+      // Increment seller's balance
+      const sellerNetShare = orderData?.paymentFees?.sellerNetShare || selectedDispute.amount;
+      if (selectedDispute.sellerId && selectedDispute.sellerId !== 'unknown') {
+        await updateDoc(doc(db, 'users', selectedDispute.sellerId), { balance: increment(sellerNetShare) });
+      }
+
       // Record Ledger Events
       await recordOrderEvent(
         selectedDispute.orderId,
@@ -242,6 +248,11 @@ export const AdminDisputes: React.FC = () => {
 
       // Execute Refund API
       await refundPayment(selectedDispute.orderId, selectedDispute.amount, orderData?.paymentRef);
+
+      // Increment buyer's balance
+      if (selectedDispute.buyerId && selectedDispute.buyerId !== 'unknown') {
+        await updateDoc(doc(db, 'users', selectedDispute.buyerId), { balance: increment(selectedDispute.amount) });
+      }
 
       // Record Ledger Events
       await recordOrderEvent(
@@ -332,9 +343,15 @@ export const AdminDisputes: React.FC = () => {
       // Refund the buyer portion, capture the seller portion
       if (buyerSplitAmount > 0) {
         await refundPayment(selectedDispute.orderId, buyerSplitAmount, orderData?.paymentRef);
+        if (selectedDispute.buyerId && selectedDispute.buyerId !== 'unknown') {
+          await updateDoc(doc(db, 'users', selectedDispute.buyerId), { balance: increment(buyerSplitAmount) });
+        }
       }
       if (sellerSplitAmount > 0) {
         await capturePayment(selectedDispute.orderId, sellerSplitAmount, orderData?.paymentRef);
+        if (selectedDispute.sellerId && selectedDispute.sellerId !== 'unknown') {
+          await updateDoc(doc(db, 'users', selectedDispute.sellerId), { balance: increment(sellerSplitAmount) });
+        }
       }
 
       // Record Ledger Events

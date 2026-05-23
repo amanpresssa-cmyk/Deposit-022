@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { doc, onSnapshot, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, serverTimestamp, increment, collection, query, where, orderBy, getDocs, getDoc, addDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../hooks/useAuth';
 import { Order } from '../types';
@@ -15,7 +15,6 @@ import { LoginModal } from '../components/auth/LoginModal';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { sendNotification, recordTransaction, recordOrderEvent, updateSellerPerformance } from '../lib/notificationService';
 import { calculateOrderFees, PaymentMethod } from '../lib/payment-utils';
-import { collection, query, where, orderBy, getDocs, getDoc, addDoc } from 'firebase/firestore';
 import { toast } from 'sonner';
 
 export const OrderDetailsPage: React.FC = () => {
@@ -177,9 +176,16 @@ export const OrderDetailsPage: React.FC = () => {
             body: JSON.stringify({ 
               orderId: order.id, 
               amount: order.amount,
-              transactionId: order.paymentRef // Use the stored Geidea reference
+              transactionId: order.paymentRef
             })
           });
+
+          if (order.sellerId && order.sellerId !== 'unknown') {
+            const sellerNet = order.paymentFees?.sellerNetShare || order.amount;
+            await updateDoc(doc(db, 'users', order.sellerId), {
+              balance: increment(sellerNet)
+            });
+          }
         } catch (captureErr) {
           console.error("Capture failed:", captureErr);
         }

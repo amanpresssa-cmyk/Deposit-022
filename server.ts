@@ -1555,5 +1555,72 @@ async function startServer() {
     console.log(`Server running on http://0.0.0.0:${PORT}`);
   });
 }
+// --- Automated Marketer Bot (تذكيرات العملاء الآلية) ---
+function startAutomatedMarketer() {
+  // Run every 30 minutes
+  setInterval(async () => {
+    if (!db || whatsappStatus !== 'connected' || !whatsappClient) return;
+    try {
+      console.log('🤖 [Marketer Bot] Running automated reminders check...');
+      
+      const ordersRef = db.collection('orders');
+      
+      // 1. Awaiting Acceptance Reminders (after 12 hours)
+      const awaitingSnap = await ordersRef.where('status', '==', 'awaiting_acceptance').get();
+      const now = Date.now();
+      
+      for (const doc of awaitingSnap.docs) {
+        const data = doc.data();
+        if (data.remindersSent?.awaiting) continue; // Already reminded
+        
+        const updatedAt = data.updatedAt?.toMillis() || data.createdAt?.toMillis() || now;
+        const hoursPassed = (now - updatedAt) / (1000 * 60 * 60);
+        
+        if (hoursPassed >= 12) {
+          const receiverId = data.creatorId === data.buyerId ? data.sellerId : data.buyerId;
+          const uSnap = await db.collection('users').doc(receiverId).get().catch(()=>null);
+          if (uSnap && uSnap.exists) {
+            const u = uSnap.data() || {};
+            if (u.whatsappEnabled && u.whatsappNumber) {
+              const num = formatWhatsAppNumber(u.whatsappNumber);
+              const msg = `👋 مرحباً ${u.displayName || ''}!\n\nيوجد طلب بانتظار موافقتك (${data.title}) من 12 ساعة ⏳.\n\n💡 قم بالرد بـ "1" أو "موافقة" الآن لبدء العمل في الصفقة وتأمين أرباحك!\n\n_منصة عربون للمشاريع_`;
+              await whatsappClient.sendMessage(num, { text: msg }).catch(()=>{});
+              await doc.ref.update({ 'remindersSent.awaiting': true });
+              console.log(`🤖 [Marketer Bot] Reminded ${receiverId} for awaiting order ${doc.id}`);
+            }
+          }
+        }
+      }
+
+      // 2. Pending (Awaiting Payment) Reminders (after 12 hours)
+      const pendingSnap = await ordersRef.where('status', '==', 'pending').get();
+      for (const doc of pendingSnap.docs) {
+        const data = doc.data();
+        if (data.remindersSent?.pending) continue;
+        
+        const updatedAt = data.updatedAt?.toMillis() || data.createdAt?.toMillis() || now;
+        const hoursPassed = (now - updatedAt) / (1000 * 60 * 60);
+        
+        if (hoursPassed >= 12) {
+          const uSnap = await db.collection('users').doc(data.buyerId).get().catch(()=>null);
+          if (uSnap && uSnap.exists) {
+            const u = uSnap.data() || {};
+            if (u.whatsappEnabled && u.whatsappNumber) {
+              const num = formatWhatsAppNumber(u.whatsappNumber);
+              const msg = `👋 مرحباً ${u.displayName || ''}!\n\nلقد وافق الطرف الآخر على طلبك (${data.title}) وهو جاهز للبدء! 🚀\n\n💡 يرجى الدخول للمنصة وإتمام الدفع وتعميد الطلب حتى نبدأ العمل فوراً.\n\n_منصة عربون للمشاريع_`;
+              await whatsappClient.sendMessage(num, { text: msg }).catch(()=>{});
+              await doc.ref.update({ 'remindersSent.pending': true });
+              console.log(`🤖 [Marketer Bot] Reminded buyer ${data.buyerId} for pending order ${doc.id}`);
+            }
+          }
+        }
+      }
+
+    } catch (err) {
+      console.error('🤖 [Marketer Bot Error]:', err);
+    }
+  }, 30 * 60 * 1000); // 30 mins
+}
 
 startServer();
+startAutomatedMarketer();
