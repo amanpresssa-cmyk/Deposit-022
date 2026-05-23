@@ -925,7 +925,74 @@ async function startServer() {
     }
   });
 
+  // ── TEST: Direct WhatsApp send (bypasses notification listener) ──────────────
+  app.post("/api/admin/whatsapp/test-send", async (req, res) => {
+    try {
+      const { phone, message } = req.body;
+      if (!phone) return res.status(400).json({ success: false, error: 'phone is required' });
+      if (whatsappStatus !== 'connected') {
+        return res.status(503).json({ success: false, error: `WhatsApp not connected. Status: ${whatsappStatus}` });
+      }
+      const formattedNum = formatWhatsAppNumber(phone.trim());
+      const msgText = message || `🧪 رسالة اختبار من منصة عربون — ${new Date().toLocaleTimeString('ar-SA')}`;
+      await whatsappClient.sendMessage(formattedNum, msgText);
+      console.log(`🧪 [WhatsApp Test Send] Sent to ${formattedNum}`);
+      res.json({ success: true, sentTo: formattedNum, message: msgText });
+    } catch (err: any) {
+      console.error('❌ [WhatsApp Test Send Error]:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // ── DIAGNOSTICS: Full system status ─────────────────────────────────────────
+  app.get("/api/admin/whatsapp/diagnostics", async (req, res) => {
+    try {
+      let recentNotifs: any[] = [];
+      let usersWithWhatsApp: any[] = [];
+
+      if (db) {
+        const notifSnap = await db.collection('notifications')
+          .orderBy('createdAt', 'desc')
+          .limit(5)
+          .get();
+        recentNotifs = notifSnap.docs.map(d => ({
+          id: d.id,
+          userId: d.data().userId,
+          type: d.data().type,
+          title: d.data().title?.substring(0, 40),
+          whatsappProcessed: d.data().whatsappProcessed,
+          createdAt: d.data().createdAt?.toDate?.()?.toISOString()
+        }));
+
+        const usersSnap = await db.collection('users')
+          .where('whatsappEnabled', '==', true)
+          .limit(10)
+          .get();
+        usersWithWhatsApp = usersSnap.docs.map(d => ({
+          uid: d.id,
+          name: d.data().displayName,
+          number: d.data().whatsappNumber,
+          formatted: d.data().whatsappNumber ? formatWhatsAppNumber(d.data().whatsappNumber) : null
+        }));
+      }
+
+      res.json({
+        whatsappStatus,
+        hasError: !!whatsappInitError,
+        error: whatsappInitError || null,
+        hasQR: !!qrCodeStr,
+        dbConnected: !!db,
+        recentNotifications: recentNotifs,
+        usersWithWhatsApp,
+        serverTime: new Date().toISOString()
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // Get the platform's WhatsApp phone number from Firestore settings
+
   app.get("/api/admin/whatsapp/platform-phone", async (req, res) => {
     try {
       if (!db) return res.json({ phone: '' });

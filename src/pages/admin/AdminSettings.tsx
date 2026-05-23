@@ -1871,7 +1871,7 @@ const WhatsAppSettingsPanel: React.FC = () => {
               <p className="text-xs font-black text-gray-400 dark:text-gray-500 italic">جاري فحص حالة الواتساب...</p>
             </div>
           ) : statusData.status === 'connected' ? (
-            <div className="py-8 space-y-4">
+            <div className="py-6 space-y-4">
               <div className="w-16 h-16 bg-green-50 dark:bg-green-900/10 text-green-600 dark:text-green-400 border border-green-100 dark:border-green-800/30 rounded-full flex items-center justify-center mx-auto shadow-md">
                 <CheckCircle2 className="w-8 h-8" />
               </div>
@@ -1881,6 +1881,62 @@ const WhatsAppSettingsPanel: React.FC = () => {
                   السيرفر الآن مربوط بجوالك المعتمد وجاهز لإرسال الإشعارات وتلقي ردود الدردشة.
                 </p>
               </div>
+
+              {/* Test Send Section */}
+              <div className="bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/20 rounded-2xl p-4 text-right space-y-2 max-w-sm mx-auto">
+                <p className="text-[10px] font-black text-blue-800 dark:text-blue-400">🧪 اختبار الإرسال المباشر</p>
+                <div className="flex gap-2">
+                  <input
+                    id="test-phone-input"
+                    type="tel"
+                    placeholder="966501234567"
+                    dir="ltr"
+                    className="flex-1 border border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900 text-gray-900 dark:text-white rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:border-blue-400"
+                  />
+                  <button
+                    onClick={async () => {
+                      const phoneEl = document.getElementById('test-phone-input') as HTMLInputElement;
+                      const phone = phoneEl?.value?.trim();
+                      if (!phone) { hotToast.error('أدخل الرقم أولاً'); return; }
+                      try {
+                        const res = await fetch('/api/admin/whatsapp/test-send', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ phone })
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                          hotToast.success(`✅ تم الإرسال إلى ${data.sentTo}`);
+                        } else {
+                          hotToast.error(`❌ ${data.error}`);
+                        }
+                      } catch {
+                        hotToast.error('فشل الاتصال بالخادم');
+                      }
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-black text-xs transition-all"
+                  >
+                    إرسال
+                  </button>
+                </div>
+                <button
+                  onClick={async () => {
+                    try {
+                      const res = await fetch('/api/admin/whatsapp/diagnostics');
+                      const data = await res.json();
+                      console.log('📊 WhatsApp Diagnostics:', data);
+                      const msg = `الحالة: ${data.whatsappStatus}\nمستخدمون مفعّلون: ${data.usersWithWhatsApp?.length || 0}\nإشعارات حديثة: ${data.recentNotifications?.length || 0}\n\nالتفاصيل في Developer Console (F12)`;
+                      alert(msg);
+                    } catch {
+                      hotToast.error('فشل جلب التشخيص');
+                    }
+                  }}
+                  className="text-blue-500 hover:text-blue-700 text-[9px] font-bold underline"
+                >
+                  📊 عرض التشخيص الكامل (Console)
+                </button>
+              </div>
+
               <button
                 onClick={handleReset}
                 disabled={actionLoading}
@@ -1889,6 +1945,7 @@ const WhatsAppSettingsPanel: React.FC = () => {
                 {actionLoading ? 'جاري إلغاء الربط...' : 'تسجيل الخروج وقطع الاتصال 🔌'}
               </button>
             </div>
+
           ) : statusData.qrCode ? (
             <div className="py-4 space-y-4">
               <div className="text-right mb-4">
