@@ -123,6 +123,7 @@ async function restoreWhatsAppSession() {
 let whatsappStatus = "disconnected";
 let qrCodeStr = "";
 let whatsappClient: any;
+let whatsappInitError = "";
 
 // Helper to clean stale Chrome singleton locks to prevent Puppeteer from hanging on startup
 function cleanSingletonLock(dir: string) {
@@ -156,7 +157,7 @@ function createWhatsAppClient() {
     }),
     webVersionCache: {
       type: 'remote',
-      remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-js/main/dist/wppconnect-wa.js'
+      remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/{version}.html'
     },
     puppeteer: {
       headless: true,
@@ -166,7 +167,7 @@ function createWhatsAppClient() {
         '--disable-dev-shm-usage',
         '--disable-gpu',
         '--no-zygote',
-        '--single-process'
+        '--disable-extensions'
       ]
     }
   });
@@ -588,12 +589,17 @@ async function startWhatsApp() {
     createWhatsAppClient();
     whatsappClient.initialize().catch((err: any) => {
       console.error("❌ Failed to initialize WhatsApp client:", err);
+      whatsappInitError = err.message || String(err);
     });
-  } catch (err) {
+  } catch (err: any) {
     console.error("❌ WhatsApp startup / restore failed:", err);
+    whatsappInitError = err.message || String(err);
     cleanSingletonLock(wwebjsAuthPath);
     createWhatsAppClient();
-    whatsappClient.initialize().catch(console.error);
+    whatsappClient.initialize().catch((subErr: any) => {
+      console.error("❌ Failed to initialize WhatsApp client after restore crash:", subErr);
+      whatsappInitError = subErr.message || String(subErr);
+    });
   }
 }
 
@@ -813,6 +819,8 @@ async function startServer() {
     res.json({
       status: whatsappStatus,
       qrActive: !!qrCodeStr,
+      qrCode: qrCodeStr,
+      error: whatsappInitError,
       timestamp: Date.now()
     });
   });

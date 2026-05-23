@@ -27,11 +27,15 @@ import {
   CheckCircle2,
   ExternalLink,
   TrendingUp,
-  Zap
+  Zap,
+  MessageSquare,
+  Loader2,
+  XCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { toast as hotToast } from 'sonner';
 
-type SettingsTab = 'general' | 'ui' | 'finance' | 'security' | 'support' | 'legal';
+type SettingsTab = 'general' | 'ui' | 'finance' | 'security' | 'support' | 'legal' | 'whatsapp';
 
 interface Toast {
   message: string;
@@ -565,6 +569,7 @@ export const AdminSettings: React.FC = () => {
     { id: 'security', label: 'الأمان والنظام', icon: <Lock className="w-4 h-4" /> },
     { id: 'support', label: 'تواصل ودعم', icon: <Mail className="w-4 h-4" /> },
     { id: 'legal', label: 'السياسات القانونية', icon: <FileText className="w-4 h-4" /> },
+    { id: 'whatsapp', label: 'ربط الواتساب', icon: <MessageSquare className="w-4 h-4" /> },
   ];
 
   if (loading) return <div className="h-96 flex items-center justify-center text-gray-400 font-bold italic">جاري تحميل إعدادات النظام...</div>;
@@ -1673,6 +1678,11 @@ export const AdminSettings: React.FC = () => {
                   </button>
                 </div>
               )}
+
+              {/* تبويب ربط الواتساب */}
+              {activeTab === 'whatsapp' && (
+                <WhatsAppSettingsPanel />
+              )}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -1698,6 +1708,194 @@ export const AdminSettings: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+};
+
+const WhatsAppSettingsPanel: React.FC = () => {
+  const [statusData, setStatusData] = useState<any>({ status: 'disconnected', qrActive: false, qrCode: '', error: '' });
+  const [checking, setChecking] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
+
+  const fetchStatus = async () => {
+    try {
+      const res = await fetch('/api/admin/whatsapp/status');
+      if (res.ok) {
+        const data = await res.json();
+        setStatusData(data);
+      }
+    } catch (e) {
+      console.error("Failed to fetch WhatsApp status:", e);
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleReset = async () => {
+    if (!window.confirm('هل أنت متأكد من رغبتك في تسجيل الخروج وإعادة تعيين جلسة الواتساب بالكامل؟ سيتم مسح أي بيانات تالفة وإعادة توليد رمز جديد.')) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch('/api/admin/whatsapp/reset');
+      if (res.ok) {
+        hotToast.success('تمت إعادة تهيئة الجلسة بنجاح، يرجى الانتظار لتوليد رمز QR جديد');
+        fetchStatus();
+      } else {
+        hotToast.error('فشل إعادة تعيين الجلسة');
+      }
+    } catch (err) {
+      hotToast.error('حدث خطأ أثناء الاتصال بالخادم');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  return (
+    <div className="bg-white dark:bg-gray-900 p-8 rounded-[2.5rem] border border-gray-100 dark:border-gray-800 shadow-sm space-y-8 animate-in slide-in-from-bottom-4 text-right">
+      <div className="p-6 bg-blue-50/50 dark:bg-blue-900/10 rounded-3xl border border-blue-100/50 dark:border-blue-800/30 flex items-start gap-4">
+        <div className="w-12 h-12 rounded-2xl bg-white dark:bg-gray-800 border border-blue-100 dark:border-blue-800 flex items-center justify-center shadow-sm shrink-0">
+          <MessageSquare className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+        </div>
+        <div>
+          <h4 className="font-black text-sm italic mb-1 text-gray-900 dark:text-white">لوحة ربط وإدارة روبوت الواتساب</h4>
+          <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 leading-relaxed italic">
+            من هنا يمكنك ربط ومراقبة وإعادة تعيين حساب الواتساب المخصص لإرسال الإشعارات والتحكم الفوري بالصفقات للمنصة.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid md:grid-cols-3 gap-6 items-center">
+        
+        {/* Status Indicator Card */}
+        <div className="md:col-span-1 p-6 rounded-3xl border border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-950/20 text-center space-y-3">
+          <p className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest leading-none">حالة الاتصال الحالية</p>
+          <div className="py-2">
+            {checking ? (
+              <span className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 rounded-full text-xs font-black">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                جاري الفحص...
+              </span>
+            ) : statusData.status === 'connected' ? (
+              <span className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-green-50 dark:bg-green-900/10 text-green-600 dark:text-green-400 border border-green-200 dark:border-green-800/30 rounded-full text-xs font-black uppercase tracking-wider animate-pulse">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                متصل بنجاح ✅
+              </span>
+            ) : statusData.status === 'QR_READY' ? (
+              <span className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-amber-50 dark:bg-amber-900/10 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800/30 rounded-full text-xs font-black uppercase tracking-wider animate-pulse">
+                <Clock className="w-3.5 h-3.5" />
+                بانتظار المسح 🔗
+              </span>
+            ) : statusData.status === 'auth_failure' ? (
+              <span className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-red-50 dark:bg-red-900/10 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/30 rounded-full text-xs font-black uppercase tracking-wider">
+                <XCircle className="w-3.5 h-3.5" />
+                فشل المصادقة ❌
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-red-50 dark:bg-red-900/10 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/30 rounded-full text-xs font-black uppercase tracking-wider">
+                <AlertCircle className="w-3.5 h-3.5" />
+                غير متصل 🔌
+              </span>
+            )}
+          </div>
+          <p className="text-[10px] text-gray-400 dark:text-gray-500 font-bold leading-normal">
+            {statusData.status === 'connected' 
+              ? 'الروبوت نشط بالكامل ويرسل تنبيهات ومحادثات المنصة في الوقت الحقيقي.' 
+              : 'الروبوت متوقف حالياً ولا يمكنه معالجة أو إرسال الإشعارات للعملاء.'}
+          </p>
+        </div>
+
+        {/* QR Code and Actions Card */}
+        <div className="md:col-span-2 p-6 rounded-3xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900/40 text-center space-y-4">
+          {checking ? (
+            <div className="py-12 flex flex-col items-center justify-center gap-3">
+              <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+              <p className="text-xs font-black text-gray-400 dark:text-gray-500 italic">جاري فحص حالة خادم الواتساب...</p>
+            </div>
+          ) : statusData.status === 'connected' ? (
+            <div className="py-8 space-y-4">
+              <div className="w-16 h-16 bg-green-50 dark:bg-green-900/10 text-green-600 dark:text-green-400 border border-green-100 dark:border-green-800/30 rounded-full flex items-center justify-center mx-auto shadow-md">
+                <CheckCircle2 className="w-8 h-8" />
+              </div>
+              <div>
+                <h5 className="font-black text-gray-900 dark:text-white text-sm">نظام الواتساب نشط بالكامل!</h5>
+                <p className="text-[10px] text-gray-400 dark:text-gray-500 font-bold mt-1 max-w-sm mx-auto leading-relaxed">
+                  السيرفر الآن مربوط بجوالك المعتمد وجاهز لإرسال الإشعارات والترحيب وتلقي ردود الدردشة.
+                </p>
+              </div>
+              <button
+                onClick={handleReset}
+                disabled={actionLoading}
+                className="bg-red-600 hover:bg-red-700 text-white px-6 py-2.5 rounded-xl font-bold text-xs shadow-md shadow-red-900/10 transition-all hover:scale-[1.01]"
+              >
+                {actionLoading ? 'جاري إلغاء الربط...' : 'تسجيل الخروج وقطع الاتصال 🔌'}
+              </button>
+            </div>
+          ) : statusData.qrCode ? (
+            <div className="py-4 space-y-4">
+              <div className="text-right mb-4">
+                <h5 className="font-black text-gray-900 dark:text-white text-sm">🔗 امسح الرمز التالي بجوالك</h5>
+                <p className="text-[10px] text-gray-400 dark:text-gray-500 font-bold mt-0.5 leading-relaxed">
+                  افتح تطبيق الواتساب بجوالك المخصص لإرسال المنصة -&gt; الأجهزة المرتبطة -&gt; ربط جهاز -&gt; وقم بمسح الرمز التالي:
+                </p>
+              </div>
+              
+              <div className="p-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl inline-block shadow-sm">
+                <img 
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(statusData.qrCode)}`}
+                  alt="Scan QR"
+                  className="w-48 h-48 block rounded-lg select-none"
+                />
+              </div>
+
+              <div className="pt-2 border-t border-gray-50 dark:border-gray-800 flex justify-between items-center text-xs">
+                <span className="text-[9px] text-gray-400 dark:text-gray-500 font-bold">بانتظار المسح والمصادقة...</span>
+                <button
+                  onClick={handleReset}
+                  disabled={actionLoading}
+                  className="text-blue-500 hover:text-blue-600 font-black text-[10px] underline flex items-center gap-1"
+                >
+                  ♻️ إعادة توليد الرمز
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="py-8 space-y-4">
+              <div className="w-12 h-12 border-3 border-gray-150 border-t-blue-500 rounded-full animate-spin mx-auto" />
+              <div>
+                <h5 className="font-black text-gray-900 dark:text-white text-sm">⏳ جاري تجهيز المتصفح وتوليد الرمز...</h5>
+                <p className="text-[10px] text-gray-400 dark:text-gray-500 font-bold mt-1 max-w-sm mx-auto leading-relaxed">
+                  يقوم خادم express بإقلاع Puppeteer الخفي والتحضير لتوليد كود QR جديد. سيظهر الرمز تلقائياً فور جاهزيته.
+                </p>
+              </div>
+
+              {statusData.error && (
+                <div className="bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 p-4 rounded-2xl text-right space-y-1 max-w-md mx-auto">
+                  <p className="text-[10px] font-black text-red-800 dark:text-red-400 flex items-center gap-1.5">
+                    <AlertCircle className="w-4 h-4" />
+                    تشخيص المشكلة الفنية بالسيرفر:
+                  </p>
+                  <p className="text-[9px] text-red-700 dark:text-red-400 leading-relaxed font-bold break-all font-mono bg-white dark:bg-gray-900 p-3 rounded-xl border border-red-50 dark:border-red-900/20">
+                    {statusData.error}
+                  </p>
+                </div>
+              )}
+
+              <button
+                onClick={handleReset}
+                disabled={actionLoading}
+                className="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 px-6 py-2.5 rounded-xl font-bold text-xs transition-all hover:scale-[1.01]"
+              >
+                {actionLoading ? 'جاري إعادة الضبط...' : '♻️ إعادة ضبط الجلسة بالقوة'}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
