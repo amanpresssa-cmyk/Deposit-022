@@ -889,6 +889,55 @@ async function startServer() {
     });
   });
 
+  // ── DIRECT WHATSAPP TRIGGER (called by frontend after creating a notification) ──
+  app.post("/api/whatsapp/send-notification", async (req, res) => {
+    try {
+      const { userId, title, message, type, orderId } = req.body;
+      console.log(`📨 [WhatsApp Direct] Trigger for userId=${userId}, type=${type}`);
+
+      if (!userId || !db) return res.json({ sent: false, reason: 'missing userId or db' });
+
+      const userSnap = await db.collection('users').doc(userId).get();
+      if (!userSnap.exists) return res.json({ sent: false, reason: 'user not found' });
+
+      const userData = userSnap.data() || {};
+      const whatsappEnabled = userData.whatsappEnabled === true;
+      const whatsappNumber = userData.whatsappNumber;
+
+      console.log(`👤 [WhatsApp Direct] enabled=${whatsappEnabled}, number=${whatsappNumber}, status=${whatsappStatus}`);
+
+      if (!whatsappEnabled || !whatsappNumber) {
+        return res.json({ sent: false, reason: 'whatsapp not enabled or no number' });
+      }
+      if (whatsappStatus !== 'connected') {
+        return res.json({ sent: false, reason: `server not connected: ${whatsappStatus}` });
+      }
+
+      const formattedNum = formatWhatsAppNumber(whatsappNumber);
+      const isOrderNotif = type === 'order' || type === 'order_update' || (title || '').includes('طلب');
+      const msgText = isOrderNotif
+        ? `🔔 *${title}*\n\n${message}\n\n💡 *للرد السريع:*\n- أرسل "موافقة" أو "1" للقبول\n- أرسل "رفض" أو "2" للاعتذار\n\n_منصة عربون للمشاريع_`
+        : `🔔 *${title}*\n\n${message}\n\n_منصة عربون للمشاريع_`;
+
+      await whatsappClient.sendMessage(formattedNum, msgText);
+      console.log(`✅ [WhatsApp Direct] Sent to ${formattedNum}`);
+
+      // Also send FCM push if token exists
+      if (userData.fcmToken) {
+        admin.messaging().send({
+          token: userData.fcmToken,
+          notification: { title, body: message },
+          data: { orderId: orderId || '', type: type || '' }
+        }).catch(() => {});
+      }
+
+      res.json({ sent: true, sentTo: formattedNum });
+    } catch (err: any) {
+      console.error('❌ [WhatsApp Direct Error]:', err);
+      res.status(500).json({ sent: false, error: err.message });
+    }
+  });
+
   app.get("/api/admin/whatsapp/reset", async (req, res) => {
     try {
       console.log("♻️ [WhatsApp] Resetting session as requested...");
