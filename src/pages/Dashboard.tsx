@@ -15,6 +15,8 @@ import { ar } from 'date-fns/locale';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { IdentityVerification } from '../components/IdentityVerification';
 import { ServiceManager } from '../components/ServiceManager';
+import { StatCard } from '../components/ui/StatCard';
+import { InvoiceLinkGenerator } from '../components/InvoiceLinkGenerator';
 import { ChatRoom } from '../components/chat/ChatRoom';
 import { useNotifications } from '../components/providers/NotificationProvider';
 import { markNotificationAsRead, markAllNotificationsAsRead } from '../lib/notificationService';
@@ -433,6 +435,9 @@ export const Dashboard: React.FC = () => {
             exit={{ opacity: 0, x: -20 }}
             className="space-y-6 md:space-y-8"
           >
+            {/* Invoice Link Generator (Order Link Builder) */}
+            <InvoiceLinkGenerator />
+
             {/* Mobile Stats Grid - 2x2 system */}
             <div className="grid grid-cols-2 lg:grid-cols-4 md:hidden gap-2 md:gap-3 mb-2">
                <StatCard title="المعاملات" value={activeOrdersCount} icon={Clock} color="blue" />

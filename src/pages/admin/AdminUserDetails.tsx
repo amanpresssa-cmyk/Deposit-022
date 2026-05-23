@@ -298,7 +298,7 @@ export const AdminUserDetails: React.FC = () => {
         userEmail: targetUser.email,
         amount: Math.abs(amount),
         type: amount > 0 ? 'deposit' : 'withdrawal',
-        description: balanceAdjustReason || (amount > 0 ? 'إيداع إداري للمحفظة' : 'سحب إداري من المحفظة'),
+        description: balanceAdjustReason || (amount > 0 ? 'إيداع إداري للأرباح المستحقة' : 'سحب إداري من الأرباح المستحقة'),
         status: 'completed',
         createdAt: serverTimestamp()
       });
@@ -310,7 +310,7 @@ export const AdminUserDetails: React.FC = () => {
         details: { amount, reason: balanceAdjustReason || 'لا يوجد', oldBalance: currentBalance, newBalance }
       });
 
-      toast.success('تم تعديل رصيد المحفظة وحفظ السجلات المالية بنجاح للعميل');
+      toast.success('تم تعديل الرصيد المستحق وحفظ السجلات المالية بنجاح للعميل');
       setBalanceAdjustAmount('');
       setBalanceAdjustReason('');
     } catch (err: any) {
@@ -604,7 +604,7 @@ export const AdminUserDetails: React.FC = () => {
                <div className="flex items-center justify-between p-3.5 bg-gray-50/50 dark:bg-gray-900/45 rounded-2xl">
                   <div className="flex items-center gap-2">
                      <Wallet className="w-4 h-4 text-emerald-500" />
-                     <span className="text-xs font-bold text-gray-400">الرصيد الاسمي</span>
+                     <span className="text-xs font-bold text-gray-400">الرصيد المستحق</span>
                   </div>
                   <span className="font-black text-sm text-emerald-600 dark:text-emerald-400 font-mono italic">
                      {(targetUser.balance || 0).toLocaleString()} ر.س
@@ -709,7 +709,7 @@ export const AdminUserDetails: React.FC = () => {
                  { id: 'info', label: '📊 ملخص و إحصائيات' },
                  { id: 'verify', label: '🔒 التوثيق الوطني (بمراحل)' },
                  { id: 'orders', label: `📦 الطلبات (${orders.length})` },
-                 { id: 'transactions', label: `💳 المحفظة المالية (${transactions.length})` },
+                 { id: 'transactions', label: `💳 الأرصدة المستحقة (${transactions.length})` },
                  { id: 'actions', label: '⚙️ التحكم الإداري' }
                ].map(tab => (
                  <button
@@ -746,7 +746,7 @@ export const AdminUserDetails: React.FC = () => {
                               <span className="font-black text-gray-900 dark:text-white font-mono">{orders.filter(o => o.status === 'completed').length}</span>
                            </div>
                            <div className="flex justify-between items-center text-xs">
-                              <span className="text-gray-400 font-bold">رصيد المحفظة الاسمي الحالي</span>
+                              <span className="text-gray-400 font-bold">رصيد الأرباح المستحقة</span>
                               <span className="font-black text-emerald-600 font-mono">{(targetUser.balance || 0).toLocaleString()} ر.س</span>
                            </div>
                         </div>

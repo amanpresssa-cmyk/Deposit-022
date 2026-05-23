@@ -1616,6 +1616,54 @@ function startAutomatedMarketer() {
         }
       }
 
+      // 3. Escrowed (In Progress) Delivery Deadlines
+      const escrowedSnap = await ordersRef.where('status', '==', 'escrowed').get();
+      for (const doc of escrowedSnap.docs) {
+        const data = doc.data();
+        if (!data.deliveryDays) continue;
+        
+        const escrowedAt = data.updatedAt?.toMillis() || data.createdAt?.toMillis() || now;
+        const deliveryDeadlineMs = escrowedAt + (data.deliveryDays * 24 * 60 * 60 * 1000);
+        const hoursRemaining = (deliveryDeadlineMs - now) / (1000 * 60 * 60);
+
+        if (hoursRemaining <= 24 && hoursRemaining > 0 && !data.remindersSent?.deadline24h) {
+          const uSnap = await db.collection('users').doc(data.sellerId).get().catch(()=>null);
+          if (uSnap && uSnap.exists) {
+            const u = uSnap.data() || {};
+            if (u.whatsappEnabled && u.whatsappNumber) {
+               const num = formatWhatsAppNumber(u.whatsappNumber);
+               const msg = `⏰ تذكير هام من عربون!\n\nتبقى أقل من 24 ساعة على موعد تسليم عملك (${data.title}).\n\n💡 نرجو سرعة الإنجاز لتجنب النزاعات وتأخير أرباحك.\n\n_فريق المتابعة_`;
+               await whatsappClient.sendMessage(num, { text: msg }).catch(()=>{});
+               await doc.ref.update({ 'remindersSent.deadline24h': true });
+               console.log(`🤖 [Marketer Bot] Sent 24h deadline reminder to seller ${data.sellerId} for order ${doc.id}`);
+            }
+          }
+        }
+
+        if (hoursRemaining <= 0 && !data.remindersSent?.deadlinePassed) {
+          const sSnap = await db.collection('users').doc(data.sellerId).get().catch(()=>null);
+          if (sSnap && sSnap.exists) {
+            const s = sSnap.data() || {};
+            if (s.whatsappEnabled && s.whatsappNumber) {
+               const num = formatWhatsAppNumber(s.whatsappNumber);
+               const msg = `⚠️ تحذير تجاوز المدة!\n\nانتهت المدة المتفق عليها لطلب (${data.title}).\n\n💡 نرجو التواصل مع المشتري فوراً وتسليم العمل لتجنب إلغاء الطلب وفتح نزاع.`;
+               await whatsappClient.sendMessage(num, { text: msg }).catch(()=>{});
+            }
+          }
+          const bSnap = await db.collection('users').doc(data.buyerId).get().catch(()=>null);
+          if (bSnap && bSnap.exists) {
+            const b = bSnap.data() || {};
+            if (b.whatsappEnabled && b.whatsappNumber) {
+               const num = formatWhatsAppNumber(b.whatsappNumber);
+               const msg = `⚠️ إشعار للمشتري\n\nلقد انتهت مدة استلام طلبك (${data.title}).\n\n💡 إذا لم يسلم البائع، يحق لك الآن فتح نزاع من صفحة الطلب لاسترجاع أموالك.`;
+               await whatsappClient.sendMessage(num, { text: msg }).catch(()=>{});
+            }
+          }
+          await doc.ref.update({ 'remindersSent.deadlinePassed': true });
+          console.log(`🤖 [Marketer Bot] Sent deadline passed alerts for order ${doc.id}`);
+        }
+      }
+
     } catch (err) {
       console.error('🤖 [Marketer Bot Error]:', err);
     }

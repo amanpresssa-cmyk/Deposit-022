@@ -26,7 +26,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const isFirstLoadRef = useRef(true);
+  const isFirstUserLoadRef = useRef(true);
+  const isFirstAdminLoadRef = useRef(true);
 
   useEffect(() => {
     if (!user) return;
@@ -69,7 +70,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     if (!user) {
       setNotifications([]);
       setUnreadCount(0);
-      isFirstLoadRef.current = true;
+      isFirstUserLoadRef.current = true;
+      isFirstAdminLoadRef.current = true;
       return;
     }
 
@@ -95,14 +97,13 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
       setNotifications(allItems);
       setUnreadCount(allItems.filter((n: any) => !n.isRead).length);
-      isFirstLoadRef.current = false;
     };
 
     const unsubscribeUser = onSnapshot(qUser, (snapshot) => {
       const items = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 
       // Real-time toast for new unread notifications
-      if (!isFirstLoadRef.current) {
+      if (!isFirstUserLoadRef.current) {
         snapshot.docChanges().forEach((change) => {
           if (change.type === 'added') {
             const newNotif = change.doc.data() as any;
@@ -112,6 +113,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           }
         });
       }
+      isFirstUserLoadRef.current = false;
 
       userNotifications = items;
       handleUpdate(userNotifications, adminNotifications);
@@ -131,7 +133,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         const items = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 
         // Real-time toast for new unread admin notifications
-        if (!isFirstLoadRef.current) {
+        if (!isFirstAdminLoadRef.current) {
           snapshot.docChanges().forEach((change) => {
             if (change.type === 'added') {
               const newNotif = change.doc.data() as any;
@@ -141,6 +143,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             }
           });
         }
+        isFirstAdminLoadRef.current = false;
 
         adminNotifications = items;
         handleUpdate(userNotifications, adminNotifications);

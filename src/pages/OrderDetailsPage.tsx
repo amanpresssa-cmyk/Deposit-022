@@ -319,7 +319,7 @@ export const OrderDetailsPage: React.FC = () => {
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <AnimatePresence>
-        {showPaymentModal && (
+        {showPaymentModal && order && (
           <PaymentModal 
             amount={order.amount}
             loading={actionLoading}
@@ -328,6 +328,7 @@ export const OrderDetailsPage: React.FC = () => {
             specificProvider={specificProvider}
             setSpecificProvider={setSpecificProvider}
             profile={profile}
+            allowBNPL={order.allowBNPL ?? true}
             onClose={() => setShowPaymentModal(false)}
             onConfirm={handleConfirmPayment}
           />
@@ -429,6 +430,23 @@ export const OrderDetailsPage: React.FC = () => {
                 <p className="text-2xl font-display font-black text-blue-600">{order.amount} ر.س</p>
              </div>
              <p className="text-gray-600 whitespace-pre-wrap leading-relaxed font-medium">{order.description}</p>
+             
+             {order.status === 'escrowed' && order.deliveryDays && (
+               <div className="mt-6 bg-orange-50 border border-orange-200 p-6 rounded-3xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                     <div className="bg-orange-100 p-3 rounded-2xl shrink-0">
+                       <Clock className="w-8 h-8 text-orange-600 animate-pulse" />
+                     </div>
+                     <div>
+                        <p className="text-orange-900 font-black text-lg">الوقت المتبقي للتسليم</p>
+                        <p className="text-sm text-orange-700 font-medium mt-1">يجب تسليم العمل خلال المدة المتفق عليها لتجنب النزاعات</p>
+                     </div>
+                  </div>
+                  <div className="text-left bg-white px-6 py-3 rounded-2xl border border-orange-100 shadow-sm w-full md:w-auto text-center">
+                     <span className="font-black text-2xl text-orange-600 font-display">{order.deliveryDays} أيام</span>
+                  </div>
+               </div>
+             )}
           </div>
 
           <AnimatePresence>
@@ -516,7 +534,8 @@ const PaymentModal: React.FC<{
   specificProvider: string;
   setSpecificProvider: (m: any) => void;
   profile: any;
-}> = ({ amount, onConfirm, onClose, loading, paymentMethod, setPaymentMethod, specificProvider, setSpecificProvider, profile }) => {
+  allowBNPL: boolean;
+}> = ({ amount, onConfirm, onClose, loading, paymentMethod, setPaymentMethod, specificProvider, setSpecificProvider, profile, allowBNPL }) => {
   const fees = calculateOrderFees(amount, paymentMethod);
   const hasFreeFee = (profile?.freeFeeTransactions || 0) > 0;
   
@@ -538,14 +557,18 @@ const PaymentModal: React.FC<{
                   <PaymentIcon type="mada" className="h-5" />
                   <span className="font-bold text-[10px]">بطاقة / مدى</span>
                 </button>
-                <button onClick={() => setPaymentMethod('tabby')} className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-2 ${paymentMethod === 'tabby' ? 'border-green-600 bg-green-50' : 'border-gray-50 bg-gray-50'}`}>
-                  <PaymentIcon type="tabby" className="h-5" />
-                  <span className="font-bold text-[10px]">تقسيط تابي</span>
-                </button>
-                <button onClick={() => setPaymentMethod('tamara')} className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-2 ${paymentMethod === 'tamara' ? 'border-amber-600 bg-amber-50' : 'border-gray-50 bg-gray-50'}`}>
-                  <PaymentIcon type="tamara" className="h-5" />
-                  <span className="font-bold text-[10px]">تقسيط تمارا</span>
-                </button>
+                {allowBNPL && (
+                  <>
+                    <button onClick={() => setPaymentMethod('tabby')} className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-2 ${paymentMethod === 'tabby' ? 'border-green-600 bg-green-50' : 'border-gray-50 bg-gray-50'}`}>
+                      <PaymentIcon type="tabby" className="h-5" />
+                      <span className="font-bold text-[10px]">تقسيط تابي</span>
+                    </button>
+                    <button onClick={() => setPaymentMethod('tamara')} className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-2 ${paymentMethod === 'tamara' ? 'border-amber-600 bg-amber-50' : 'border-gray-50 bg-gray-50'}`}>
+                      <PaymentIcon type="tamara" className="h-5" />
+                      <span className="font-bold text-[10px]">تقسيط تمارا</span>
+                    </button>
+                  </>
+                )}
              </div>
           </div>
 
@@ -561,8 +584,8 @@ const PaymentModal: React.FC<{
              
              {isInstallment && (
                 <div className="flex justify-between text-sm border-t border-white/10 pt-4">
-                  <span className="text-amber-400 font-bold">خصم رسوم التقسيط (من البائع)</span>
-                  <span className="text-amber-400 font-bold">- {fees.installmentFee.toLocaleString()} ر.س</span>
+                  <span className="text-amber-400 font-bold">رسوم وساطة وحماية التقسيط</span>
+                  <span className="text-amber-400 font-bold">+ {fees.installmentFee.toLocaleString()} ر.س</span>
                 </div>
              )}
 
