@@ -55,10 +55,9 @@ try {
   // Use custom database ID if specified in config
   const databaseId = firebaseConfig.firestoreDatabaseId || '(default)';
   console.log(`[Firebase] Using Firestore database: "${databaseId}"`);
-  db = admin.firestore();
-  if (databaseId && databaseId !== '(default)') {
-    db.settings({ databaseId });
-  }
+  
+  // CRITICAL FIX: Use getFirestore() with databaseId to properly connect to custom databases
+  db = getFirestore(admin.app(), databaseId);
 
   console.log("[Firebase] Admin SDK initialized successfully at startup");
 } catch (err) {
