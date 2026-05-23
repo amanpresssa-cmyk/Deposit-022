@@ -119,6 +119,7 @@ export const sendNotification = async (
       ticketId: ticketId || null,
       action: action || null,
       isRead: false,
+      whatsappProcessed: false,
       createdAt: serverTimestamp()
     });
 

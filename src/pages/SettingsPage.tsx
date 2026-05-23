@@ -86,6 +86,20 @@ export const SettingsPage: React.FC = () => {
     if (!user || loading) return;
     setLoading(true);
     try {
+      // 0. WhatsApp Number Validation
+      if (formData.whatsappEnabled && formData.whatsappNumber) {
+        const digits = formData.whatsappNumber.replace(/\D/g, '');
+        const isValidPhone =
+          /^05\d{8}$/.test(digits) ||
+          /^9665\d{8}$/.test(digits) ||
+          /^009665\d{8}$/.test(digits);
+        if (!isValidPhone) {
+          toast.error('رقم الواتساب غير صحيح. الصيغ المقبولة: 05XXXXXXXX أو +9665XXXXXXXX أو 9665XXXXXXXX');
+          setLoading(false);
+          return;
+        }
+      }
+
       // 1. IBAN Validation (Saudi IBAN: SA + 22 digits)
       if (formData.payoutIban && !/^SA\d{22}$/i.test(formData.payoutIban.trim())) {
         toast.error('رقم الآيبان غير صحيح. يجب أن يبدأ بـ SA ويتبعه 22 رقماً');
@@ -450,25 +464,60 @@ export const SettingsPage: React.FC = () => {
                             </button>
                           </div>
                           
-                          {formData.whatsappEnabled && (
-                            <motion.div 
-                              initial={{ opacity: 0, height: 0 }}
-                              animate={{ opacity: 1, height: "auto" }}
-                              className="space-y-2 text-right border-t border-green-100/40 pt-4"
-                            >
-                              <label className="text-xs font-black text-green-800 block mr-1">رقم الواتساب بالصيغة الدولية (مثال: +9665xxxxxxxx)</label>
-                              <div className="relative">
-                                <input 
-                                  type="tel"
-                                  value={formData.whatsappNumber}
-                                  onChange={(e) => setFormData({...formData, whatsappNumber: e.target.value})}
-                                  className="w-full bg-white dark:bg-gray-800 border border-green-200 dark:border-gray-700 rounded-2xl p-4 pr-12 focus:ring-4 focus:ring-green-100 outline-none transition-all font-bold text-left tracking-widest"
-                                  placeholder="+9665xxxxxxxx"
-                                />
-                                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-lg">💬</span>
-                              </div>
-                            </motion.div>
-                          )}
+                          {formData.whatsappEnabled && (() => {
+                            const raw = formData.whatsappNumber || '';
+                            const digits = raw.replace(/\D/g, '');
+                            // Valid if: 05XXXXXXXX (10 digits) OR 9665XXXXXXXX (12 digits) OR 00966XXXXXXXX
+                            const isValid = raw === '' ||
+                              /^05\d{8}$/.test(digits) ||
+                              /^9665\d{8}$/.test(digits) ||
+                              /^009665\d{8}$/.test(digits);
+                            return (
+                              <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                className="space-y-2 text-right border-t border-green-100/40 pt-4"
+                              >
+                                <label className="text-xs font-black text-green-800 block mr-1">
+                                  رقم الواتساب 📱
+                                </label>
+                                <div className="relative">
+                                  <input
+                                    type="tel"
+                                    dir="ltr"
+                                    inputMode="numeric"
+                                    value={formData.whatsappNumber}
+                                    onChange={(e) => {
+                                      // Only allow digits, +, spaces, dashes
+                                      const val = e.target.value.replace(/[^\d+\s-]/g, '');
+                                      setFormData({ ...formData, whatsappNumber: val });
+                                    }}
+                                    className={`w-full bg-white dark:bg-gray-800 border rounded-2xl p-4 pr-12 focus:ring-4 outline-none transition-all font-bold text-left tracking-widest ${
+                                      !isValid
+                                        ? 'border-red-400 focus:ring-red-100 text-red-700'
+                                        : 'border-green-200 dark:border-gray-700 focus:ring-green-100'
+                                    }`}
+                                    placeholder="+9665XXXXXXXX أو 05XXXXXXXX"
+                                  />
+                                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-lg">
+                                    {raw === '' ? '💬' : isValid ? '✅' : '❌'}
+                                  </span>
+                                </div>
+                                {!isValid && raw !== '' && (
+                                  <p className="text-[10px] font-black text-red-600 mr-1">
+                                    ❌ صيغة الرقم غير صحيحة. الصيغ المقبولة:
+                                    <span className="block mt-0.5 font-mono">05XXXXXXXX &nbsp;|&nbsp; +9665XXXXXXXX &nbsp;|&nbsp; 9665XXXXXXXX</span>
+                                  </p>
+                                )}
+                                {isValid && raw !== '' && (
+                                  <p className="text-[10px] font-black text-green-700 mr-1">
+                                    ✅ الرقم صحيح وجاهز للحفظ
+                                  </p>
+                                )}
+                              </motion.div>
+                            );
+                          })()}
+
                         </div>
 
                         <div className="p-6 bg-gray-50 rounded-[2rem] flex items-center justify-between border border-gray-100 group hover:bg-white hover:shadow-lg hover:shadow-blue-50/50 transition-all">

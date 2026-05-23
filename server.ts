@@ -608,6 +608,7 @@ async function handleWhatsAppMessage(msg: any) {
           type: 'payment',
           priority: 'urgent',
           isRead: false,
+          whatsappProcessed: false,
           createdAt: admin.firestore.FieldValue.serverTimestamp()
         });
       }
@@ -668,133 +669,89 @@ export function formatWhatsAppNumber(num: string): string {
 
 // Real-time WhatsApp notifications listener
   if (db) {
-    const startupTime = new Date();
+    // On startup: bulk-mark OLD unprocessed notifications (older than 5 min) to avoid spam
+    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
     db.collection('notifications')
-      .where('createdAt', '>=', admin.firestore.Timestamp.fromDate(startupTime))
-      .onSnapshot((snapshot) => {
-        snapshot.docChanges().forEach(async (change) => {
-          if (change.type === 'added') {
-            const notifDoc = change.doc;
-            const notifData = notifDoc.data();
-
-            console.log(`📨 [WhatsApp Listener] New notification detected:`, {
-              id: notifDoc.id,
-              userId: notifData.userId,
-              type: notifData.type,
-              title: notifData.title?.substring(0, 40),
-              whatsappProcessed: notifData.whatsappProcessed
-            });
-
-            // Skip already processed messages
-            if (notifData.whatsappProcessed) {
-              console.log(`⏭️ [WhatsApp Listener] Skipping already processed notification ${notifDoc.id}`);
-              return;
-            }
-
-            if (notifData.userId === 'ADMIN') {
-              console.log(`⏭️ [WhatsApp Listener] Skipping ADMIN notification`);
-              return;
-            }
-
-            const userId = notifData.userId;
-            if (!userId || !db) {
-              console.warn(`⚠️ [WhatsApp Listener] Missing userId or db - skipping`);
-              return;
-            }
-
-            // Mark as processed immediately to prevent double-processing
-            try {
-              await notifDoc.ref.update({ whatsappProcessed: true });
-            } catch (markErr) {
-              console.warn(`⚠️ [WhatsApp Listener] Could not mark as processed:`, markErr);
-            }
-
-            try {
-              const userRef = db.collection('users').doc(userId);
-              const userSnap = await userRef.get();
-              if (userSnap.exists) {
-                const userData = userSnap.data() || {};
-
-                console.log(`👤 [WhatsApp Listener] User ${userId} data:`, {
-                  whatsappEnabled: userData.whatsappEnabled,
-                  whatsappNumber: userData.whatsappNumber,
-                  hasFcmToken: !!userData.fcmToken
-                });
-
-                // Send FCM Push Notification if recipient has fcmToken
-                if (userData.fcmToken) {
-                  try {
-                    await admin.messaging().send({
-                      token: userData.fcmToken,
-                      notification: {
-                        title: notifData.title,
-                        body: notifData.message,
-                      },
-                      data: {
-                        orderId: notifData.orderId || '',
-                        type: notifData.type || '',
-                        url: notifData.action?.url || '',
-                      }
-                    });
-                    console.log(`📡 [FCM Push] Sent successfully to user ${userId}`);
-                  } catch (fcmErr) {
-                    console.warn(`⚠️ [FCM Push] Failed for user ${userId}:`, fcmErr);
-                  }
-                }
-
-                const whatsappEnabled = userData.whatsappEnabled === true;
-                const whatsappNumber = userData.whatsappNumber;
-
-                console.log(`🔍 [WhatsApp Listener] Check: enabled=${whatsappEnabled}, number=${whatsappNumber}, serverStatus=${whatsappStatus}`);
-
-                if (whatsappEnabled && whatsappNumber) {
-                  const formattedNum = formatWhatsAppNumber(whatsappNumber);
-                  console.log(`📞 [WhatsApp Listener] Formatted number: ${formattedNum}`);
-
-                  if (whatsappStatus === "connected") {
-                    // Send interactive message if it's an order (type = 'order' OR 'order_update')
-                    const isOrderNotif = notifData.type === 'order' || notifData.type === 'order_update' || notifData.title?.includes('طلب');
-                    if (isOrderNotif) {
-                      const msgText = `🔔 *${notifData.title}*\n\n${notifData.message}\n\n💡 *للرد السريع:*\n- أرسل "موافقة" أو "1" للقبول\n- أرسل "رفض" أو "2" للاعتذار\n\n_منصة عربون للمشاريع_`;
-                      await whatsappClient.sendMessage(formattedNum, msgText);
-                    } else {
-                      const msgText = `🔔 *${notifData.title}*\n\n${notifData.message}\n\n_منصة عربون للمشاريع_`;
-                      await whatsappClient.sendMessage(formattedNum, msgText);
-                    }
-                    console.log(`✅ [WhatsApp] Message dispatched successfully to ${whatsappNumber} (${formattedNum})`);
-                  } else {
-                    console.warn(`⚠️ [WhatsApp] Message SKIPPED — server status is: "${whatsappStatus}". Number: ${whatsappNumber}`);
-                  }
-                } else {
-                  console.log(`ℹ️ [WhatsApp] User ${userId} has no WhatsApp configured (enabled=${whatsappEnabled}, number=${whatsappNumber})`);
-                  // Fallback Alert: encourage user to enable WhatsApp
-                  const hasFallbackAlert = userData.whatsappFallbackAlertSent === true;
-                  if (!hasFallbackAlert && notifData.isWhatsAppFallback !== true) {
-                    await db.collection('notifications').add({
-                      userId: userId,
-                      title: "💡 تابع عملياتك أولاً بأول",
-                      message: "بإمكانك الآن تفعيل ميزة استلام طلباتك وتنبيهاتك مباشرة عبر الواتساب من صفحة إعدادات الحساب لتسهيل المتابعة!",
-                      type: "system",
-                      priority: "normal",
-                      isWhatsAppFallback: true,
-                      isRead: false,
-                      createdAt: admin.firestore.FieldValue.serverTimestamp()
-                    });
-                    await userRef.update({ whatsappFallbackAlertSent: true });
-                    console.log(`💡 [WhatsApp] Fallback tip notification sent to user ${userId}`);
-                  }
-                }
-              } else {
-                console.warn(`⚠️ [WhatsApp Listener] User document ${userId} does NOT exist in Firestore`);
-              }
-            } catch (userErr) {
-              console.error("❌ [WhatsApp Trigger User Check Error]:", userErr);
-            }
+      .where('createdAt', '<', admin.firestore.Timestamp.fromDate(fiveMinAgo))
+      .limit(300)
+      .get()
+      .then(snap => {
+        const batch = db!.batch();
+        let count = 0;
+        snap.docs.forEach(d => {
+          if (!d.data().whatsappProcessed) {
+            batch.update(d.ref, { whatsappProcessed: true });
+            count++;
           }
         });
+        if (count > 0) {
+          console.log(`🧹 [WhatsApp] Bulk-marked ${count} old notifications as processed on startup`);
+          return batch.commit();
+        }
+      })
+      .catch(() => {});
 
+    // NEW: Listen without time filter — use whatsappProcessed flag only
+    db.collection('notifications')
+      .where('whatsappProcessed', '==', false)
+      .onSnapshot((snapshot) => {
+        snapshot.docChanges().forEach(async (change) => {
+          if (change.type !== 'added' && change.type !== 'modified') return;
+
+          const notifDoc = change.doc;
+          const notifData = notifDoc.data();
+
+          if (notifData.whatsappProcessed === true) return;
+          if (notifData.userId === 'ADMIN') {
+            notifDoc.ref.update({ whatsappProcessed: true }).catch(() => {});
+            return;
+          }
+
+          const userId = notifData.userId;
+          if (!userId || !db) return;
+
+          try { await notifDoc.ref.update({ whatsappProcessed: true }); } catch {}
+
+          console.log(`📨 [WhatsApp Listener] Processing: userId=${userId}, type=${notifData.type}`);
+
+          try {
+            const userSnap = await db.collection('users').doc(userId).get();
+            if (!userSnap.exists) { console.warn(`⚠️ User ${userId} not found`); return; }
+            const userData = userSnap.data() || {};
+
+            // FCM Push
+            if (userData.fcmToken) {
+              admin.messaging().send({
+                token: userData.fcmToken,
+                notification: { title: notifData.title, body: notifData.message },
+                data: { orderId: notifData.orderId || '', type: notifData.type || '' }
+              }).catch(() => {});
+            }
+
+            // WhatsApp
+            const whatsappEnabled = userData.whatsappEnabled === true;
+            const whatsappNumber = userData.whatsappNumber;
+            console.log(`🔍 enabled=${whatsappEnabled}, number=${whatsappNumber}, status=${whatsappStatus}`);
+
+            if (whatsappEnabled && whatsappNumber) {
+              if (whatsappStatus === 'connected') {
+                const formattedNum = formatWhatsAppNumber(whatsappNumber);
+                const isOrder = notifData.type === 'order' || notifData.type === 'order_update' || (notifData.title || '').includes('طلب');
+                const msg = isOrder
+                  ? `🔔 *${notifData.title}*\n\n${notifData.message}\n\n💡 *للرد السريع:*\n- أرسل "موافقة" أو "1" للقبول\n- أرسل "رفض" أو "2" للاعتذار\n\n_منصة عربون للمشاريع_`
+                  : `🔔 *${notifData.title}*\n\n${notifData.message}\n\n_منصة عربون للمشاريع_`;
+                await whatsappClient.sendMessage(formattedNum, msg);
+                console.log(`✅ [WhatsApp Listener] Sent to ${formattedNum}`);
+              } else {
+                console.warn(`⚠️ [WhatsApp Listener] Skipped — status="${whatsappStatus}"`);
+              }
+            }
+          } catch (err) {
+            console.error('❌ [WhatsApp Listener Error]:', err);
+          }
+        });
       }, (err) => {
-        console.error("❌ [WhatsApp Firestore Listener Error]:", err);
+        console.error('❌ [WhatsApp Listener Setup Error]:', err);
       });
 
     // Real-time Cross-Platform Chat Forwarding Listener (collectionGroup messages)
