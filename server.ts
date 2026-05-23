@@ -668,6 +668,7 @@ export function formatWhatsAppNumber(num: string): string {
 }
 
 // Real-time WhatsApp notifications listener
+  const startupTime = new Date(); // needed for messages listener
   if (db) {
     // On startup: bulk-mark OLD unprocessed notifications (older than 5 min) to avoid spam
     const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
@@ -753,6 +754,42 @@ export function formatWhatsAppNumber(num: string): string {
       }, (err) => {
         console.error('❌ [WhatsApp Listener Setup Error]:', err);
       });
+
+    // ── POLLING FALLBACK: every 10s catch any notifications missed by the listener ──
+    setInterval(async () => {
+      if (!db || whatsappStatus !== 'connected') return;
+      try {
+        const cutoff = new Date(Date.now() - 2 * 60 * 1000); // last 2 minutes
+        const snap = await db.collection('notifications')
+          .where('whatsappProcessed', '==', false)
+          .where('createdAt', '>=', admin.firestore.Timestamp.fromDate(cutoff))
+          .limit(10)
+          .get();
+        for (const doc of snap.docs) {
+          const d = doc.data();
+          if (!d.userId || d.userId === 'ADMIN') {
+            await doc.ref.update({ whatsappProcessed: true }).catch(() => {});
+            continue;
+          }
+          await doc.ref.update({ whatsappProcessed: true }).catch(() => {});
+          console.log(`🔄 [WhatsApp Poll] Caught missed notif for userId=${d.userId}`);
+          const uSnap = await db.collection('users').doc(d.userId).get().catch(() => null);
+          if (!uSnap || !uSnap.exists) continue;
+          const u = uSnap.data() || {};
+          if (u.whatsappEnabled && u.whatsappNumber) {
+            const fmtNum = formatWhatsAppNumber(u.whatsappNumber);
+            const isOrder = d.type === 'order' || d.type === 'order_update' || (d.title || '').includes('طلب');
+            const msg = isOrder
+              ? `🔔 *${d.title}*\n\n${d.message}\n\n💡 *للرد السريع:*\n- أرسل "موافقة" أو "1" للقبول\n- أرسل "رفض" أو "2" للاعتذار\n\n_منصة عربون للمشاريع_`
+              : `🔔 *${d.title}*\n\n${d.message}\n\n_منصة عربون للمشاريع_`;
+            await whatsappClient.sendMessage(fmtNum, msg);
+            console.log(`✅ [WhatsApp Poll] Sent to ${fmtNum}`);
+          }
+        }
+      } catch (pollErr) {
+        // silent - polling is just a fallback
+      }
+    }, 10000);
 
     // Real-time Cross-Platform Chat Forwarding Listener (collectionGroup messages)
     db.collectionGroup('messages')
