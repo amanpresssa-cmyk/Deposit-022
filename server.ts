@@ -149,8 +149,65 @@ function cleanSingletonLock(dir: string) {
   }
 }
 
+// Helper to dynamically check for system Chrome/Chromium installation paths on Linux
+function getChromiumExecutablePath(): string | undefined {
+  if (process.platform !== 'linux') {
+    return undefined; // Let Puppeteer handle it automatically on Windows/macOS
+  }
+
+  const paths = [
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/google-chrome',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/chromium',
+    '/snap/bin/chromium',
+    '/usr/bin/chrome'
+  ];
+
+  for (const p of paths) {
+    if (fs.existsSync(p)) {
+      console.log(`📡 [WhatsApp Puppeteer] Found system browser at: ${p}`);
+      return p;
+    }
+  }
+
+  // Try parsing path via which
+  try {
+    const { execSync } = require('child_process');
+    const stdout = execSync('which google-chrome-stable || which google-chrome || which chromium-browser || which chromium', { stdio: 'pipe' });
+    const pathStr = stdout.toString().trim();
+    if (pathStr && fs.existsSync(pathStr)) {
+      console.log(`📡 [WhatsApp Puppeteer] Found system browser via PATH: ${pathStr}`);
+      return pathStr;
+    }
+  } catch (e) {}
+
+  return undefined;
+}
+
+// Ensure Chrome/Chromium is installed on the server before initializing Puppeteer
+async function ensureChromeInstalled() {
+  if (process.platform !== 'linux') return;
+
+  const systemChrome = getChromiumExecutablePath();
+  if (systemChrome) {
+    console.log("📡 [WhatsApp Puppeteer] System browser is available, skipping local installation check.");
+    return;
+  }
+
+  console.log("⏳ [WhatsApp Puppeteer] System Chrome not found. Checking/Installing local Puppeteer Chrome browser...");
+  try {
+    const { execSync } = require('child_process');
+    const out = execSync('npx puppeteer browsers install chrome', { stdio: 'pipe' });
+    console.log("✅ [WhatsApp Puppeteer] Browser installation completed successfully:", out.toString().trim());
+  } catch (err: any) {
+    console.error("⚠️ [WhatsApp Puppeteer] Failed to run auto-browser installation command:", err.message || err);
+  }
+}
+
 // Instantiate WhatsApp Web Client cleanly and bind all event listeners
 function createWhatsAppClient() {
+  const systemChromePath = getChromiumExecutablePath();
   whatsappClient = new Client({
     authStrategy: new LocalAuth({
       dataPath: wwebjsAuthPath
@@ -161,6 +218,7 @@ function createWhatsAppClient() {
     },
     puppeteer: {
       headless: true,
+      executablePath: systemChromePath,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -585,6 +643,9 @@ async function startWhatsApp() {
     // Clean stale Puppeteer locks before initializing
     cleanSingletonLock(wwebjsAuthPath);
     
+    // Auto-install Chrome if missing on server
+    await ensureChromeInstalled();
+    
     // Create new client instance cleanly and initialize
     createWhatsAppClient();
     whatsappClient.initialize().catch((err: any) => {
@@ -595,6 +656,7 @@ async function startWhatsApp() {
     console.error("❌ WhatsApp startup / restore failed:", err);
     whatsappInitError = err.message || String(err);
     cleanSingletonLock(wwebjsAuthPath);
+    await ensureChromeInstalled();
     createWhatsAppClient();
     whatsappClient.initialize().catch((subErr: any) => {
       console.error("❌ Failed to initialize WhatsApp client after restore crash:", subErr);
