@@ -129,6 +129,29 @@ export const SettingsPage: React.FC = () => {
         }
       }
 
+      // 3. WhatsApp Number Uniqueness Check
+      if (formData.whatsappEnabled && formData.whatsappNumber && formData.whatsappNumber !== profile?.whatsappNumber) {
+        const qWhatsApp = query(collection(db, 'users'), where('whatsappNumber', '==', formData.whatsappNumber), limit(1));
+        const snapWhatsApp = await getDocs(qWhatsApp);
+        if (!snapWhatsApp.empty) {
+          toast.error(
+            <div className="flex flex-col gap-2">
+              <p>رقم الواتساب هذا مسجل ومربوط بحساب آخر نشط.</p>
+              <p className="text-xs text-gray-100">يرجى استخدام رقم واتساب مختلف أو التواصل مع الدعم الفني لحل المشكلة.</p>
+              <button 
+                onClick={() => window.location.href = 'mailto:support@arboon.sa?subject=استعادة حساب واتساب'}
+                className="text-white bg-green-600 px-3 py-1 rounded-lg text-[10px] font-black w-fit hover:bg-green-700 transition-all mt-2"
+              >
+                تواصل مع الدعم الفني
+              </button>
+            </div>,
+            { duration: 6000 }
+          );
+          setLoading(false);
+          return;
+        }
+      }
+
       const userRef = doc(db, 'users', user.uid);
       const updateData: any = {
         displayName: formData.displayName,
