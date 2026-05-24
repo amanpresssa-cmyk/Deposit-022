@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { doc, updateDoc, increment, collection, addDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Star, MessageSquare, Send } from 'lucide-react';
+import { Star, MessageSquare, Send, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { sendAdminNotification, recordAuditLog, updateSellerPerformance } from '../lib/notificationService';
 
@@ -18,6 +18,7 @@ export const OrderRating: React.FC<OrderRatingProps> = ({ orderId, reviewerId, r
   const [hover, setHover] = useState(0);
   const [comment, setComment] = useState('');
   const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,13 +97,32 @@ export const OrderRating: React.FC<OrderRatingProps> = ({ orderId, reviewerId, r
       // 7. Update Performance (Automated Featured Status & Response Speed)
       await updateSellerPerformance(revieweeId);
 
-      onSuccess();
+      setSuccess(true);
+      setTimeout(() => {
+        onSuccess();
+      }, 2000);
     } catch (error) {
       console.error("Error submitting rating:", error);
     } finally {
       setLoading(false);
     }
   };
+
+  if (success) {
+    return (
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-green-50 p-4 rounded-2xl border border-green-100 flex flex-col items-center justify-center text-center shadow-sm h-full min-h-[200px]"
+      >
+        <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mb-3 text-green-600">
+          <CheckCircle2 className="w-6 h-6" />
+        </div>
+        <h3 className="text-sm font-black text-green-900 mb-1">تم التقييم بنجاح</h3>
+        <p className="text-xs text-green-700 font-medium">شكراً لمساهمتك في بناء مجتمع آمن</p>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div 

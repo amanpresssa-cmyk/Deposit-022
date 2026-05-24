@@ -6,12 +6,12 @@ import { db, storage } from '../lib/firebase';
 import { useAuth } from '../hooks/useAuth';
 import { Order } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
-import { Shield, Clock, CheckCircle2, ChevronRight, AlertTriangle, CreditCard, PackageCheck, Copy, Check, FileText, User, TrendingUp, Calendar, Banknote, Info, AlertCircle, MessageSquare } from 'lucide-react';
+import { Shield, Clock, CheckCircle2, ChevronRight, AlertTriangle, CreditCard, PackageCheck, Copy, Check, FileText, User, TrendingUp, Calendar, Banknote, Info, AlertCircle, MessageSquare, Star } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { ChatRoom } from '../components/chat/ChatRoom';
 import { PaymentIcon } from '../components/ui/PaymentIcon';
-import { OrderRating } from '../components/OrderRating';
+import { RatingModal } from '../components/modals/RatingModal';
 import { LoginModal } from '../components/auth/LoginModal';
 import { PaymentModal } from '../components/modals/PaymentModal';
 import { DisputeModal } from '../components/modals/DisputeModal';
@@ -27,6 +27,7 @@ export const OrderDetailsPage: React.FC = () => {
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [showRatingModal, setShowRatingModal] = useState(false);
   const [ratingSuccess, setRatingSuccess] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
@@ -116,7 +117,15 @@ export const OrderDetailsPage: React.FC = () => {
 
     const unsubscribe = onSnapshot(doc(db, 'orders', id), (snapshot) => {
       if (snapshot.exists()) {
-        setOrder({ id: snapshot.id, ...snapshot.data() } as Order);
+        const orderData = { id: snapshot.id, ...snapshot.data() } as Order;
+        setOrder(orderData);
+        
+        const isBuyerLocal = user?.uid === orderData.buyerId;
+        const ratingCompletedLocal = isBuyerLocal ? orderData.buyerRatingCompleted : orderData.sellerRatingCompleted;
+        
+        if (orderData.status === 'completed' && !ratingCompletedLocal && !ratingSuccess) {
+          setShowRatingModal(true);
+        }
       } else {
         navigate('/dashboard');
       }
@@ -696,23 +705,15 @@ export const OrderDetailsPage: React.FC = () => {
              )}
           </div>
 
-          <AnimatePresence>
-            {order.status === 'completed' && !ratingSuccess && !(isBuyer ? order.buyerRatingCompleted : order.sellerRatingCompleted) && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                className="shrink-0 pt-1 pb-2"
-              >
-                <OrderRating 
-                  orderId={order.id}
-                  reviewerId={user.uid}
-                  revieweeId={isBuyer ? (order.sellerId === 'unknown' ? '' : order.sellerId) : order.buyerId}
-                  type={isBuyer ? 'buyer-to-seller' : 'seller-to-buyer'}
-                  onSuccess={() => setRatingSuccess(true)}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {order.status === 'completed' && !ratingSuccess && !(isBuyer ? order.buyerRatingCompleted : order.sellerRatingCompleted) && (
+            <button
+              onClick={() => setShowRatingModal(true)}
+              className="w-full bg-gradient-to-l from-orange-400 to-orange-500 text-white py-3 rounded-xl font-bold text-sm hover:from-orange-500 hover:to-orange-600 transition-all shadow-lg shadow-orange-200 mt-4 flex items-center justify-center gap-2"
+            >
+              <Star className="w-5 h-5 fill-white" />
+              قيم الصفقة
+            </button>
+          )}
 
           {/* Details Section */}
           <div className="border-t border-gray-100 pt-6 space-y-4">
