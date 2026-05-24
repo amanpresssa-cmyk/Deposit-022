@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { doc, updateDoc, increment, collection, addDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { doc, updateDoc, increment, collection, addDoc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Star, MessageSquare, Send, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -52,11 +52,20 @@ export const OrderRating: React.FC<OrderRatingProps> = ({ orderId, reviewerId, r
       const currentRating = userSnap.data()?.rating || 3;
       const newRating = Math.min(5, Math.max(0, currentRating + ratingChange));
 
-      await updateDoc(userRef, {
-        reviewsCount: increment(1),
-        rating: newRating,
-        trustLevel: increment(rating >= 4 ? 5 : -5) 
-      });
+      if (userSnap.exists()) {
+        await updateDoc(userRef, {
+          reviewsCount: increment(1),
+          rating: newRating,
+          trustLevel: increment(rating >= 4 ? 5 : -5) 
+        });
+      } else {
+        // Fallback if user doc doesn't exist yet for some reason
+        await setDoc(userRef, {
+          reviewsCount: 1,
+          rating: newRating,
+          trustLevel: rating >= 4 ? 5 : -5
+        }, { merge: true });
+      }
 
       // 4. Audit Log
       await recordAuditLog({
@@ -101,8 +110,9 @@ export const OrderRating: React.FC<OrderRatingProps> = ({ orderId, reviewerId, r
       setTimeout(() => {
         onSuccess();
       }, 2000);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error submitting rating:", error);
+      alert(`حدث خطأ أثناء تقييم الصفقة: ${error?.message || 'حاول مرة أخرى.'}`);
     } finally {
       setLoading(false);
     }

@@ -33,8 +33,6 @@ export const RatingModal: React.FC<RatingModalProps> = ({
   const [platformLoading, setPlatformLoading] = useState(false);
   const [platformSuccess, setPlatformSuccess] = useState(false);
 
-  if (!isOpen) return null;
-
   const handlePlatformSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!platformRating || platformLoading || !user) return;
@@ -59,9 +57,10 @@ export const RatingModal: React.FC<RatingModalProps> = ({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        {/* Backdrop */}
-        <motion.div
+      {isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -169,8 +168,9 @@ export const RatingModal: React.FC<RatingModalProps> = ({
               </div>
             )}
           </div>
-        </motion.div>
-      </div>
+          </motion.div>
+        </div>
+      )}
     </AnimatePresence>
   );
 };
