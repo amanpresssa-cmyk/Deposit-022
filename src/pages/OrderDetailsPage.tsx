@@ -701,7 +701,7 @@ export const OrderDetailsPage: React.FC = () => {
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
-                className="overflow-hidden"
+                className="shrink-0 pt-1 pb-2"
               >
                 <OrderRating 
                   orderId={order.id}

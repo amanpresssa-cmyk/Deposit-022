@@ -108,31 +108,31 @@ export const OrderRating: React.FC<OrderRatingProps> = ({ orderId, reviewerId, r
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-white p-4 rounded-3xl border border-blue-50 shadow-sm"
+      className="bg-white p-3 rounded-2xl border border-blue-50 shadow-sm"
     >
-      <div className="text-center mb-4">
-        <div className="bg-blue-50 w-10 h-10 rounded-2xl flex items-center justify-center mx-auto mb-2">
-           <Star className="w-5 h-5 text-blue-600" />
+      <div className="text-center mb-3">
+        <div className="bg-blue-50 w-8 h-8 rounded-xl flex items-center justify-center mx-auto mb-2">
+           <Star className="w-4 h-4 text-blue-600" />
         </div>
-        <h3 className="text-base font-black text-gray-900 mb-1">
+        <h3 className="text-sm font-black text-gray-900 mb-0.5">
            {type === 'buyer-to-seller' ? 'كيف كانت تجربتك؟' : 'كيف كان التعامل؟'}
         </h3>
-        <p className="text-xs text-gray-500 font-medium">تقييمك يساعد في بناء مجتمع آمن.</p>
+        <p className="text-[10px] text-gray-500 font-medium">تقييمك يساعد في بناء مجتمع آمن.</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="flex justify-center gap-1.5">
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <div className="flex justify-center gap-1">
           {[1, 2, 3, 4, 5].map((star) => (
             <button
               key={star}
               type="button"
-              className="transition-all transform hover:scale-110 focus:outline-none"
+              className="transition-all transform hover:scale-110 focus:outline-none p-1"
               onMouseEnter={() => setHover(star)}
               onMouseLeave={() => setHover(0)}
               onClick={() => setRating(star)}
             >
               <Star
-                className={`w-8 h-8 ${
+                className={`w-6 h-6 ${
                   star <= (hover || rating) ? 'fill-orange-400 text-orange-400' : 'text-gray-200'
                 } transition-colors`}
               />
@@ -141,25 +141,25 @@ export const OrderRating: React.FC<OrderRatingProps> = ({ orderId, reviewerId, r
         </div>
 
         <div className="relative">
-          <MessageSquare className="absolute right-3 top-3 text-gray-400 w-4 h-4" />
+          <MessageSquare className="absolute right-2.5 top-2.5 text-gray-400 w-3 h-3" />
           <textarea
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             placeholder="اكتب تعليقك (اختياري)..."
-            className="w-full pr-10 pl-3 py-3 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-50 transition-all text-xs font-medium text-gray-700 min-h-[80px] resize-none"
+            className="w-full pr-8 pl-3 py-2 bg-gray-50 border border-gray-100 rounded-lg outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-50 transition-all text-[11px] font-medium text-gray-700 min-h-[50px] resize-none"
           />
         </div>
 
         <button
           type="submit"
           disabled={rating === 0 || loading}
-          className="w-full bg-blue-600 text-white py-3 rounded-2xl font-black text-sm hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 disabled:opacity-50 flex items-center justify-center gap-2"
+          className="w-full bg-blue-600 text-white py-2.5 rounded-xl font-bold text-xs hover:bg-blue-700 transition-all shadow-md shadow-blue-100 disabled:opacity-50 flex items-center justify-center gap-1.5"
         >
           {loading ? (
-             <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
           ) : (
             <>
-               <Send className="w-4 h-4" />
+               <Send className="w-3.5 h-3.5" />
                إرسال التقييم
             </>
           )}
