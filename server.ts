@@ -1685,3 +1685,133 @@ function startAutomatedMarketer() {
 
 startServer();
 startAutomatedMarketer();
+
+// --- Automated Banker Bot (إدارة النزاعات والمحاسبة الآلية) ---
+function startAutomatedBanker() {
+  if ((global as any).usingADC) return;
+  // Run every 1 hour
+  setInterval(async () => {
+    if (!db) return;
+    try {
+      console.log('🏦 [Banker Bot] Running automated financial check...');
+      
+      const ordersRef = db.collection('orders');
+      const now = Date.now();
+      
+      // 1. Auto-Release (Delivered -> Completed after 72 hours)
+      const deliveredSnap = await ordersRef.where('status', '==', 'delivered').get();
+      const SEVENTY_TWO_HOURS = 72 * 60 * 60 * 1000;
+      
+      for (const doc of deliveredSnap.docs) {
+        const data = doc.data();
+        const updatedAt = data.updatedAt ? data.updatedAt.toMillis() : 0;
+        
+        if (now - updatedAt > SEVENTY_TWO_HOURS) {
+          console.log(`🏦 [Banker Bot] Auto-releasing order ${doc.id}`);
+          
+          const sellerNetShare = data.paymentFees?.sellerNetShare || data.amount;
+          
+          // 1. Update Order Status
+          await doc.ref.update({
+            status: 'completed',
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+
+          // 2. Increment Seller Balance
+          if (data.sellerId && data.sellerId !== 'unknown') {
+            await db.collection('users').doc(data.sellerId).update({
+              balance: admin.firestore.FieldValue.increment(sellerNetShare),
+              updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+          }
+
+          // 3. Try to capture payment
+          if (data.paymentRef && !data.paymentRef.startsWith('DEV-')) {
+            try {
+               await axios.post(`http://127.0.0.1:${process.env.PORT || 3000}/api/payment/capture`, {
+                 orderId: doc.id,
+                 amount: data.amount,
+                 transactionId: data.paymentRef
+               });
+            } catch (err: any) {
+               console.error(`[Banker Bot] Auto-Capture failed for ${doc.id}:`, err.message);
+            }
+          }
+
+          // 4. Create Ledger Event
+          await db.collection('orderLogs').add({
+            orderId: doc.id,
+            userId: 'SYSTEM',
+            action: 'تغيير الحالة: completed',
+            previousStatus: 'delivered',
+            newStatus: 'completed',
+            comment: 'إفراج تلقائي لمضي 72 ساعة على تسليم العمل دون اعتراض أو استلام من المشتري.',
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+          
+          // 5. Send Notifications
+          const notifPromises = [];
+          if (data.sellerId && data.sellerId !== 'unknown') {
+             notifPromises.push(db.collection('notifications').add({
+                userId: data.sellerId,
+                title: '🎉 تحرير الرصيد تلقائياً',
+                body: `تم إغلاق طلبك (${data.title}) وتحرير الرصيد تلقائياً بعد مضي 72 ساعة من التسليم. تمت إضافة ${sellerNetShare} ر.س إلى رصيدك.`,
+                type: 'payment',
+                priority: 'urgent',
+                orderId: doc.id,
+                senderId: 'SYSTEM',
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                isRead: false
+             }));
+          }
+          if (data.buyerId) {
+             notifPromises.push(db.collection('notifications').add({
+                userId: data.buyerId,
+                title: '✅ اعتماد تلقائي للعمل',
+                body: `تم قبول طلبك (${data.title}) تلقائياً وتحرير الرصيد للبائع نظراً لانقضاء المهلة (72 ساعة) بعد تسليم العمل دون وجود ملاحظات أو نزاع.`,
+                type: 'order_update',
+                priority: 'normal',
+                orderId: doc.id,
+                senderId: 'SYSTEM',
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                isRead: false
+             }));
+          }
+          await Promise.all(notifPromises).catch(()=>{});
+        }
+      }
+
+      // 2. Auto-Cancel (Pending > 7 days)
+      const pendingSnap = await ordersRef.where('status', '==', 'pending').get();
+      const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
+      
+      for (const doc of pendingSnap.docs) {
+        const data = doc.data();
+        const createdAt = data.createdAt ? data.createdAt.toMillis() : 0;
+        
+        if (now - createdAt > SEVEN_DAYS) {
+          console.log(`🏦 [Banker Bot] Auto-cancelling order ${doc.id}`);
+          await doc.ref.update({
+            status: 'cancelled',
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+
+          await db.collection('orderLogs').add({
+            orderId: doc.id,
+            userId: 'SYSTEM',
+            action: 'تغيير الحالة: cancelled',
+            previousStatus: 'pending',
+            newStatus: 'cancelled',
+            comment: 'إلغاء تلقائي بسبب عدم الدفع وتعميد الطلب لمدة تزيد عن 7 أيام.',
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+        }
+      }
+
+    } catch (err) {
+      console.error('🏦 [Banker Bot Error]:', err);
+    }
+  }, 60 * 60 * 1000); // 1 hour
+}
+
+startAutomatedBanker();

@@ -20,7 +20,9 @@ import {
   ChevronRight,
   X,
   SlidersHorizontal,
-  RotateCcw
+  RotateCcw,
+  Download,
+  ChevronDown
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
@@ -52,6 +54,14 @@ const OP_ARABIC_NAMES: Record<string, string> = {
   'TICKET_STATUS_UPDATE': 'تحديث حالة تذاكر الدعم',
   'national_verification_approved': 'قبول توثيق الهوية الوطنية',
   'national_verification_rejected': 'رفض توثيق الهوية الوطنية',
+  'ORDER_CREATED': 'إنشاء طلب جديد',
+  'ORDER_UPDATED': 'تحديث تفاصيل الطلب',
+  'USER_REGISTERED': 'تسجيل مستخدم جديد',
+  'PROFILE_UPDATED': 'تحديث الملف الشخصي',
+  'DISPUTE_OPENED': 'فتح نزاع جديد',
+  'DISPUTE_RESOLVED': 'حل وإغلاق النزاع',
+  'MESSAGE_SENT': 'إرسال رسالة محادثة',
+  'REVIEW_SUBMITTED': 'تقديم تقييم للخدمة'
 };
 
 export const SystemLogsPage: React.FC = () => {
@@ -65,6 +75,7 @@ export const SystemLogsPage: React.FC = () => {
   const [selectedOp, setSelectedOp] = useState('ALL');
   const [selectedLog, setSelectedLog] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
+  const [logLimit, setLogLimit] = useState(300);
   const [stats, setStats] = useState({
     total: 0,
     success: 0,
@@ -79,7 +90,7 @@ export const SystemLogsPage: React.FC = () => {
     const q = query(
       collection(db, 'system_logs'), 
       orderBy('timestamp', 'desc'), 
-      limit(300)
+      limit(logLimit)
     );
 
     const unsub = onSnapshot(q, (snapshot) => {
@@ -103,7 +114,39 @@ export const SystemLogsPage: React.FC = () => {
     });
 
     return () => unsub();
-  }, [isAdmin]);
+  }, [isAdmin, logLimit]);
+
+  const exportToCSV = () => {
+    if (filteredLogs.length === 0) return;
+    
+    // Prepare headers
+    const headers = ['ID', 'Date', 'Operation', 'Severity', 'User', 'Message', 'Details'];
+    
+    // Prepare rows
+    const rows = filteredLogs.map(log => {
+      const date = log.timestamp ? format(log.timestamp.toDate(), 'yyyy-MM-dd HH:mm:ss') : '';
+      const op = OP_ARABIC_NAMES[getLogOperation(log)] || getLogOperation(log);
+      const sev = (log.severity || 'INFO').toUpperCase();
+      const user = getLogUser(log);
+      const msg = (log.message || '').replace(/"/g, '""');
+      const details = (log.details || '').replace(/"/g, '""');
+      
+      return `"${log.id}","${date}","${op}","${sev}","${user}","${msg}","${details}"`;
+    });
+    
+    // Combine headers and rows
+    const csvContent = [headers.join(','), ...rows].join('\n');
+    
+    // Add BOM for Excel UTF-8 support
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `system_logs_${format(new Date(), 'yyyyMMdd_HHmmss')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const getLogUser = (log: any) => {
     if (log.authInfo?.email) return log.authInfo.email;
@@ -210,6 +253,15 @@ export const SystemLogsPage: React.FC = () => {
                 </button>
               ))}
            </div>
+           
+           <button
+             onClick={exportToCSV}
+             disabled={filteredLogs.length === 0}
+             className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl border border-gray-100 shadow-sm text-gray-700 font-bold text-xs hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+           >
+             <Download className="w-4 h-4" />
+             <span className="hidden sm:inline">تصدير CSV</span>
+           </button>
         </div>
       </div>
 
@@ -482,6 +534,18 @@ export const SystemLogsPage: React.FC = () => {
                </div>
                <h3 className="text-lg font-black text-gray-900 mb-2 italic">لم يتم العثور على سجلات تلتزم بالفلترة</h3>
                <p className="text-gray-400 font-medium text-sm">جرب إعادة ضبط الفلاتر أو استخدام كلمة بحث أخرى.</p>
+            </div>
+          )}
+
+          {!loading && logs.length >= logLimit && (
+            <div className="p-6 text-center border-t border-gray-50 bg-gray-50/30">
+              <button
+                onClick={() => setLogLimit(prev => prev + 300)}
+                className="inline-flex items-center gap-2 px-6 py-3 bg-white border border-gray-200 text-gray-700 font-bold text-xs rounded-xl shadow-sm hover:bg-gray-50 transition-colors"
+              >
+                <span>تحميل أقدم المستندات ({logLimit} أخرى)</span>
+                <ChevronDown className="w-4 h-4" />
+              </button>
             </div>
           )}
         </div>

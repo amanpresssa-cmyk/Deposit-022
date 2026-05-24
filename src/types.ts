@@ -90,6 +90,7 @@ export interface Order {
   paymentRef?: string;
   visibility: 'public' | 'private';
   typingStatus?: Record<string, boolean>;
+  chatPresence?: Record<string, boolean>;
   buyerRatingCompleted?: boolean;
   sellerRatingCompleted?: boolean;
   buyerRating?: number;

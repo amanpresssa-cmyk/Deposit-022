@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { collection, query, orderBy, onSnapshot, doc, getDoc, updateDoc, serverTimestamp, increment } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, getDoc, updateDoc, serverTimestamp, increment, addDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../hooks/useAuth';
 import { handleFirestoreError, OperationType } from '../../lib/error-handler';
@@ -29,6 +29,7 @@ export const AdminDisputes: React.FC = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [filterResolved, setFilterResolved] = useState(false);
   const [resolutionComment, setResolutionComment] = useState('');
+  const [adminMessage, setAdminMessage] = useState('');
   
   // Custom split configuration
   const [splitMode, setSplitMode] = useState(false);
@@ -140,6 +141,22 @@ export const AdminDisputes: React.FC = () => {
     }
   };
 
+  const handleSendAdminMessage = async () => {
+    if (!selectedDispute || !adminMessage.trim() || !isAdmin) return;
+    try {
+      await addDoc(collection(db, 'orders', selectedDispute.orderId, 'messages'), {
+        text: adminMessage.trim(),
+        senderId: 'ADMIN',
+        createdAt: serverTimestamp(),
+        readBy: ['ADMIN']
+      });
+      setAdminMessage('');
+    } catch (err) {
+      console.error('Failed to send admin message:', err);
+      toast.error('فشل إرسال الرسالة الإدارية');
+    }
+  };
+
   // 1. Resolve: Release to Seller
   const handleReleaseToSeller = async () => {
     if (!selectedDispute || !isAdmin) return;
@@ -147,6 +164,17 @@ export const AdminDisputes: React.FC = () => {
     try {
       const finalComment = resolutionComment.trim() || 'تمت تسوية النزاع وتحرير كامل مبلغ الضمان للبائع.';
       
+      // Execute Capture API FIRST!
+      const isDev = !orderData?.paymentRef || orderData.paymentRef.startsWith('DEV-');
+      if (!isDev) {
+        const captureSuccess = await capturePayment(selectedDispute.orderId, selectedDispute.amount, orderData?.paymentRef);
+        if (!captureSuccess) {
+           toast.error('فشل تحويل المبلغ من بوابة الدفع! لم يتم إغلاق النزاع لحماية الرصيد.');
+           setActionLoading(false);
+           return;
+        }
+      }
+
       // Update Dispute
       await updateDoc(doc(db, 'disputes', selectedDispute.id), {
         status: 'resolved',
@@ -161,9 +189,6 @@ export const AdminDisputes: React.FC = () => {
         status: 'completed',
         updatedAt: serverTimestamp()
       });
-
-      // Execute Capture API
-      await capturePayment(selectedDispute.orderId, selectedDispute.amount, orderData?.paymentRef);
 
       // Increment seller's balance
       const sellerNetShare = orderData?.paymentFees?.sellerNetShare || selectedDispute.amount;
@@ -231,6 +256,17 @@ export const AdminDisputes: React.FC = () => {
     try {
       const finalComment = resolutionComment.trim() || 'تمت تسوية النزاع وإرجاع كامل مبلغ الضمان للمشتري.';
 
+      // Execute Refund API FIRST
+      const isDev = !orderData?.paymentRef || orderData.paymentRef.startsWith('DEV-');
+      if (!isDev) {
+        const refundSuccess = await refundPayment(selectedDispute.orderId, selectedDispute.amount, orderData?.paymentRef);
+        if (!refundSuccess) {
+           toast.error('فشل إرجاع المبلغ من بوابة الدفع! لم يتم إغلاق النزاع لحماية الرصيد.');
+           setActionLoading(false);
+           return;
+        }
+      }
+
       // Update Dispute
       await updateDoc(doc(db, 'disputes', selectedDispute.id), {
         status: 'resolved',
@@ -245,9 +281,6 @@ export const AdminDisputes: React.FC = () => {
         status: 'cancelled',
         updatedAt: serverTimestamp()
       });
-
-      // Execute Refund API
-      await refundPayment(selectedDispute.orderId, selectedDispute.amount, orderData?.paymentRef);
 
       // Increment buyer's balance
       if (selectedDispute.buyerId && selectedDispute.buyerId !== 'unknown') {
@@ -314,6 +347,27 @@ export const AdminDisputes: React.FC = () => {
     try {
       const finalComment = resolutionComment.trim() || `تقسيم بالتراضي: ${buyerPercent}% للمشتري و ${sellerPercent}% للبائع.`;
 
+      // Execute APIs FIRST
+      const isDev = !orderData?.paymentRef || orderData.paymentRef.startsWith('DEV-');
+      if (!isDev) {
+        if (buyerSplitAmount > 0) {
+          const refundSuccess = await refundPayment(selectedDispute.orderId, buyerSplitAmount, orderData?.paymentRef);
+          if (!refundSuccess) {
+             toast.error('فشل إرجاع مبلغ المشتري من بوابة الدفع! تم إيقاف العملية.');
+             setActionLoading(false);
+             return;
+          }
+        }
+        if (sellerSplitAmount > 0) {
+          const captureSuccess = await capturePayment(selectedDispute.orderId, sellerSplitAmount, orderData?.paymentRef);
+          if (!captureSuccess) {
+             toast.error('فشل تحرير مبلغ البائع من بوابة الدفع! تم إيقاف العملية.');
+             setActionLoading(false);
+             return;
+          }
+        }
+      }
+
       // Update Dispute
       await updateDoc(doc(db, 'disputes', selectedDispute.id), {
         status: 'resolved',
@@ -339,19 +393,12 @@ export const AdminDisputes: React.FC = () => {
         }
       });
 
-      // Split geidea transactions:
-      // Refund the buyer portion, capture the seller portion
-      if (buyerSplitAmount > 0) {
-        await refundPayment(selectedDispute.orderId, buyerSplitAmount, orderData?.paymentRef);
-        if (selectedDispute.buyerId && selectedDispute.buyerId !== 'unknown') {
-          await updateDoc(doc(db, 'users', selectedDispute.buyerId), { balance: increment(buyerSplitAmount) });
-        }
+      // Update balances
+      if (buyerSplitAmount > 0 && selectedDispute.buyerId && selectedDispute.buyerId !== 'unknown') {
+         await updateDoc(doc(db, 'users', selectedDispute.buyerId), { balance: increment(buyerSplitAmount) });
       }
-      if (sellerSplitAmount > 0) {
-        await capturePayment(selectedDispute.orderId, sellerSplitAmount, orderData?.paymentRef);
-        if (selectedDispute.sellerId && selectedDispute.sellerId !== 'unknown') {
-          await updateDoc(doc(db, 'users', selectedDispute.sellerId), { balance: increment(sellerSplitAmount) });
-        }
+      if (sellerSplitAmount > 0 && selectedDispute.sellerId && selectedDispute.sellerId !== 'unknown') {
+         await updateDoc(doc(db, 'users', selectedDispute.sellerId), { balance: increment(sellerSplitAmount) });
       }
 
       // Record Ledger Events
@@ -599,6 +646,27 @@ export const AdminDisputes: React.FC = () => {
                         })
                       )}
                     </div>
+                    {selectedDispute.status === 'open' && (
+                      <div className="flex gap-2 mt-2">
+                        <input
+                          type="text"
+                          value={adminMessage}
+                          onChange={(e) => setAdminMessage(e.target.value)}
+                          placeholder="اكتب رسالة إدارية موجهة للطرفين (ستظهر بلون مميز)..."
+                          className="flex-1 bg-white border border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-orange-500 outline-none"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSendAdminMessage();
+                          }}
+                        />
+                        <button
+                          onClick={handleSendAdminMessage}
+                          disabled={!adminMessage.trim()}
+                          className="bg-gray-900 text-white px-6 rounded-xl font-bold hover:bg-black disabled:opacity-50"
+                        >
+                          إرسال
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Interactive Split Mode Slider */}

@@ -325,6 +325,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ orderId }) => {
 
         {messages.map((msg, idx) => {
           const isOwn = msg.senderId === user?.uid;
+          const isSystem = msg.senderId === 'SYSTEM' || msg.senderId === 'ADMIN';
           const showTime = idx === 0 || messages[idx-1].senderId !== msg.senderId || (msg.createdAt && messages[idx-1].createdAt && (msg.createdAt as any).seconds - (messages[idx-1].createdAt as any).seconds > 300);
           
           return (
@@ -332,20 +333,23 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ orderId }) => {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               key={msg.id} 
-              className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
+              className={`flex ${isSystem ? 'justify-center w-full' : isOwn ? 'justify-end' : 'justify-start'}`}
             >
-              <div className={`max-w-[85%] sm:max-w-[75%] space-y-1 ${isOwn ? 'items-end' : 'items-start'}`}>
+              <div className={`max-w-[85%] sm:max-w-[85%] space-y-1 flex flex-col ${isSystem ? 'items-center w-full' : isOwn ? 'items-end' : 'items-start'}`}>
                 <div
-                  className={`px-4 py-3 text-sm leading-relaxed shadow-sm ${
-                    isOwn
-                      ? 'bg-blue-600 text-white rounded-3xl rounded-br-sm'
-                      : 'bg-white text-gray-800 rounded-3xl rounded-bl-sm border border-gray-100'
+                  className={`px-4 py-3 text-sm leading-relaxed shadow-sm w-full ${
+                    isSystem 
+                      ? 'bg-amber-50/80 text-amber-900 border border-amber-200/60 rounded-2xl font-bold flex gap-3 items-start'
+                      : isOwn
+                        ? 'bg-blue-600 text-white rounded-3xl rounded-br-sm'
+                        : 'bg-white text-gray-800 rounded-3xl rounded-bl-sm border border-gray-100'
                   }`}
                   style={{ wordBreak: 'break-word' }}
                 >
-                  {msg.text}
+                  {isSystem && <AlertCircle className="w-5 h-5 shrink-0 text-amber-600 mt-0.5" />}
+                  <span style={{ whiteSpace: 'pre-wrap' }}>{msg.text}</span>
                 </div>
-                {showTime && (
+                {showTime && !isSystem && (
                   <p className={`text-[9px] font-bold text-gray-400 px-2 ${isOwn ? 'text-right' : 'text-left'}`}>
                     {msg.createdAt ? format(msg.createdAt.toDate(), 'hh:mm a', { locale: ar }) : 'الآن'}
                   </p>

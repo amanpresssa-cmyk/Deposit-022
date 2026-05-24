@@ -197,7 +197,10 @@ service cloud.firestore {
       allow create: if isSignedIn()
         && incoming().raisedById == request.auth.uid
         && incoming().status == 'open'
-        && get(/databases/$(database)/documents/orders/$(incoming().orderId)).data.status == 'disputed';
+        && (
+          get(/databases/$(database)/documents/orders/$(incoming().orderId)).data.buyerId == request.auth.uid ||
+          get(/databases/$(database)/documents/orders/$(incoming().orderId)).data.sellerId == request.auth.uid
+        );
     }
 
     // --- Platform Feedback ---

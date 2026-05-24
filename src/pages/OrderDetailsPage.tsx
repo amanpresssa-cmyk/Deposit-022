@@ -95,9 +95,9 @@ export const OrderDetailsPage: React.FC = () => {
       const opt = {
         margin: [15, 15, 15, 15] as [number, number, number, number],
         filename: `عقد_اتفاق_${order.id.slice(0,6).toUpperCase()}.pdf`,
-        image:        { type: 'jpeg', quality: 0.98 },
+        image:        { type: 'jpeg' as const, quality: 0.98 },
         html2canvas:  { scale: 2, useCORS: true, logging: false },
-        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' as const }
       };
 
       await html2pdf().set(opt).from(element).save();
@@ -680,15 +680,19 @@ export const OrderDetailsPage: React.FC = () => {
                 </div>
              )}
              
-             {order.status === 'escrowed' && isBuyer && (
-                <button onClick={() => setShowDisputeModal(true)} disabled={actionLoading} className="w-full bg-white text-red-600 border border-red-200 px-4 py-2.5 rounded-xl font-bold hover:bg-red-50 transition-colors text-sm">إبلاغ عن مشكلة (نزاع)</button>
+             {order.status === 'escrowed' && (isBuyer || isSeller) && (
+                <button onClick={() => setShowDisputeModal(true)} disabled={actionLoading} className="w-full bg-white text-red-600 border border-red-200 px-4 py-2.5 rounded-xl font-bold hover:bg-red-50 transition-colors text-sm mt-2">إبلاغ عن مشكلة (نزاع)</button>
              )}
              
              {order.status === 'delivered' && isBuyer && (
                 <div className="space-y-2">
-                  <button onClick={() => updateStatus('completed')} disabled={actionLoading} className="w-full bg-green-600 text-white px-4 py-3 rounded-xl font-bold hover:bg-green-700 shadow-lg shadow-green-600/20 text-lg flex items-center justify-center gap-2"><CheckCircle2 className="w-5 h-5" /> قبول واستلام العمل</button>
+                  <button onClick={() => { if(window.confirm('هل أنت متأكد من قبول العمل؟ هذا الإجراء سيحرر المبلغ للبائع ولا يمكن التراجع عنه.')) updateStatus('completed') }} disabled={actionLoading} className="w-full bg-green-600 text-white px-4 py-3 rounded-xl font-bold hover:bg-green-700 shadow-lg shadow-green-600/20 text-lg flex items-center justify-center gap-2"><CheckCircle2 className="w-5 h-5" /> قبول واستلام العمل</button>
                   <button onClick={() => setShowDisputeModal(true)} disabled={actionLoading} className="w-full bg-white text-red-600 border border-red-200 px-4 py-2.5 rounded-xl font-bold hover:bg-red-50 text-sm">رفض التسليم (نزاع)</button>
                 </div>
+             )}
+             
+             {order.status === 'delivered' && isSeller && (
+                <button onClick={() => setShowDisputeModal(true)} disabled={actionLoading} className="w-full bg-white text-red-600 border border-red-200 px-4 py-2.5 rounded-xl font-bold hover:bg-red-50 transition-colors text-sm mt-2">إبلاغ عن مشكلة (نزاع)</button>
              )}
           </div>
 
