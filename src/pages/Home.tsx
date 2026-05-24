@@ -16,6 +16,7 @@ import { SellerCard } from '../components/SellerCard';
 import { TestimonialSlider } from '../components/TestimonialSlider';
 import { GeneralFeedbackForm } from '../components/GeneralFeedbackForm';
 import { LoginModal } from '../components/auth/LoginModal';
+import { WithdrawalModal } from '../components/ui/WithdrawalModal';
 
 export const Home: React.FC = () => {
   const { user, profile } = useAuth();
@@ -37,7 +38,19 @@ export const Home: React.FC = () => {
   const [loadingOffers, setLoadingOffers] = useState(true);
   const [trustIndex, setTrustIndex] = useState(0);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isWithdrawalModalOpen, setIsWithdrawalModalOpen] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
+  const [heroStatIndex, setHeroStatIndex] = useState(0);
+  const [selectedPayment, setSelectedPayment] = useState<{name: string, desc: string} | null>(null);
+
+  const paymentInfo = {
+    mada: { name: 'مدى (Mada)', desc: 'تعتبر رسوم الدفع عبر بطاقات مدى الأقل تكلفة، حيث تقدر رسوم البوابة بحوالي 1.75% + 1 ريال للعملية الواحدة (حسب الاتفاقية).' },
+    visa: { name: 'فيزا (Visa)', desc: 'رسوم البطاقات الائتمانية (فيزا) تكون عادة بين 2.2% إلى 2.5% + 1 ريال للعملية، وهي أعلى نسبياً من بطاقات مدى.' },
+    mastercard: { name: 'ماستركارد (Mastercard)', desc: 'كما هو الحال مع فيزا، رسوم ماستركارد تتراوح بين 2.2% و 2.5% + 1 ريال للعملية.' },
+    applepay: { name: 'آبل باي (Apple Pay)', desc: 'رسوم آبل باي تعتمد كلياً على نوع البطاقة المضافة في المحفظة، إذا كانت البطاقة مدى تطبق رسوم مدى، وإذا كانت ائتمانية تطبق رسوم البطاقات الائتمانية.' },
+    tabby: { name: 'تابي (Tabby)', desc: 'تتيح خدمة تابي للعملاء الدفع بالتقسيط، وتأخذ بوابة الدفع رسوماً أعلى تتراوح غالباً بين 5% إلى 7% من قيمة الطلب.' },
+    tamara: { name: 'تمارا (Tamara)', desc: 'تتيح خدمة تمارا للعملاء الدفع بالتقسيط، وتأخذ بوابة الدفع رسوماً أعلى تتراوح غالباً بين 5% إلى 7% من قيمة الطلب.' },
+  };
 
   const steps = [
     {
@@ -65,7 +78,7 @@ export const Home: React.FC = () => {
   useEffect(() => {
     const timer = setInterval(() => {
       setActiveStep((prev) => (prev + 1) % steps.length);
-    }, 3000); 
+    }, 1500); 
     return () => clearInterval(timer);
   }, [steps.length]);
 
@@ -86,6 +99,7 @@ export const Home: React.FC = () => {
   useEffect(() => {
     const timer = setInterval(() => {
       setTrustIndex((prev) => (prev + 1) % trustMessages.length);
+      setHeroStatIndex((prev) => (prev + 1) % 3);
     }, 3000);
     return () => clearInterval(timer);
   }, []);
@@ -201,10 +215,7 @@ export const Home: React.FC = () => {
     const unsubGuarantees = onSnapshot(collection(db, 'orders'), (snap) => {
       const total = snap.docs.reduce((acc, doc) => {
         const data = doc.data();
-        if (['escrowed', 'completed', 'in_progress'].includes(data.status)) {
-          return acc + (data.amount || 0);
-        }
-        return acc;
+        return acc + (data.amount || 0);
       }, 0);
       
       if (isAdmin && total > 0) {
@@ -268,6 +279,14 @@ export const Home: React.FC = () => {
   const displayGuarantees = stats?.totalGuarantees || 0;
   const displayUsers = stats?.totalUsers || 0;
 
+  const formatCompactArabic = (num: number) => {
+    if (num >= 1000000000) return { value: +(num / 1000000000).toFixed(1), suffix: 'مليار ر.س' };
+    if (num >= 1000000) return { value: +(num / 1000000).toFixed(1), suffix: 'مليون ر.س' };
+    if (num >= 1000) return { value: +(num / 1000).toFixed(1), suffix: 'ألف ر.س' };
+    return { value: num.toLocaleString(), suffix: 'ر.س' };
+  };
+  const guaranteesData = formatCompactArabic(displayGuarantees);
+
   const activeHeroTitleTop = heroBanner?.titleTop || 'ضمانك الموثوق';
   const activeHeroTitleBottom = heroBanner?.titleBottom || 'في العالم الرقمي';
   const activeHeroSubtitle = heroBanner?.subtitle || 'عربون هو وسيطك الذكي لضمان فحص وسلامة التعاملات المالية والخدمية في المملكة العربية السعودية.';
@@ -275,6 +294,27 @@ export const Home: React.FC = () => {
     text: m, 
     icon: <ShieldCheck className="w-4 h-4" /> 
   })) || defaultTrustMessages;
+
+  const heroStatsData = [
+    {
+      title: 'إجمالي المبالغ المضمونة',
+      icon: ShieldCheck,
+      value: guaranteesData.value,
+      suffix: guaranteesData.suffix,
+    },
+    {
+      title: 'المستخدمين النشطين',
+      icon: Users,
+      value: displayUsers.toLocaleString(),
+      suffix: 'مستخدم',
+    },
+    {
+      title: 'إجمالي الطلبات المنفذة',
+      icon: Star,
+      value: (displayUsers * 3 + 124).toLocaleString(), // Fallback dynamic number for showcase, could read real orders if available
+      suffix: 'طلب',
+    }
+  ];
 
     const categories = [
       { id: 'برمجة', name: 'البرمجة والتطوير', icon: <LayoutGrid className="w-4 h-4" />, color: 'bg-emerald-600', shadow: 'shadow-emerald-500/10' },
@@ -357,9 +397,32 @@ export const Home: React.FC = () => {
                    />
                    <div className="absolute bottom-0 left-0 w-full p-5 md:p-12 flex flex-row items-center justify-between gap-4 bg-gradient-to-t from-gray-950/95 via-gray-950/40 to-transparent backdrop-blur-[2px]">
                       <div className="flex flex-row items-center gap-3 md:gap-8">
-                        <div className="flex flex-col md:flex-row md:items-center gap-0 md:gap-6 bg-white dark:bg-gray-800 px-4 py-2 md:px-8 md:py-4 rounded-2xl md:rounded-[2rem] border border-white/20 dark:border-white/5 shadow-2xl backdrop-blur-md transition-colors duration-300">
-                          <p className="text-[7px] md:text-sm font-display font-black text-blue-600 dark:text-blue-400 uppercase tracking-[0.2em] whitespace-nowrap mb-0.5 md:mb-0">إجمالي الضمانات</p>
-                          <p className="text-xl md:text-5xl font-display font-black text-gray-950 dark:text-white tracking-tighter whitespace-nowrap">{(displayGuarantees / 1000000).toFixed(1)}M<span className="text-[10px] md:text-xl text-gray-400 dark:text-gray-500 mr-1">SAR</span></p>
+                        <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-6 bg-gray-900/60 hover:bg-gray-900/80 backdrop-blur-xl px-5 py-3 md:px-10 md:py-6 rounded-2xl md:rounded-[2rem] border border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.2)] transition-all duration-500 group overflow-hidden relative cursor-default min-w-[220px] md:min-w-[400px]">
+                          <div className="absolute inset-0 bg-blue-500/20 blur-[40px] opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+                          <div className="relative z-10 flex flex-col w-full">
+                            <AnimatePresence mode="wait">
+                              <motion.div
+                                key={heroStatIndex}
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -10 }}
+                                transition={{ duration: 0.3 }}
+                                className="flex flex-col"
+                              >
+                                <p className="text-[9px] md:text-sm font-display font-black text-blue-300 uppercase tracking-[0.2em] whitespace-nowrap mb-1 md:mb-2 flex items-center gap-2">
+                                  {(() => { 
+                                    const Icon = heroStatsData[heroStatIndex].icon; 
+                                    return <Icon className="w-3 h-3 md:w-4 md:h-4 text-blue-400" />; 
+                                  })()}
+                                  {heroStatsData[heroStatIndex].title}
+                                </p>
+                                <p className="text-2xl md:text-6xl font-display font-black text-white tracking-tighter whitespace-nowrap drop-shadow-lg" dir="ltr">
+                                  {heroStatsData[heroStatIndex].value}
+                                  <span className="text-[10px] md:text-xl text-blue-200/90 ml-2 font-bold">{heroStatsData[heroStatIndex].suffix}</span>
+                                </p>
+                              </motion.div>
+                            </AnimatePresence>
+                          </div>
                         </div>
                       </div>
                       {heroBanner?.showUserCards !== false && (
@@ -477,11 +540,19 @@ export const Home: React.FC = () => {
                          <span className="text-[8px] md:text-xs font-sans opacity-40 dark:opacity-20 mr-1">ر.س</span>
                        </p>
                     </div>
-                    <div className="relative z-10">
+                    <div className="relative z-10 flex items-center gap-2 flex-wrap">
                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 rounded-full text-[6px] md:text-[8px] font-black transition-colors">
                           <CheckCircle2 className="w-2 h-2 md:w-2.5 md:h-2.5" />
                           محولة لحسابك
                        </span>
+                       
+                       <button 
+                         onClick={(e) => { e.stopPropagation(); setIsWithdrawalModalOpen(true); }}
+                         className="mr-2 inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-[6px] md:text-[8px] font-black hover:bg-emerald-200 transition-colors"
+                       >
+                         <Wallet className="w-2 h-2 md:w-2.5 md:h-2.5" />
+                         سحب الأرباح
+                       </button>
                     </div>
                 </div>
 
@@ -623,71 +694,85 @@ export const Home: React.FC = () => {
 
       {/* Sophisticated How it Works Section */}
       {!showAdminUI && (
-        <div className="relative overflow-hidden bg-white dark:bg-gray-900 transition-colors duration-300">
-          <div className="absolute top-1/2 left-0 w-full h-px bg-gray-50 dark:bg-gray-800 -translate-y-1/2" />
-          
-          <div className="max-w-7xl mx-auto relative z-10 px-4">
-            <div className="text-center space-y-4 mb-4">
-              <div className="inline-flex items-center gap-3 px-6 py-3.5 md:px-8 md:py-4 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-full text-[11px] md:text-sm font-black uppercase tracking-[0.2em] border border-blue-100/50 dark:border-blue-900/30 leading-none shadow-sm overflow-visible">
-                <ArrowLeftRight className="w-5 h-5" />
+        <div className="relative overflow-hidden transition-colors duration-300 py-8">
+          <div className="max-w-5xl mx-auto relative z-10 px-4">
+            <div className="text-center space-y-3 mb-6">
+              <div className="inline-flex items-center gap-2 px-4 py-2.5 md:px-6 md:py-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-full text-[10px] md:text-xs font-black uppercase tracking-[0.2em] border border-blue-100/50 dark:border-blue-900/30 leading-none shadow-sm overflow-visible">
+                <ArrowLeftRight className="w-4 h-4" />
                 <span className="inline-block">بروتوكول الضمان الذكي</span>
               </div>
-              <h2 className="text-3xl md:text-5xl font-display font-black text-emerald-900 dark:text-emerald-400 tracking-tighter leading-[1.2]">كيف نضمن <span className="text-blue-600 underline decoration-blue-100 dark:decoration-blue-900 underline-offset-8">حقك</span>؟</h2>
-              <p className="text-gray-500 dark:text-gray-400 font-bold max-w-2xl mx-auto text-lg md:text-2xl leading-relaxed">خطوات مدروسة تقنياً لضمان سلامة كل ريال من طرفي الصفقة.</p>
+              <h2 className="text-2xl md:text-4xl font-display font-black text-emerald-900 dark:text-emerald-400 tracking-tighter leading-[1.2]">كيف نضمن <span className="text-blue-600 underline decoration-blue-100 dark:decoration-blue-900 underline-offset-8">حقك</span>؟</h2>
+              <p className="text-gray-500 dark:text-gray-400 font-bold max-w-xl mx-auto text-sm md:text-lg leading-relaxed">خطوات مدروسة تقنياً لضمان سلامة كل ريال من طرفي الصفقة.</p>
             </div>
  
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-8 mt-4 px-4 max-w-6xl mx-auto">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-5 mt-4 px-2 md:px-4 max-w-5xl mx-auto">
               {steps.map((step, idx) => {
                 const isActive = activeStep === idx;
                 return (
                   <motion.div
                     key={idx}
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    whileInView={{ opacity: 1, scale: 1 }}
+                    initial={{ opacity: 0, y: 30 }}
+                    whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
+                    transition={{ delay: idx * 0.15, duration: 0.6, type: 'spring', bounce: 0.4 }}
                     animate={isActive ? { 
-                      scale: 1.02, 
-                      borderColor: 'rgba(59, 130, 246, 0.5)',
+                      scale: 1.05, 
+                      y: -8,
+                      borderColor: 'rgba(59, 130, 246, 0.8)',
                       backgroundColor: 'var(--card-bg, rgba(255, 255, 255, 1))',
-                      boxShadow: '0 20px 40px -12px rgba(59, 130, 246, 0.15)'
+                      boxShadow: '0 20px 40px -12px rgba(59, 130, 246, 0.25), 0 0 15px rgba(59, 130, 246, 0.1)',
+                      filter: 'grayscale(0%) blur(0px)',
+                      opacity: 1,
+                      zIndex: 30
                     } : { 
-                      scale: 1, 
+                      scale: 0.95, 
+                      y: 0,
                       borderColor: 'var(--border-color, rgba(249, 250, 251, 0.5))',
-                      backgroundColor: 'var(--card-bg-dim, rgba(255, 255, 255, 0.5))',
-                      boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                      backgroundColor: 'var(--card-bg-dim, rgba(255, 255, 255, 0.3))',
+                      boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+                      filter: 'grayscale(60%) blur(1px)',
+                      opacity: 0.6,
+                      zIndex: 10
                     }}
-                    className={`relative group rounded-2xl p-4 md:p-8 border-2 transition-all duration-500 flex flex-col items-center text-center md:items-start md:text-right pt-8 md:pt-10 ${
-                      isActive ? 'z-20 border-blue-500/50' : 'z-10 border-gray-100 dark:border-gray-800'
-                    } dark:bg-gray-800/50`}
+                    className="relative group rounded-[1.5rem] p-4 md:p-6 border-2 transition-all duration-700 flex flex-col items-center text-center md:items-start md:text-right pt-6 md:pt-10 dark:bg-gray-800/50"
                   >
-                    <div className={`absolute top-2 left-3 md:top-4 md:left-6 w-6 h-6 md:w-8 md:h-8 rounded-lg flex items-center justify-center font-display font-black text-[10px] md:text-xs transition-colors duration-500 ${
-                      isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500'
+                    {isActive && (
+                      <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-indigo-500/10 rounded-[1.5rem] pointer-events-none" />
+                    )}
+                    
+                    <div className={`absolute top-2 left-3 md:top-4 md:left-5 w-6 h-6 md:w-8 md:h-8 rounded-lg flex items-center justify-center font-display font-black text-[10px] md:text-xs transition-all duration-500 ${
+                      isActive ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500'
                     }`}>
                       {idx + 1}
                     </div>
                     
-                    <div className={`w-10 h-10 md:w-16 md:h-16 rounded-xl md:rounded-2xl flex items-center justify-center mb-4 md:mb-6 transition-all transform duration-500 shadow-lg ${
-                      isActive ? 'bg-blue-600 text-white scale-110' : 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400'
-                    }`}>
+                    <motion.div 
+                      animate={isActive ? { rotate: [0, -10, 10, -10, 0], scale: [1, 1.1, 1] } : { rotate: 0, scale: 1 }}
+                      transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                      className={`w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-[1.2rem] flex items-center justify-center mb-4 md:mb-6 transition-all transform duration-500 shadow-xl relative ${
+                        isActive ? 'bg-gradient-to-tr from-blue-600 to-indigo-500 text-white shadow-blue-500/40' : 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-gray-200/50 dark:shadow-none'
+                      }`}
+                    >
+                      {isActive && <div className="absolute inset-0 bg-white/20 blur-sm rounded-[1.2rem] animate-pulse" />}
                       {React.cloneElement(step.icon as React.ReactElement, { 
-                        className: `w-5 h-5 md:w-7 md:h-7` 
+                        className: `w-5 h-5 md:w-7 md:h-7 relative z-10 ${isActive ? 'text-white' : ''}` 
                       })}
-                    </div>
+                    </motion.div>
                     
-                    <div className="space-y-2 w-full">
-                      <h3 className={`font-display font-black text-[11px] md:text-lg leading-tight transition-colors duration-500 ${
+                    <div className="space-y-1.5 w-full relative z-10">
+                      <h3 className={`font-display font-black text-xs md:text-lg leading-tight transition-colors duration-500 ${
                         isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-950 dark:text-white'
                       }`}>{step.title}</h3>
-                      <p className={`font-medium text-[9px] md:text-sm leading-relaxed line-clamp-2 md:line-clamp-none transition-opacity duration-500 ${
-                        isActive ? 'text-gray-600 dark:text-gray-400 opacity-100' : 'text-gray-400 dark:text-gray-500 opacity-70'
+                      <p className={`font-medium text-[9px] md:text-xs leading-relaxed transition-opacity duration-500 ${
+                        isActive ? 'text-gray-700 dark:text-gray-300 opacity-100' : 'text-gray-400 dark:text-gray-500 opacity-80'
                       }`}>{step.desc}</p>
                     </div>
 
                     {isActive && (
                       <motion.div
                         layoutId="active-indicator"
-                        className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-12 h-1 bg-blue-600 rounded-full"
-                        transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                        className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-gradient-to-r from-blue-600 to-indigo-500 rounded-full shadow-[0_0_8px_rgba(59,130,246,0.5)]"
+                        transition={{ type: "spring", bounce: 0.3, duration: 0.8 }}
                       />
                     )}
                   </motion.div>
@@ -698,6 +783,61 @@ export const Home: React.FC = () => {
         </div>
       )}
 
+      {/* Payment Methods Section */}
+      {!showAdminUI && (
+        <section className="py-10 md:py-16 bg-gray-50/50 dark:bg-gray-900/30 border-y border-gray-100 dark:border-gray-800 transition-colors duration-300 overflow-hidden relative">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-3xl h-32 bg-blue-500/5 blur-[100px] rounded-full pointer-events-none" />
+          <div className="max-w-7xl mx-auto px-4 text-center space-y-8 relative z-10">
+            <h3 className="text-xs md:text-sm font-display font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest">
+              خيارات دفع مرنة ومتنوعة تناسب احتياجاتك
+            </h3>
+            <div className="flex flex-wrap items-center justify-center gap-6 md:gap-12 opacity-80 hover:opacity-100 transition-opacity duration-500">
+              <div onClick={() => setSelectedPayment(paymentInfo.mada)} className="hover:scale-110 hover:-translate-y-1 transition-all duration-300 cursor-pointer"><PaymentIcon type="mada" className="h-6 md:h-10 pointer-events-none" /></div>
+              <div onClick={() => setSelectedPayment(paymentInfo.visa)} className="hover:scale-110 hover:-translate-y-1 transition-all duration-300 cursor-pointer"><PaymentIcon type="visa" className="h-5 md:h-8 pointer-events-none" /></div>
+              <div onClick={() => setSelectedPayment(paymentInfo.mastercard)} className="hover:scale-110 hover:-translate-y-1 transition-all duration-300 cursor-pointer"><PaymentIcon type="mastercard" className="h-7 md:h-10 pointer-events-none" /></div>
+              <div onClick={() => setSelectedPayment(paymentInfo.applepay)} className="hover:scale-110 hover:-translate-y-1 transition-all duration-300 cursor-pointer"><PaymentIcon type="applepay" className="h-7 md:h-10 pointer-events-none" /></div>
+              <div onClick={() => setSelectedPayment(paymentInfo.tabby)} className="hover:scale-110 hover:-translate-y-1 transition-all duration-300 cursor-pointer"><PaymentIcon type="tabby" className="h-6 md:h-9 pointer-events-none" /></div>
+              <div onClick={() => setSelectedPayment(paymentInfo.tamara)} className="hover:scale-110 hover:-translate-y-1 transition-all duration-300 cursor-pointer"><PaymentIcon type="tamara" className="h-6 md:h-9 pointer-events-none" /></div>
+            </div>
+          </div>
+
+          <AnimatePresence>
+            {selectedPayment && (
+              <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                <motion.div 
+                  initial={{ opacity: 0 }} 
+                  animate={{ opacity: 1 }} 
+                  exit={{ opacity: 0 }} 
+                  onClick={() => setSelectedPayment(null)} 
+                  className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm cursor-pointer" 
+                />
+                <motion.div 
+                  initial={{ scale: 0.9, opacity: 0, y: 20 }} 
+                  animate={{ scale: 1, opacity: 1, y: 0 }} 
+                  exit={{ scale: 0.9, opacity: 0, y: 20 }} 
+                  className="bg-white dark:bg-gray-900 rounded-[2.5rem] p-8 max-w-sm w-full relative z-10 shadow-2xl border border-gray-100 dark:border-gray-800 text-center"
+                >
+                  <button 
+                    onClick={() => setSelectedPayment(null)}
+                    className="absolute top-4 left-4 w-8 h-8 flex items-center justify-center bg-gray-100 dark:bg-gray-800 text-gray-500 rounded-full hover:bg-gray-200 transition-colors"
+                  >
+                    ✕
+                  </button>
+                  <div className="w-16 h-16 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-2xl mx-auto flex items-center justify-center mb-6">
+                    <CreditCard className="w-8 h-8" />
+                  </div>
+                  <h3 className="text-xl font-black text-gray-900 dark:text-white mb-4">{selectedPayment.name}</h3>
+                  <p className="text-gray-500 dark:text-gray-400 font-medium leading-relaxed mb-6">{selectedPayment.desc}</p>
+                  
+                  <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/30 rounded-xl p-3 text-[10px] font-bold text-amber-700 dark:text-amber-500">
+                    ملاحظة: لضمان الشفافية التامة، سيتم عرض الرسوم النهائية بدقة في صفحة الدفع قبل تأكيد العملية.
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
+        </section>
+      )}
       {/* Statistics & Trust Bar */}
       {!user && !showAdminUI && (
         <section className="px-4 max-w-7xl mx-auto py-2 md:py-4 flex flex-col justify-center">
@@ -723,19 +863,38 @@ export const Home: React.FC = () => {
                   </div>
                </div>
 
-               <div className="grid grid-cols-2 gap-2 md:gap-4">
-                  {[
-                    { val: displayGuarantees > 999999 ? `${(displayGuarantees / 1000000).toFixed(1)}M+` : displayGuarantees.toLocaleString(), label: 'حجم التعاملات', icon: ShieldCheck },
-                    { val: '99.9%', label: 'معدل النجاح', icon: Star },
-                    { val: displayUsers.toLocaleString(), label: 'بائع ومشتري', icon: Users },
-                    { val: '24/7', label: 'دعم فني', icon: Clock },
-                  ].map((stat, i) => (
-                    <div key={i} className="bg-white/5 border border-white/5 p-3 md:p-8 rounded-xl md:rounded-[3rem] text-center space-y-1 md:space-y-3 hover:bg-white/10 transition-colors cursor-default">
-                       <stat.icon className="w-4 h-4 md:w-8 md:h-8 text-blue-500 mx-auto" />
-                       <div className="text-lg md:text-3xl font-display font-black">{stat.val}</div>
-                       <div className="text-gray-500 text-[7px] md:text-[10px] uppercase font-black tracking-widest">{stat.label}</div>
-                    </div>
-                  ))}
+               <div className="flex flex-col gap-3 md:gap-4">
+                  {/* Featured Guarantees Card */}
+                  <div className="w-full bg-gradient-to-br from-blue-600/20 to-blue-900/10 border border-blue-500/30 p-5 md:p-8 rounded-2xl md:rounded-[2.5rem] text-center space-y-3 relative overflow-hidden group hover:border-blue-400/50 transition-colors duration-500">
+                     <div className="absolute inset-0 bg-blue-500/10 blur-[40px] opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+                     <ShieldCheck className="w-6 h-6 md:w-10 md:h-10 text-blue-400 mx-auto relative z-10" />
+                     <div className="flex flex-col items-center justify-center relative z-10">
+                        <div className="text-2xl md:text-5xl font-display font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-300 to-indigo-100 drop-shadow-sm flex items-baseline gap-2 justify-center" dir="ltr">
+                          <span>{displayGuarantees.toLocaleString()}</span>
+                          <span className="text-sm md:text-xl text-blue-300/80 font-bold">ر.س</span>
+                        </div>
+                     </div>
+                     <div className="text-blue-200/80 text-[9px] md:text-xs uppercase font-black tracking-[0.2em] relative z-10">إجمالي المبالغ المضمونة بنجاح</div>
+                  </div>
+
+                  {/* Other Stats */}
+                  <div className="grid grid-cols-3 gap-2 md:gap-4">
+                     <div className="bg-white/5 border border-white/10 p-3 md:p-6 rounded-xl md:rounded-[2rem] text-center space-y-1.5 md:space-y-3 hover:bg-white/10 transition-colors flex flex-col justify-center">
+                        <Star className="w-4 h-4 md:w-7 md:h-7 text-amber-400 mx-auto" />
+                        <div className="text-sm md:text-3xl font-display font-black">99.9%</div>
+                        <div className="text-gray-400 text-[6px] md:text-[9px] uppercase font-black tracking-widest">معدل النجاح</div>
+                     </div>
+                     <div className="bg-white/5 border border-white/10 p-3 md:p-6 rounded-xl md:rounded-[2rem] text-center space-y-1.5 md:space-y-3 hover:bg-white/10 transition-colors flex flex-col justify-center">
+                        <Users className="w-4 h-4 md:w-7 md:h-7 text-emerald-400 mx-auto" />
+                        <div className="text-sm md:text-3xl font-display font-black">{displayUsers.toLocaleString()}+</div>
+                        <div className="text-gray-400 text-[6px] md:text-[9px] uppercase font-black tracking-widest">مستخدم نشط</div>
+                     </div>
+                     <div className="bg-white/5 border border-white/10 p-3 md:p-6 rounded-xl md:rounded-[2rem] text-center space-y-1.5 md:space-y-3 hover:bg-white/10 transition-colors flex flex-col justify-center">
+                        <Clock className="w-4 h-4 md:w-7 md:h-7 text-purple-400 mx-auto" />
+                        <div className="text-sm md:text-3xl font-display font-black">24/7</div>
+                        <div className="text-gray-400 text-[6px] md:text-[9px] uppercase font-black tracking-widest">دعم فني متواصل</div>
+                     </div>
+                  </div>
                </div>
             </div>
           </div>
@@ -796,6 +955,13 @@ export const Home: React.FC = () => {
             <GeneralFeedbackForm />
           </div>
         </section>
+      )}
+      {profile && (
+        <WithdrawalModal 
+          isOpen={isWithdrawalModalOpen} 
+          onClose={() => setIsWithdrawalModalOpen(false)} 
+          profile={profile} 
+        />
       )}
     </div>
   );

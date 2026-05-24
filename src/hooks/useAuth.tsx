@@ -140,6 +140,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
             await setDoc(userRef, newProfile);
             setProfile(newProfile);
+            sessionStorage.setItem('isFirstLogin', 'true');
 
             // Send welcome notification
             await sendNotification(
@@ -254,6 +255,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     provider.setCustomParameters({ prompt: 'select_account' });
     try {
       await signInWithPopup(auth, provider);
+      sessionStorage.setItem('justLoggedIn', 'true');
     } catch (err: any) {
       console.error('Login error:', err);
       if (err.code === 'auth/popup-closed-by-user') {
@@ -283,6 +285,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const verifyOTP = async (confirmationResult: ConfirmationResult, code: string) => {
     try {
       const result = await confirmationResult.confirm(code);
+      sessionStorage.setItem('justLoggedIn', 'true');
       if (result.user) {
         const userRef = doc(db, 'users', result.user.uid);
         const userSnap = await getDoc(userRef);

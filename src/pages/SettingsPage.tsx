@@ -1,25 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  User, 
-  Lock, 
-  Bell, 
-  Palette, 
-  ShieldCheck, 
-  Globe, 
-  Save, 
-  CheckCircle2,
-  AlertTriangle,
-  Smartphone,
-  Upload,
-  Image as ImageIcon,
-  CreditCard,
-  Building,
-  Eye,
-  EyeOff,
-  ExternalLink,
-  ShieldAlert
+import {
+  User, Lock, Bell, CreditCard, Settings, Save, CheckCircle2,
+  AlertTriangle, Smartphone, Upload, Image as ImageIcon, Building,
+  Eye, EyeOff, ExternalLink, ShieldAlert, ShieldCheck, Globe,
+  MessageSquare, ChevronLeft, Wallet, Info, X
 } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { doc, updateDoc, serverTimestamp, getDocs, collection, query, where, limit } from 'firebase/firestore';
@@ -29,811 +15,901 @@ import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
 import { sendNotification } from '../lib/notificationService';
 
+type Section = 'profile' | 'security' | 'notifications' | 'financial' | 'platform';
+
+const SECTIONS = [
+  { id: 'profile',       label: 'الملف الشخصي',     icon: User,         color: 'blue'   },
+  { id: 'security',      label: 'الأمان والخصوصية', icon: Lock,         color: 'amber'  },
+  { id: 'notifications', label: 'التنبيهات',         icon: Bell,         color: 'green'  },
+  { id: 'financial',     label: 'المعلومات المالية', icon: CreditCard,   color: 'purple' },
+  { id: 'platform',      label: 'إعدادات المنصة',   icon: Settings,     color: 'rose', adminOnly: true },
+] as const;
+
+const colorMap: Record<string, { bg: string; text: string; ring: string; light: string }> = {
+  blue:   { bg: 'bg-blue-600',   text: 'text-blue-600',   ring: 'ring-blue-100 dark:ring-blue-900/30',   light: 'bg-blue-50 dark:bg-blue-900/20'   },
+  amber:  { bg: 'bg-amber-500',  text: 'text-amber-500',  ring: 'ring-amber-100 dark:ring-amber-900/30', light: 'bg-amber-50 dark:bg-amber-900/20'  },
+  green:  { bg: 'bg-green-600',  text: 'text-green-600',  ring: 'ring-green-100 dark:ring-green-900/30', light: 'bg-green-50 dark:bg-green-900/20'  },
+  purple: { bg: 'bg-violet-600', text: 'text-violet-600', ring: 'ring-violet-100 dark:ring-violet-900/30',light:'bg-violet-50 dark:bg-violet-900/20'},
+  rose:   { bg: 'bg-rose-600',   text: 'text-rose-600',   ring: 'ring-rose-100 dark:ring-rose-900/30',   light: 'bg-rose-50 dark:bg-rose-900/20'   },
+};
+
+// ── Reusable sub-components ──────────────────────────────────────────────────
+
+const FieldHint: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <p className="text-[11px] text-gray-400 dark:text-gray-500 font-medium flex items-start gap-1.5 mt-1.5 leading-snug">
+    <Info className="w-3 h-3 shrink-0 mt-0.5 text-gray-300 dark:text-gray-600" />
+    {children}
+  </p>
+);
+
+const FieldLabel: React.FC<{ children: React.ReactNode; required?: boolean }> = ({ children, required }) => (
+  <label className="text-[11px] font-black text-gray-500 dark:text-gray-400 block uppercase tracking-widest mb-1.5">
+    {children}{required && <span className="text-red-400 mr-1">*</span>}
+  </label>
+);
+
+const Toggle: React.FC<{
+  checked: boolean;
+  onChange: () => void;
+  color?: string;
+  disabled?: boolean;
+}> = ({ checked, onChange, color = 'bg-blue-600', disabled }) => (
+  <button
+    type="button"
+    onClick={onChange}
+    disabled={disabled}
+    className={`relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0
+      ${checked ? color : 'bg-gray-200 dark:bg-gray-700'}
+      ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+  >
+    <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all duration-300 ${checked ? 'right-0.5' : 'right-6'}`} />
+  </button>
+);
+
+const SectionSaveBar: React.FC<{
+  loading: boolean;
+  saved: boolean;
+  onSave: () => void;
+  label?: string;
+}> = ({ loading, saved, onSave, label = 'حفظ التغييرات' }) => (
+  <div className="flex items-center justify-between pt-6 mt-6 border-t border-gray-100 dark:border-gray-800">
+    <AnimatePresence>
+      {saved && (
+        <motion.span
+          initial={{ opacity: 0, x: 10 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0 }}
+          className="flex items-center gap-1.5 text-green-600 dark:text-green-400 text-xs font-black"
+        >
+          <CheckCircle2 className="w-4 h-4" />
+          تم الحفظ بنجاح
+        </motion.span>
+      )}
+      {!saved && <span />}
+    </AnimatePresence>
+    <button
+      onClick={onSave}
+      disabled={loading}
+      className="flex items-center gap-2 px-6 py-2.5 bg-gray-900 dark:bg-blue-600 text-white rounded-xl text-sm font-black hover:bg-gray-700 dark:hover:bg-blue-700 disabled:opacity-50 transition-all shadow-sm"
+    >
+      {loading
+        ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+        : <Save className="w-4 h-4" />
+      }
+      {label}
+    </button>
+  </div>
+);
+
+const Card: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = '' }) => (
+  <div className={`bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-5 ${className}`}>
+    {children}
+  </div>
+);
+
+const SectionHeader: React.FC<{ icon: React.ElementType; title: string; desc: string; color: string }> = ({
+  icon: Icon, title, desc, color
+}) => {
+  const c = colorMap[color];
+  return (
+    <div className="flex items-center gap-3 mb-6">
+      <div className={`w-10 h-10 rounded-xl ${c.light} ${c.text} flex items-center justify-center flex-shrink-0`}>
+        <Icon className="w-5 h-5" />
+      </div>
+      <div>
+        <h2 className="text-lg font-black text-gray-900 dark:text-white leading-none">{title}</h2>
+        <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{desc}</p>
+      </div>
+    </div>
+  );
+};
+
+// ── Main Component ───────────────────────────────────────────────────────────
+
 export const SettingsPage: React.FC = () => {
   const { user, profile, toggle2FA } = useAuth();
-  const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'financial' | 'platform'>('profile');
-  const [loading, setLoading] = useState(false);
-  const [savedStatus, setSavedStatus] = useState(false);
+  const [activeSection, setActiveSection] = useState<Section>('profile');
+  const [loadingSection, setLoadingSection] = useState<Section | null>(null);
+  const [savedSection, setSavedSection] = useState<Section | null>(null);
   const [showPhoneVerification, setShowPhoneVerification] = useState(false);
   const [showIdentityVerification, setShowIdentityVerification] = useState(false);
-  
-  const [formData, setFormData] = useState({
-    displayName: profile?.displayName || user?.displayName || '',
-    bio: profile?.bio || '',
-    bannerUrl: profile?.bannerUrl || '',
-    phoneNumber: profile?.phoneNumber || '',
-    theme: profile?.theme || 'light',
-    notificationsEnabled: profile?.notificationsEnabled !== false,
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  // Guard against double-save (e.g. double-click)
+  const savingRef = useRef(false);
+
+  const [form, setForm] = useState({
+    displayName:              profile?.displayName || user?.displayName || '',
+    bio:                      profile?.bio || '',
+    bannerUrl:                profile?.bannerUrl || '',
+    phoneNumber:              profile?.phoneNumber || '',
+    isPrivate:                profile?.isPrivate || false,
+    twoFactorEnabled:         profile?.twoFactorEnabled || false,
+    notificationsEnabled:     profile?.notificationsEnabled !== false,
     pushNotificationsEnabled: profile?.pushNotificationsEnabled !== false,
-    orderNotificationsEnabled: profile?.orderNotificationsEnabled !== false,
-    systemAlertsEnabled: profile?.systemAlertsEnabled !== false,
-    emailNotifications: profile?.emailNotifications !== false,
-    payoutBank: profile?.payoutBank || '',
-    payoutIban: profile?.payoutIban || '',
-    payoutAccountName: profile?.payoutAccountName || '',
-    isPrivate: profile?.isPrivate || false,
-    twoFactorEnabled: profile?.twoFactorEnabled || false,
-    whatsappEnabled: profile?.whatsappEnabled === true,
-    whatsappNumber: profile?.whatsappNumber || '',
+    orderNotificationsEnabled:profile?.orderNotificationsEnabled !== false,
+    systemAlertsEnabled:      profile?.systemAlertsEnabled !== false,
+    emailNotifications:       profile?.emailNotifications !== false,
+    whatsappEnabled:          profile?.whatsappEnabled === true,
+    whatsappNumber:           profile?.whatsappNumber || '',
+    payoutBank:               profile?.payoutBank || '',
+    payoutIban:               profile?.payoutIban || '',
+    payoutAccountName:        profile?.payoutAccountName || '',
   });
 
   React.useEffect(() => {
-    if (profile) {
-      setFormData(prev => ({
-        ...prev,
-        displayName: profile.displayName || user?.displayName || '',
-        bio: profile.bio || '',
-        bannerUrl: profile.bannerUrl || '',
-        phoneNumber: profile.phoneNumber || '',
-        theme: profile.theme || 'light',
-        notificationsEnabled: profile.notificationsEnabled !== false,
-        pushNotificationsEnabled: profile.pushNotificationsEnabled !== false,
-        orderNotificationsEnabled: profile.orderNotificationsEnabled !== false,
-        systemAlertsEnabled: profile.systemAlertsEnabled !== false,
-        emailNotifications: profile.emailNotifications !== false,
-        payoutBank: profile.payoutBank || '',
-        payoutIban: profile.payoutIban || '',
-        payoutAccountName: profile.payoutAccountName || '',
-        isPrivate: profile.isPrivate || false,
-        twoFactorEnabled: profile.twoFactorEnabled || false,
-        whatsappEnabled: profile.whatsappEnabled === true,
-        whatsappNumber: profile.whatsappNumber || '',
-      }));
-    }
+    if (!profile) return;
+    setForm(prev => ({
+      ...prev,
+      displayName:              profile.displayName || user?.displayName || '',
+      bio:                      profile.bio || '',
+      bannerUrl:                profile.bannerUrl || '',
+      phoneNumber:              profile.phoneNumber || '',
+      isPrivate:                profile.isPrivate || false,
+      twoFactorEnabled:         profile.twoFactorEnabled || false,
+      notificationsEnabled:     profile.notificationsEnabled !== false,
+      pushNotificationsEnabled: profile.pushNotificationsEnabled !== false,
+      orderNotificationsEnabled:profile.orderNotificationsEnabled !== false,
+      systemAlertsEnabled:      profile.systemAlertsEnabled !== false,
+      emailNotifications:       profile.emailNotifications !== false,
+      whatsappEnabled:          profile.whatsappEnabled === true,
+      whatsappNumber:           profile.whatsappNumber || '',
+      payoutBank:               profile.payoutBank || '',
+      payoutIban:               profile.payoutIban || '',
+      payoutAccountName:        profile.payoutAccountName || '',
+    }));
   }, [profile, user]);
 
-  const handleSave = async () => {
-    if (!user || loading) return;
-    setLoading(true);
+  const set = (key: keyof typeof form, value: any) => setForm(prev => ({ ...prev, [key]: value }));
+
+  const markSaved = (section: Section) => {
+    setSavedSection(section);
+    setTimeout(() => setSavedSection(null), 3000);
+  };
+
+  // ── Validate phone ──────────────────────────────────────────────────────
+  const validatePhone = (num: string) => {
+    if (!num) return true;
+    const d = num.replace(/\D/g, '');
+    return /^05\d{8}$/.test(d) || /^9665\d{8}$/.test(d) || /^009665\d{8}$/.test(d);
+  };
+
+  const validateIban = (iban: string) => {
+    if (!iban) return true;
+    return /^SA\d{22}$/i.test(iban.trim());
+  };
+
+  // ── Save: Profile ───────────────────────────────────────────────────────
+  const saveProfile = async () => {
+    if (!user || savingRef.current) return;
+    if (!form.displayName.trim()) { toast.error('الاسم الكامل مطلوب'); return; }
+    if (form.phoneNumber && !validatePhone(form.phoneNumber)) {
+      toast.error('رقم الجوال غير صحيح. الصيغ المقبولة: 05XXXXXXXX أو 9665XXXXXXXX'); return;
+    }
+    if (form.phoneNumber && form.phoneNumber !== profile?.phoneNumber) {
+      const snap = await getDocs(query(collection(db, 'users'), where('phoneNumber', '==', form.phoneNumber), limit(1)));
+      if (!snap.empty) { toast.error('رقم الجوال مسجل لحساب آخر'); return; }
+    }
+    savingRef.current = true;
+    setLoadingSection('profile');
     try {
-      // 0. WhatsApp Number Validation
-      if (formData.whatsappEnabled && formData.whatsappNumber) {
-        const digits = formData.whatsappNumber.replace(/\D/g, '');
-        const isValidPhone =
-          /^05\d{8}$/.test(digits) ||
-          /^9665\d{8}$/.test(digits) ||
-          /^009665\d{8}$/.test(digits);
-        if (!isValidPhone) {
-          toast.error('رقم الواتساب غير صحيح. الصيغ المقبولة: 05XXXXXXXX أو +9665XXXXXXXX أو 9665XXXXXXXX');
-          setLoading(false);
-          return;
-        }
-      }
+      await updateDoc(doc(db, 'users', user.uid), {
+        displayName: form.displayName.trim(),
+        bio: form.bio,
+        bannerUrl: form.bannerUrl,
+        phoneNumber: form.phoneNumber,
+        updatedAt: serverTimestamp(),
+      });
+      markSaved('profile');
+      toast.success('تم حفظ الملف الشخصي');
+    } catch (e: any) {
+      console.error('[saveProfile] Firestore error:', e?.code, e?.message);
+      if (e?.code === 'permission-denied') toast.error('ليس لديك صلاحية تعديل هذه البيانات');
+      else if (e?.message?.includes('exceeds the maximum') || e?.code === 'invalid-argument')
+        toast.error('حجم الصورة كبير جداً على قاعدة البيانات. جرب صورة أصغر (أقل من 200 كيلوبايت)');
+      else toast.error('حدث خطأ أثناء الحفظ — ' + (e?.code || 'خطأ غير معروف'));
+    } finally { setLoadingSection(null); savingRef.current = false; }
+  };
 
-      // 1. IBAN Validation (Saudi IBAN: SA + 22 digits)
-      if (formData.payoutIban && !/^SA\d{22}$/i.test(formData.payoutIban.trim())) {
-        toast.error('رقم الآيبان غير صحيح. يجب أن يبدأ بـ SA ويتبعه 22 رقماً');
-        setLoading(false);
-        return;
-      }
+  // ── Save: Security ──────────────────────────────────────────────────────
+  const saveSecurity = async () => {
+    if (!user || savingRef.current) return;
+    savingRef.current = true;
+    setLoadingSection('security');
+    try {
+      await updateDoc(doc(db, 'users', user.uid), {
+        isPrivate: form.isPrivate,
+        updatedAt: serverTimestamp(),
+      });
+      markSaved('security');
+      toast.success('تم حفظ إعدادات الأمان');
+    } catch (e: any) {
+      console.error('[saveSecurity] Firestore error:', e?.code, e?.message);
+      toast.error('حدث خطأ أثناء الحفظ — ' + (e?.code || 'خطأ غير معروف'));
+    } finally { setLoadingSection(null); savingRef.current = false; }
+  };
 
-      // 2. Phone Uniqueness Check
-      if (formData.phoneNumber && formData.phoneNumber !== profile?.phoneNumber) {
-        const q = query(collection(db, 'users'), where('phoneNumber', '==', formData.phoneNumber), limit(1));
-        const snap = await getDocs(q);
-        if (!snap.empty) {
-          toast.error(
-            <div className="flex flex-col gap-2">
-              <p>رقم الجوال هذا مسجل مسبقاً لحساب آخر.</p>
-              <button 
-                onClick={() => window.location.href = 'mailto:support@arboon.sa?subject=استعادة حساب'}
-                className="text-white bg-blue-600 px-3 py-1 rounded-lg text-[10px] font-black w-fit hover:bg-blue-700 transition-all border border-blue-400"
-              >
-                تواصل مع الدعم لاستعادة الحساب
-              </button>
-            </div>,
-            { duration: 6000 }
-          );
-          setLoading(false);
-          return;
-        }
-      }
+  // ── Save: Notifications ─────────────────────────────────────────────────
+  const saveNotifications = async () => {
+    if (!user || savingRef.current) return;
 
-      // 3. WhatsApp Number Uniqueness Check
-      if (formData.whatsappEnabled && formData.whatsappNumber && formData.whatsappNumber !== profile?.whatsappNumber) {
-        const qWhatsApp = query(collection(db, 'users'), where('whatsappNumber', '==', formData.whatsappNumber), limit(1));
-        const snapWhatsApp = await getDocs(qWhatsApp);
-        if (!snapWhatsApp.empty) {
-          toast.error(
-            <div className="flex flex-col gap-2">
-              <p>رقم الواتساب هذا مسجل ومربوط بحساب آخر نشط.</p>
-              <p className="text-xs text-gray-100">يرجى استخدام رقم واتساب مختلف أو التواصل مع الدعم الفني لحل المشكلة.</p>
-              <button 
-                onClick={() => window.location.href = 'mailto:support@arboon.sa?subject=استعادة حساب واتساب'}
-                className="text-white bg-green-600 px-3 py-1 rounded-lg text-[10px] font-black w-fit hover:bg-green-700 transition-all mt-2"
-              >
-                تواصل مع الدعم الفني
-              </button>
-            </div>,
-            { duration: 6000 }
-          );
-          setLoading(false);
-          return;
-        }
-      }
+    // Validate format first (client-side, no Firestore needed)
+    if (form.whatsappEnabled && form.whatsappNumber && !validatePhone(form.whatsappNumber)) {
+      toast.error('رقم الواتساب غير صحيح. الصيغ المقبولة: 05XXXXXXXX أو 9665XXXXXXXX'); return;
+    }
 
-      const userRef = doc(db, 'users', user.uid);
-      const updateData: any = {
-        displayName: formData.displayName,
-        bio: formData.bio,
-        bannerUrl: formData.bannerUrl,
-        phoneNumber: formData.phoneNumber,
-        theme: formData.theme,
-        notificationsEnabled: formData.notificationsEnabled,
-        pushNotificationsEnabled: formData.pushNotificationsEnabled,
-        orderNotificationsEnabled: formData.orderNotificationsEnabled,
-        systemAlertsEnabled: formData.systemAlertsEnabled,
-        emailNotifications: formData.emailNotifications,
-        payoutBank: formData.payoutBank,
-        payoutIban: formData.payoutIban,
-        payoutAccountName: formData.payoutAccountName,
-        isPrivate: formData.isPrivate,
-        twoFactorEnabled: formData.twoFactorEnabled,
-        whatsappEnabled: formData.whatsappEnabled,
-        whatsappNumber: formData.whatsappNumber,
-        updatedAt: serverTimestamp()
-      };
-
-      const isNewlyEnablingWhatsApp = formData.whatsappEnabled === true && profile?.whatsappEnabled !== true;
-      const isUpdatingWhatsAppNumber = formData.whatsappEnabled === true && profile?.whatsappEnabled === true && formData.whatsappNumber !== profile?.whatsappNumber;
-
-      await updateDoc(userRef, updateData);
-
-      if (isNewlyEnablingWhatsApp || isUpdatingWhatsAppNumber) {
+    savingRef.current = true;
+    setLoadingSection('notifications');
+    try {
+      // Uniqueness check for WhatsApp number (skip silently if Firestore rejects query)
+      if (form.whatsappEnabled && form.whatsappNumber && form.whatsappNumber !== profile?.whatsappNumber) {
         try {
-          await sendNotification(
-            user.uid,
-            '🎉 تم تفعيل تنبيهات الواتساب بنجاح',
-            `أهلاً بك في نظام أتمتة عربون للواتساب! 🤖🌟\n\nتم ربط حسابك بنجاح. من الآن فصاعداً، ستصلك إشعارات صفقاتك وتحديثاتها مباشرة هنا.\n\n💡 *أوامر سريعة يمكنك تجربتها الآن:*\n- أرسل *(رصيدي)* أو الرقم *(1)* لمعرفة رصيد محفظتك المتاح والمحجوز.\n- أرسل *(طلباتي)* أو الرقم *(2)* لمشاهدة صفقاتك المعلقة وحالاتها.\n\nشرفنا انضمامك لعائلتنا! ✨`,
-            'system',
-            'normal'
-          );
-          console.log("📡 Welcome WhatsApp notification triggered successfully.");
-        } catch (notifErr) {
-          console.error("Failed to send welcome WhatsApp notification:", notifErr);
+          const snap = await getDocs(query(collection(db, 'users'), where('whatsappNumber', '==', form.whatsappNumber), limit(1)));
+          if (!snap.empty && snap.docs[0].id !== user.uid) {
+            toast.error('رقم الواتساب مربوط بحساب آخر');
+            savingRef.current = false;
+            setLoadingSection(null);
+            return;
+          }
+        } catch (queryErr: any) {
+          // Firestore rules may not allow querying by whatsappNumber — skip check and proceed
+          console.warn('[saveNotifications] whatsappNumber uniqueness check skipped:', queryErr?.code);
         }
       }
-      
-      setSavedStatus(true);
-      toast.success('تم حفظ التغييرات بنجاح');
-      setTimeout(() => setSavedStatus(false), 3000);
-    } catch (error) {
-      console.error('Error updating settings:', error);
-      toast.error('حدث خطأ أثناء حفظ البيانات. قد يكون حجم الصور كبيراً جداً.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, field: 'bannerUrl') => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // Stricter weight limit: 500KB for base64 strings to stay within Firestore 1MB limit
-      if (file.size > 500 * 1024) {
-        toast.error("حجم الصورة كبير جداً، يرجى اختيار صورة أقل من 500 كيلوبايت");
-        return;
+      await updateDoc(doc(db, 'users', user.uid), {
+        notificationsEnabled:      form.notificationsEnabled,
+        pushNotificationsEnabled:  form.pushNotificationsEnabled,
+        orderNotificationsEnabled: form.orderNotificationsEnabled,
+        systemAlertsEnabled:       form.systemAlertsEnabled,
+        emailNotifications:        form.emailNotifications,
+        whatsappEnabled:           form.whatsappEnabled,
+        whatsappNumber:            form.whatsappNumber,
+        updatedAt: serverTimestamp(),
+      });
+
+      const isNewWA  = form.whatsappEnabled && !profile?.whatsappEnabled;
+      const isNewNum = form.whatsappEnabled && profile?.whatsappEnabled && form.whatsappNumber !== profile?.whatsappNumber;
+      if (isNewWA || isNewNum) {
+        sendNotification(
+          user.uid,
+          '🎉 تم تفعيل تنبيهات الواتساب',
+          'تم ربط حسابك بنجاح. ستصلك إشعارات صفقاتك مباشرة على واتساب.',
+          'system',
+          'normal'
+        ).catch(err => console.warn('[saveNotifications] sendNotification failed:', err));
       }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData(prev => ({ ...prev, [field]: reader.result as string }));
-      };
-      reader.readAsDataURL(file);
-    }
+
+      markSaved('notifications');
+      toast.success('تم حفظ إعدادات التنبيهات');
+    } catch (e: any) {
+      console.error('[saveNotifications] Firestore error:', e?.code, e?.message);
+      toast.error('حدث خطأ أثناء الحفظ — ' + (e?.code || 'خطأ غير معروف'));
+    } finally { setLoadingSection(null); savingRef.current = false; }
   };
 
-  const tabs = [
-    { id: 'profile', label: 'الملف الشخصي', icon: User },
-    { id: 'security', label: 'الأمان والخصوصية', icon: Lock },
-    { id: 'financial', label: 'المعلومات المالية', icon: CreditCard },
-    { id: 'platform', label: 'إعدادات النظام', icon: Palette, adminOnly: true },
-  ];
-
-  const filteredTabs = tabs.filter(tab => !tab.adminOnly || profile?.role === 'admin' || profile?.isAdmin);
-
-  const getVerificationBadge = () => {
-    switch (profile?.verificationStatus) {
-      case 'verified':
-        return <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-black flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4" /> موثق</span>;
-      case 'pending':
-        return <span className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-black flex items-center gap-1.5"><ShieldAlert className="w-4 h-4" /> قيد المراجعة</span>;
-      case 'rejected':
-        return <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-black flex items-center gap-1.5"><ShieldAlert className="w-4 h-4" /> مرفوض - حاول مجدداً</span>;
-      default:
-        return <span className="bg-gray-100 text-gray-500 px-3 py-1 rounded-full text-xs font-black">غير موثق</span>;
+  // ── Save: Financial ─────────────────────────────────────────────────────
+  const saveFinancial = async () => {
+    if (!user || savingRef.current) return;
+    if (!validateIban(form.payoutIban)) {
+      toast.error('رقم الآيبان غير صحيح. يجب أن يبدأ بـ SA ويتبعه 22 رقماً'); return;
     }
+    savingRef.current = true;
+    setLoadingSection('financial');
+    try {
+      await updateDoc(doc(db, 'users', user.uid), {
+        payoutBank:        form.payoutBank,
+        payoutIban:        form.payoutIban.toUpperCase().trim(),
+        payoutAccountName: form.payoutAccountName,
+        updatedAt: serverTimestamp(),
+      });
+      markSaved('financial');
+      toast.success('تم حفظ المعلومات المالية');
+    } catch (e: any) {
+      console.error('[saveFinancial] Firestore error:', e?.code, e?.message);
+      toast.error('حدث خطأ أثناء الحفظ — ' + (e?.code || 'خطأ غير معروف'));
+    } finally { setLoadingSection(null); savingRef.current = false; }
   };
 
+  // ── Banner upload ───────────────────────────────────────────────────────
+  const handleBannerUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 500 * 1024) {
+      toast.error('حجم الصورة كبير جداً. الحد الأقصى 500 كيلوبايت');
+      e.target.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => set('bannerUrl', reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  // ── Derived ─────────────────────────────────────────────────────────────
+  const isAdmin = user?.email === 'khyratfarmdates@gmail.com' || profile?.isAdmin;
+  const visibleSections = SECTIONS.filter(s => !(s as any).adminOnly || isAdmin);
+  const waDigits = form.whatsappNumber.replace(/\D/g, '');
+  const waValid = form.whatsappNumber === '' || /^05\d{8}$/.test(waDigits) || /^9665\d{8}$/.test(waDigits) || /^009665\d{8}$/.test(waDigits);
+  const ibanValid = validateIban(form.payoutIban);
+
+  const activeColor = colorMap[visibleSections.find(s => s.id === activeSection)?.color || 'blue'];
+
+  // ── Render ───────────────────────────────────────────────────────────────
   return (
-    <div className="max-w-6xl mx-auto py-6 px-4 md:py-12 pb-32">
-      {/* Header Section */}
-      <div className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6 uppercase">
-        <div className="text-right">
-           <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-bold mb-2 justify-end">
-             <div className="w-2 h-2 rounded-full bg-blue-600 dark:bg-blue-400 animate-pulse"></div>
-             مركز التحكم
-           </div>
-           <h1 className="text-4xl font-black text-gray-900 dark:text-white tracking-tight">إعدادات الحساب</h1>
-           <p className="text-gray-500 dark:text-gray-400 mt-2 font-medium">قم بإدارة بياناتك، تفضيلات الأمان، والمعلومات المالية للمنصة.</p>
-        </div>
-        
-        <div className="flex bg-white dark:bg-gray-900 p-1.5 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm md:w-fit overflow-x-auto no-scrollbar" dir="rtl">
-          {filteredTabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`flex-shrink-0 flex items-center gap-2 px-6 py-3 rounded-xl transition-all font-black text-sm whitespace-nowrap ${
-                activeTab === tab.id 
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-100 dark:shadow-blue-900/40' 
-                : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
-              }`}
-            >
-              <tab.icon className={`w-4 h-4 shrink-0 transition-transform ${activeTab === tab.id ? 'scale-110' : ''}`} />
-              {tab.label}
-            </button>
-          ))}
-        </div>
+    <div className="max-w-5xl mx-auto py-6 px-4 md:py-10 pb-24 md:pb-10" dir="rtl">
+
+      {/* Page title */}
+      <div className="mb-8">
+        <h1 className="text-2xl font-black text-gray-900 dark:text-white">إعدادات الحساب</h1>
+        <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">إدارة بياناتك الشخصية، الأمان، التنبيهات، والمعلومات المالية</p>
       </div>
 
-      <div className="grid lg:grid-cols-12 gap-8 items-start" dir="rtl">
-        {/* Right Side: Profile Preview Card */}
-        <div className="lg:col-span-4 space-y-6">
-           <div className="bg-white dark:bg-gray-900 rounded-[2.5rem] border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden p-8 text-center sticky top-24">
-              <div className="relative mb-6 mx-auto w-32 h-32">
-                 <div className="absolute inset-0 bg-blue-600 rounded-[2.5rem] rotate-6 opacity-10"></div>
-                 <div className="absolute inset-0 bg-white dark:bg-gray-800 rounded-[2.5rem] border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden p-1 z-10">
-                    <img 
-                      src={profile?.photoURL || user?.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.displayName)}&background=random`} 
-                      className="w-full h-full object-cover rounded-[2.2rem]"
-                      alt="Profile" 
-                      referrerPolicy="no-referrer"
-                    />
-                 </div>
-              </div>
-              
-              <div className="flex items-center justify-center gap-2 mb-1">
-                <h3 className="text-xl font-black text-gray-900 dark:text-white uppercase tracking-tight">{formData.displayName || 'بدون اسم'}</h3>
-                {profile?.isVerified && <CheckCircle2 className="w-5 h-5 text-blue-500 fill-blue-50 dark:fill-blue-900/10" />}
-              </div>
-              <p className="text-sm text-gray-400 dark:text-gray-500 font-medium mb-6 uppercase tracking-tight">{user?.email}</p>
-              
-              <div className="flex items-center justify-center gap-2 mb-8">
-                {getVerificationBadge()}
-              </div>
+      <div className="flex gap-6 items-start">
 
-              <div className="p-1 px-1.5 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-gray-100 dark:border-gray-800 flex items-center gap-1.5">
-                 <div className="p-3 bg-white dark:bg-gray-800 rounded-xl text-blue-600 dark:text-blue-400 shadow-sm">
-                    <ShieldCheck className="w-5 h-5" />
-                 </div>
-                 <div className="text-right flex-1 pr-2">
-                    <p className="text-[10px] text-gray-400 dark:text-gray-500 font-black uppercase tracking-widest leading-none mb-1">مستوى الموثوقية</p>
-                    <p className="text-sm font-black text-gray-900 dark:text-white leading-none">{profile?.trustLevel || 0}% كامل</p>
-                 </div>
-              </div>
-
-              <button 
-                onClick={() => handleSave()}
-                disabled={loading}
-                className="w-full mt-8 bg-gray-900 dark:bg-blue-600 text-white p-4 rounded-2xl font-black text-sm flex items-center justify-center gap-2 hover:bg-gray-800 dark:hover:bg-blue-700 disabled:bg-gray-200 dark:disabled:bg-gray-800 transition-all shadow-xl shadow-gray-100 dark:shadow-blue-900/20"
+        {/* ── Sidebar ─────────────────────────────────────────────────── */}
+        <nav className="hidden md:flex flex-col gap-1 w-52 flex-shrink-0 sticky top-24">
+          {visibleSections.map(s => {
+            const c = colorMap[s.color];
+            const active = activeSection === s.id;
+            return (
+              <button
+                key={s.id}
+                onClick={() => setActiveSection(s.id as Section)}
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all text-right w-full
+                  ${active
+                    ? `${c.light} ${c.text} ring-1 ${c.ring}`
+                    : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+                  }`}
               >
-                {loading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Save className="w-5 h-5" />}
-                حفظ التغييرات
+                <s.icon className="w-4 h-4 flex-shrink-0" />
+                <span className="flex-1">{s.label}</span>
+                {active && <ChevronLeft className="w-3.5 h-3.5 opacity-50" />}
               </button>
-           </div>
+            );
+          })}
+
+          {/* Profile quick card */}
+          <div className="mt-4 p-4 bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 text-center">
+            <img
+              src={profile?.photoURL || user?.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(form.displayName)}&background=6366f1&color=fff`}
+              className="w-14 h-14 rounded-xl object-cover mx-auto mb-2 ring-2 ring-white dark:ring-gray-800 shadow"
+              alt="صورتك"
+              referrerPolicy="no-referrer"
+            />
+            <p className="text-xs font-black text-gray-900 dark:text-white leading-tight truncate">{form.displayName || 'بدون اسم'}</p>
+            <p className="text-[10px] text-gray-400 dark:text-gray-500 truncate mt-0.5">{user?.email}</p>
+            <div className="mt-2 flex items-center justify-center gap-1">
+              {profile?.verificationStatus === 'verified'
+                ? <span className="text-[10px] bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 px-2 py-0.5 rounded-full font-black flex items-center gap-1"><CheckCircle2 className="w-3 h-3" />موثق</span>
+                : <span className="text-[10px] bg-gray-100 dark:bg-gray-800 text-gray-400 px-2 py-0.5 rounded-full font-black">غير موثق</span>
+              }
+            </div>
+          </div>
+        </nav>
+
+        {/* ── Mobile tab bar ──────────────────────────────────────────── */}
+        <div className="md:hidden fixed bottom-16 left-0 right-0 z-30 bg-white/90 dark:bg-gray-900/90 backdrop-blur border-t border-gray-100 dark:border-gray-800 flex overflow-x-auto no-scrollbar px-2 py-1.5 gap-1">
+          {visibleSections.map(s => {
+            const c = colorMap[s.color];
+            const active = activeSection === s.id;
+            return (
+              <button key={s.id} onClick={() => setActiveSection(s.id as Section)}
+                className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg flex-shrink-0 text-[10px] font-black transition-all ${active ? `${c.text} ${c.light}` : 'text-gray-400'}`}>
+                <s.icon className="w-4 h-4" />
+                <span>{s.label.split(' ')[0]}</span>
+              </button>
+            );
+          })}
         </div>
 
-        {/* Left Side: Tab Content */}
-        <div className="lg:col-span-8 flex flex-col gap-6 text-right">
-           <div className="bg-white dark:bg-gray-900 rounded-[3rem] border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden min-h-[600px] flex flex-col">
-              <AnimatePresence mode="wait">
-                 {activeTab === 'profile' && (
-                    <motion.div
-                      key="profile"
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.98 }}
-                      className="p-8 md:p-12 space-y-10"
-                    >
-                      <section>
-                         <h2 className="text-2xl font-black text-gray-900 dark:text-white mb-8">المعلومات الشخصية</h2>
-                         <div className="space-y-6">
-                            <div className="grid md:grid-cols-2 gap-6">
-                               <div className="space-y-2">
-                                  <label className="text-xs font-black text-gray-400 dark:text-gray-500 block mr-1 uppercase tracking-widest text-right">الاسم الكامل</label>
-                                  <div className="relative">
-                                    <input 
-                                      type="text"
-                                      value={formData.displayName}
-                                      onChange={(e) => setFormData({...formData, displayName: e.target.value})}
-                                      className="w-full bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700 rounded-2xl p-4 pr-12 focus:bg-white dark:focus:bg-gray-800 focus:ring-4 focus:ring-blue-50 dark:focus:ring-blue-900/20 focus:border-blue-500 outline-none transition-all font-bold text-right dark:text-white tracking-tight"
-                                      placeholder="اسمك الثلاثي"
-                                    />
-                                    <User className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-300 dark:text-gray-600" />
-                                  </div>
-                               </div>
-                               <div className="space-y-2">
-                                  <label className="text-xs font-black text-gray-400 dark:text-gray-500 block mr-1 uppercase tracking-widest text-right">رقم الجوال</label>
-                                  <div className="relative">
-                                    <input 
-                                      type="tel"
-                                      value={formData.phoneNumber}
-                                      onChange={(e) => setFormData({...formData, phoneNumber: e.target.value})}
-                                      className="w-full bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700 rounded-2xl p-4 pr-12 focus:bg-white dark:focus:bg-gray-800 focus:ring-4 focus:ring-blue-50 dark:focus:ring-blue-900/20 focus:border-blue-500 outline-none transition-all font-bold tracking-widest text-right dark:text-white"
-                                      placeholder="05xxxxxxx"
-                                    />
-                                    <Smartphone className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-300 dark:text-gray-600" />
-                                  </div>
-                               </div>
-                            </div>
+        {/* ── Main Content ─────────────────────────────────────────────── */}
+        <div className="flex-1 min-w-0">
+          <AnimatePresence mode="wait">
 
-                            <div className="space-y-2">
-                               <label className="text-xs font-black text-gray-400 dark:text-gray-500 block mr-1 uppercase tracking-widest text-right">النبذة التعريفية</label>
-                               <textarea 
-                                 rows={4}
-                                 value={formData.bio}
-                                 onChange={(e) => setFormData({...formData, bio: e.target.value})}
-                                 className="w-full bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700 rounded-2xl p-4 focus:bg-white dark:focus:bg-gray-800 focus:ring-4 focus:ring-blue-50 dark:focus:ring-blue-900/20 focus:border-blue-500 outline-none transition-all font-medium leading-relaxed text-right dark:text-white"
-                                 placeholder="أخبر المستخدمين بمجال تخصصك وما تقدمه من خدمات..."
-                               />
-                            </div>
-                         </div>
-                      </section>
+            {/* ═══════════════════════════════════════════════════════════
+                SECTION 1 — الملف الشخصي
+            ═══════════════════════════════════════════════════════════ */}
+            {activeSection === 'profile' && (
+              <motion.div key="profile" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
+                <SectionHeader icon={User} title="الملف الشخصي" desc="بياناتك الظاهرة للمستخدمين الآخرين" color="blue" />
 
-                      <section className="pt-10 border-t border-gray-50">
-                         <h2 className="text-2xl font-black text-gray-900 mb-2">صورة الغلاف</h2>
-                         <p className="text-xs text-gray-400 mb-8 font-medium italic text-right">المقاس الموصى به: 1200 × 400 بكسل (أو نسبة 3:1)</p>
-                         
-                         <div className="space-y-6">
-                            <div 
-                              className="group relative w-full h-48 bg-gray-50 p-1 rounded-[2.5rem] border border-gray-100 cursor-pointer overflow-hidden transition-all hover:border-blue-200"
-                            >
-                               {formData.bannerUrl ? (
-                                 <img src={formData.bannerUrl} className="w-full h-full object-cover rounded-[2.3rem] transition-transform group-hover:scale-105" />
-                               ) : (
-                                 <div className="w-full h-full flex flex-col items-center justify-center text-gray-300 gap-2">
-                                   <ImageIcon className="w-12 h-12" />
-                                   <span className="text-[10px] font-black uppercase tracking-widest">رفع غلاف جديد</span>
-                                 </div>
-                               )}
-                               <div className="absolute inset-0 bg-black/40 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all flex flex-col items-center justify-center text-white text-xs font-black">
-                                  <Upload className="w-8 h-8 mb-2" />
-                                  تغيير صورة الغلاف
-                               </div>
-                               <input 
-                                 type="file" 
-                                 accept="image/*" 
-                                 className="absolute inset-0 opacity-0 cursor-pointer" 
-                                 onChange={(e) => handleFileUpload(e, 'bannerUrl')} 
-                               />
-                            </div>
-                            
-                            <div className="bg-blue-50 p-6 rounded-3xl border border-blue-100 flex items-start gap-4 justify-end">
-                               <div className="text-right">
-                                 <p className="text-xs font-black text-blue-900 mb-1">لماذا أضفنا صورة غلاف؟</p>
-                                 <p className="text-[10px] text-blue-700/70 font-medium leading-relaxed">
-                                   تساعد صورة الغلاف في إعطاء انطباع احترافي لعملائك. اختر صورة تعبر عن جودة عملك أو شعارك الخاص. يتم جلب صورتك الشخصية تلقائياً من بريدك الإلكتروني.
-                                 </p>
-                               </div>
-                               <AlertTriangle className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-                            </div>
-                         </div>
-                      </section>
-                    </motion.div>
-                 )}
+                {/* Personal Info */}
+                <Card>
+                  <h3 className="text-xs font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-4">المعلومات الأساسية</h3>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <FieldLabel required>الاسم الكامل</FieldLabel>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={form.displayName}
+                          onChange={e => set('displayName', e.target.value)}
+                          className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 pr-10 text-sm font-bold text-right dark:text-white outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900/30 transition-all"
+                          placeholder="الاسم الثلاثي"
+                        />
+                        <User className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300 dark:text-gray-600" />
+                      </div>
+                      <FieldHint>اسمك كما يراه المشترون في ملفك الشخصي</FieldHint>
+                    </div>
+                    <div>
+                      <FieldLabel>رقم الجوال</FieldLabel>
+                      <div className="relative">
+                        <input
+                          type="tel"
+                          value={form.phoneNumber}
+                          onChange={e => set('phoneNumber', e.target.value)}
+                          className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 pr-10 text-sm font-bold text-right dark:text-white outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900/30 transition-all"
+                          placeholder="05XXXXXXXX"
+                        />
+                        <Smartphone className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300 dark:text-gray-600" />
+                      </div>
+                      <FieldHint>يُستخدم للتواصل الداخلي فقط — لا يُعرض للعامة</FieldHint>
+                    </div>
+                  </div>
 
-                 {activeTab === 'security' && (
-                    <motion.div
-                      key="security"
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="p-8 md:p-12 space-y-8"
-                    >
-                      <h2 className="text-2xl font-black text-gray-900 mb-8 font-mono tracking-tight text-right">الأمان والخصوصية</h2>
+                  <div className="mt-4">
+                    <FieldLabel>النبذة التعريفية</FieldLabel>
+                    <textarea
+                      rows={3}
+                      value={form.bio}
+                      onChange={e => set('bio', e.target.value)}
+                      className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 text-sm font-medium text-right dark:text-white outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900/30 transition-all resize-none leading-relaxed"
+                      placeholder="أخبر العملاء بتخصصك وخبراتك..."
+                    />
+                    <FieldHint>كلما كانت نبذتك أوضح، زادت ثقة العملاء بك وارتفع ترتيبك في البحث</FieldHint>
+                  </div>
+                </Card>
 
-                      <div className="grid gap-4">
-                        <div className="p-6 bg-gray-50 rounded-[2rem] flex items-center justify-between border border-gray-100 group hover:bg-white hover:shadow-lg hover:shadow-blue-50/50 transition-all">
-                          <div className="flex gap-4">
-                            <div className="bg-blue-100 p-4 rounded-[1.5rem] text-blue-600 shrink-0 group-hover:scale-110 transition-transform">
-                              <Bell className="w-6 h-6" />
-                            </div>
-                            <div className="text-right">
-                              <p className="font-black text-gray-900">إشعارات المنصة</p>
-                              <p className="text-xs text-gray-400 mt-1 font-medium italic">تنبيهات حالة الطلبات والرسائل المباشرة</p>
-                            </div>
-                          </div>
-                          <button 
-                            onClick={() => setFormData({...formData, notificationsEnabled: !formData.notificationsEnabled})}
-                            className={`w-14 h-8 rounded-full transition-all relative ${formData.notificationsEnabled ? 'bg-blue-600' : 'bg-gray-300'}`}
-                          >
-                             <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all shadow-sm ${formData.notificationsEnabled ? 'right-1' : 'right-7'}`} />
-                          </button>
+                {/* Banner */}
+                <Card>
+                  <h3 className="text-xs font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1">صورة الغلاف</h3>
+                  <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-4">المقاس الأمثل: 1200×400 بكسل — الحد الأقصى: 500 كيلوبايت</p>
+
+                  <label className="group relative w-full h-40 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700 overflow-hidden flex items-center justify-center cursor-pointer hover:border-blue-300 dark:hover:border-blue-700 transition-all">
+                    {form.bannerUrl ? (
+                      <>
+                        <img src={form.bannerUrl} className="absolute inset-0 w-full h-full object-cover" alt="غلاف" />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center text-white text-xs font-black gap-2">
+                          <Upload className="w-5 h-5" /> تغيير الغلاف
                         </div>
+                      </>
+                    ) : (
+                      <div className="flex flex-col items-center gap-2 text-gray-300 dark:text-gray-600">
+                        <ImageIcon className="w-10 h-10" />
+                        <span className="text-xs font-black">اضغط لرفع صورة غلاف</span>
+                      </div>
+                    )}
+                    <input type="file" accept="image/*" className="hidden" onChange={handleBannerUpload} />
+                  </label>
 
-                        <div className="p-6 bg-gray-50 rounded-[2rem] flex items-center justify-between border border-gray-100 group hover:bg-white hover:shadow-lg hover:shadow-blue-50/50 transition-all">
-                          <div className="flex gap-4">
-                            <div className="bg-blue-100 p-4 rounded-[1.5rem] text-blue-600 shrink-0 group-hover:scale-110 transition-transform">
-                              <Smartphone className="w-6 h-6" />
-                            </div>
-                            <div className="text-right">
-                              <p className="font-black text-gray-900">إشعارات الدفع (Push Notifications)</p>
-                              <p className="text-xs text-gray-400 mt-1 font-medium italic">استلام تنبيهات فورية للطلبات الجديدة وتحديثات النظام</p>
-                            </div>
-                          </div>
-                          <button 
-                            onClick={() => setFormData({...formData, pushNotificationsEnabled: !formData.pushNotificationsEnabled})}
-                            className={`w-14 h-8 rounded-full transition-all relative ${formData.pushNotificationsEnabled ? 'bg-blue-600' : 'bg-gray-300'}`}
-                          >
-                             <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all shadow-sm ${formData.pushNotificationsEnabled ? 'right-1' : 'right-7'}`} />
-                          </button>
-                        </div>
+                  {form.bannerUrl && (
+                    <button
+                      onClick={() => set('bannerUrl', '')}
+                      className="mt-2 flex items-center gap-1.5 text-[11px] text-red-500 font-black hover:text-red-600 transition-colors"
+                    >
+                      <X className="w-3.5 h-3.5" /> حذف الغلاف
+                    </button>
+                  )}
 
-                        {/* WhatsApp Notification Block */}
-                        <div className="p-6 bg-green-50/30 rounded-[2rem] border border-green-100/50 flex flex-col gap-6 group hover:bg-white hover:shadow-lg hover:shadow-green-50/50 transition-all text-right">
-                          <div className="flex items-center justify-between w-full">
-                            <div className="flex gap-4">
-                              <div className="bg-green-100 p-4 rounded-[1.5rem] text-green-600 shrink-0 group-hover:scale-110 transition-transform flex items-center justify-center">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-message-square"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                              </div>
-                              <div className="text-right">
-                                <p className="font-black text-gray-900">إشعارات الواتساب التلقائية</p>
-                                <p className="text-xs text-gray-400 mt-1 font-medium italic">استقبل تنبيهات طلباتك وعقود الضمان مباشرة عبر الواتساب</p>
-                              </div>
-                            </div>
-                            <button 
-                              type="button"
-                              onClick={() => setFormData({...formData, whatsappEnabled: !formData.whatsappEnabled})}
-                              className={`w-14 h-8 rounded-full transition-all relative ${formData.whatsappEnabled ? 'bg-green-600' : 'bg-gray-300'}`}
-                            >
-                               <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all shadow-sm ${formData.whatsappEnabled ? 'right-1' : 'right-7'}`} />
+                  <FieldHint>صورة الغلاف تظهر في ملفك الشخصي وتعطي انطباعاً احترافياً للعملاء</FieldHint>
+                </Card>
+
+                <SectionSaveBar loading={loadingSection === 'profile'} saved={savedSection === 'profile'} onSave={saveProfile} />
+              </motion.div>
+            )}
+
+            {/* ═══════════════════════════════════════════════════════════
+                SECTION 2 — الأمان والخصوصية
+            ═══════════════════════════════════════════════════════════ */}
+            {activeSection === 'security' && (
+              <motion.div key="security" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
+                <SectionHeader icon={Lock} title="الأمان والخصوصية" desc="تحكم في أمان حسابك ومستوى ظهوره" color="amber" />
+
+                {/* Toggles */}
+                <Card>
+                  <h3 className="text-xs font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-4">إعدادات الخصوصية</h3>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <Toggle checked={form.isPrivate} onChange={() => set('isPrivate', !form.isPrivate)} color="bg-purple-600" />
+                      <div className="flex-1 text-right">
+                        <p className="text-sm font-black text-gray-900 dark:text-white flex items-center gap-2 justify-end">
+                          {form.isPrivate ? <EyeOff className="w-4 h-4 text-purple-500" /> : <Eye className="w-4 h-4 text-gray-400" />}
+                          حساب خاص
+                        </p>
+                        <FieldHint>يخفي ملفك من نتائج البحث للزوار غير المسجلين وغير المعروفين</FieldHint>
+                      </div>
+                    </div>
+                    <hr className="border-gray-100 dark:border-gray-800" />
+                    <div className="flex items-center justify-between gap-4">
+                      <Toggle
+                        checked={form.twoFactorEnabled}
+                        color="bg-amber-500"
+                        onChange={async () => {
+                          if (!form.twoFactorEnabled) {
+                            if (!profile?.phoneNumber) { setShowPhoneVerification(true); return; }
+                            await toggle2FA(true);
+                            set('twoFactorEnabled', true);
+                          } else {
+                            await toggle2FA(false);
+                            set('twoFactorEnabled', false);
+                          }
+                        }}
+                      />
+                      <div className="flex-1 text-right">
+                        <p className="text-sm font-black text-gray-900 dark:text-white flex items-center gap-2 justify-end">
+                          <ShieldCheck className="w-4 h-4 text-amber-500" />
+                          التحقق بخطوتين (2FA)
+                        </p>
+                        <FieldHint>
+                          {profile?.phoneNumber
+                            ? 'رمز OTP يصل لجوالك عند كل تسجيل دخول جديد من جهاز مجهول'
+                            : 'يتطلب توثيق رقم الجوال أولاً — اضغط لبدء التوثيق'}
+                        </FieldHint>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+
+                {/* Verification cards */}
+                <Card>
+                  <h3 className="text-xs font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-4">التوثيق والهوية</h3>
+                  <div className="space-y-3">
+                    {/* Phone */}
+                    <div className="flex items-center justify-between p-4 rounded-xl bg-gray-50 dark:bg-gray-800">
+                      <div>
+                        {profile?.phoneNumber
+                          ? <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-3 py-1.5 rounded-lg font-black flex items-center gap-1.5">
+                              <CheckCircle2 className="w-3.5 h-3.5" /> موثق
+                            </span>
+                          : <button onClick={() => setShowPhoneVerification(true)} className="text-xs bg-blue-600 text-white px-4 py-1.5 rounded-lg font-black hover:bg-blue-700 transition-all">
+                              ابدأ التوثيق
                             </button>
-                          </div>
-                          
-                          {formData.whatsappEnabled && (() => {
-                            const raw = formData.whatsappNumber || '';
-                            const digits = raw.replace(/\D/g, '');
-                            // Valid if: 05XXXXXXXX (10 digits) OR 9665XXXXXXXX (12 digits) OR 00966XXXXXXXX
-                            const isValid = raw === '' ||
-                              /^05\d{8}$/.test(digits) ||
-                              /^9665\d{8}$/.test(digits) ||
-                              /^009665\d{8}$/.test(digits);
-                            return (
-                              <motion.div
-                                initial={{ opacity: 0, height: 0 }}
-                                animate={{ opacity: 1, height: 'auto' }}
-                                className="space-y-2 text-right border-t border-green-100/40 pt-4"
-                              >
-                                <label className="text-xs font-black text-green-800 block mr-1">
-                                  رقم الواتساب 📱
-                                </label>
-                                <div className="relative">
-                                  <input
-                                    type="tel"
-                                    dir="ltr"
-                                    inputMode="numeric"
-                                    value={formData.whatsappNumber}
-                                    onChange={(e) => {
-                                      // Only allow digits, +, spaces, dashes
-                                      const val = e.target.value.replace(/[^\d+\s-]/g, '');
-                                      setFormData({ ...formData, whatsappNumber: val });
-                                    }}
-                                    className={`w-full bg-white dark:bg-gray-800 border rounded-2xl p-4 pr-12 focus:ring-4 outline-none transition-all font-bold text-left tracking-widest ${
-                                      !isValid
-                                        ? 'border-red-400 focus:ring-red-100 text-red-700'
-                                        : 'border-green-200 dark:border-gray-700 focus:ring-green-100'
-                                    }`}
-                                    placeholder="+9665XXXXXXXX أو 05XXXXXXXX"
-                                  />
-                                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-lg">
-                                    {raw === '' ? '💬' : isValid ? '✅' : '❌'}
-                                  </span>
-                                </div>
-                                {!isValid && raw !== '' && (
-                                  <p className="text-[10px] font-black text-red-600 mr-1">
-                                    ❌ صيغة الرقم غير صحيحة. الصيغ المقبولة:
-                                    <span className="block mt-0.5 font-mono">05XXXXXXXX &nbsp;|&nbsp; +9665XXXXXXXX &nbsp;|&nbsp; 9665XXXXXXXX</span>
-                                  </p>
-                                )}
-                                {isValid && raw !== '' && (
-                                  <p className="text-[10px] font-black text-green-700 mr-1">
-                                    ✅ الرقم صحيح وجاهز للحفظ
-                                  </p>
-                                )}
-                              </motion.div>
-                            );
-                          })()}
-
-                        </div>
-
-                        <div className="p-6 bg-gray-50 rounded-[2rem] flex items-center justify-between border border-gray-100 group hover:bg-white hover:shadow-lg hover:shadow-blue-50/50 transition-all">
-                          <div className="flex gap-4">
-                            <div className="bg-purple-100 p-4 rounded-[1.5rem] text-purple-600 shrink-0 group-hover:scale-110 transition-transform">
-                              {formData.isPrivate ? <EyeOff className="w-6 h-6" /> : <Eye className="w-6 h-6" />}
-                            </div>
-                            <div className="text-right">
-                              <p className="font-black text-gray-900">حساب خاص</p>
-                              <p className="text-xs text-gray-400 mt-1 font-medium italic">إخفاء ملفك الشخصي عن غير المسجلين بالمنصة</p>
-                            </div>
-                          </div>
-                          <button 
-                            onClick={() => setFormData({...formData, isPrivate: !formData.isPrivate})}
-                            className={`w-14 h-8 rounded-full transition-all relative ${formData.isPrivate ? 'bg-purple-600' : 'bg-gray-200'}`}
-                          >
-                             <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all shadow-sm ${formData.isPrivate ? 'right-1' : 'right-7'}`} />
-                          </button>
-                        </div>
-
-                        <div className="p-6 bg-gray-50 rounded-[2rem] flex items-center justify-between border border-gray-100 group hover:bg-white hover:shadow-lg hover:shadow-blue-50/50 transition-all">
-                          <div className="flex gap-4">
-                            <div className="bg-amber-100 p-4 rounded-[1.5rem] text-amber-600 shrink-0 group-hover:scale-110 transition-transform">
-                              <ShieldCheck className="w-6 h-6" />
-                            </div>
-                            <div className="text-right">
-                              <p className="font-black text-gray-900">التحقق بخطوتين (2FA)</p>
-                              <p className="text-xs text-gray-400 mt-1 font-medium italic">تأمين حسابك عبر رمز OTP يصل لجوالك عند الدخول</p>
-                            </div>
-                          </div>
-                          <button 
-                            onClick={async () => {
-                              if (!formData.twoFactorEnabled) {
-                                if (!profile?.phoneNumber) {
-                                  setShowPhoneVerification(true);
-                                  return;
-                                }
-                                await toggle2FA(true);
-                                setFormData({...formData, twoFactorEnabled: true});
-                              } else {
-                                await toggle2FA(false);
-                                setFormData({...formData, twoFactorEnabled: false});
-                              }
-                            }}
-                            className={`w-14 h-8 rounded-full transition-all relative ${formData.twoFactorEnabled ? 'bg-amber-500' : 'bg-gray-200'}`}
-                          >
-                             <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all shadow-sm ${formData.twoFactorEnabled ? 'right-1' : 'right-7'}`} />
-                          </button>
-                        </div>
-
-                        <div className="p-6 bg-blue-50/50 rounded-[2rem] flex flex-col md:flex-row items-center gap-4 justify-between border border-blue-100/50 mt-6 overflow-hidden relative">
-                           <div className="absolute -left-4 -bottom-4 opacity-10 rotate-12">
-                              <ShieldCheck className="w-24 h-24 text-blue-600" />
-                           </div>
-                           <div className="flex gap-4 items-center flex-1 justify-end">
-                              <div className="text-right">
-                                 <p className="font-black text-gray-900">توثيق رقم الجوال</p>
-                                 <p className="text-[10px] text-blue-600 font-bold mt-1 leading-relaxed">
-                                    {profile?.phoneNumber 
-                                      ? 'رقم جوالك موثق ومرتبط بحسابك' 
-                                      : 'قم بتوثيق رقم جوالك عبر رمز OTP لرفع مستوى الأمان في حسابك.'}
-                                 </p>
-                              </div>
-                              <div className="bg-white p-4 rounded-[1.5rem] text-blue-600 shrink-0 shadow-sm">
-                                 <Smartphone className="w-6 h-6" />
-                              </div>
-                           </div>
-                           
-                           {profile?.phoneNumber ? (
-                             <div className="bg-white px-6 py-3 rounded-2xl flex items-center gap-2 text-green-600 font-black text-xs shadow-sm shadow-green-100 ring-1 ring-green-100">
-                                <CheckCircle2 className="w-4 h-4" />
-                                موثق
-                             </div>
-                           ) : (
-                             <button 
-                               onClick={() => setShowPhoneVerification(true)}
-                               className="bg-blue-600 text-white px-8 py-3 rounded-2xl text-xs font-black hover:bg-blue-700 transition-all shadow-xl shadow-blue-200"
-                             >
-                               ابدأ التوثيق الآن
-                             </button>
-                           )}
-                        </div>
+                        }
                       </div>
+                      <div className="text-right">
+                        <p className="text-sm font-black text-gray-900 dark:text-white flex items-center gap-2 justify-end">
+                          <Smartphone className="w-4 h-4 text-blue-400" />
+                          توثيق رقم الجوال
+                        </p>
+                        <FieldHint>يرفع مستوى موثوقيتك ويتيح التحقق بخطوتين</FieldHint>
+                      </div>
+                    </div>
 
-                       <div className="pt-10 border-t border-gray-50">
-                          <h3 className="font-black text-gray-900 mb-6 font-mono text-sm uppercase tracking-widest text-blue-600 text-right">المستندات القانونية والدعم</h3>
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                             <Link to="/terms" className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center justify-between group hover:bg-white hover:shadow-lg transition-all">
-                                <ExternalLink className="w-4 h-4 text-gray-300" />
-                                <div className="flex items-center gap-3">
-                                   <span className="text-xs font-black text-gray-700">شروط الاستخدام</span>
-                                   <div className="p-2 bg-blue-50 text-blue-600 rounded-lg group-hover:scale-110 transition-transform">
-                                      <Globe className="w-4 h-4" />
-                                   </div>
-                                </div>
-                             </Link>
-                             <Link to="/privacy" className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center justify-between group hover:bg-white hover:shadow-lg transition-all">
-                                <ExternalLink className="w-4 h-4 text-gray-300" />
-                                <div className="flex items-center gap-3">
-                                   <span className="text-xs font-black text-gray-700">سياسة الخصوصية</span>
-                                   <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg group-hover:scale-110 transition-transform">
-                                      <Lock className="w-4 h-4" />
-                                   </div>
-                                </div>
-                             </Link>
-                             <Link to="/faq" className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center justify-between group hover:bg-white hover:shadow-lg transition-all">
-                                <ExternalLink className="w-4 h-4 text-gray-300" />
-                                <div className="flex items-center gap-3">
-                                   <span className="text-xs font-black text-gray-700">الأسئلة الشائعة</span>
-                                   <div className="p-2 bg-amber-50 text-amber-600 rounded-lg group-hover:scale-110 transition-transform">
-                                      <Bell className="w-4 h-4" />
-                                   </div>
-                                </div>
-                             </Link>
+                    {/* Identity */}
+                    <div className="flex items-center justify-between p-4 rounded-xl bg-gray-50 dark:bg-gray-800">
+                      <div>
+                        {profile?.verificationStatus === 'verified'
+                          ? <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-3 py-1.5 rounded-lg font-black flex items-center gap-1.5">
+                              <CheckCircle2 className="w-3.5 h-3.5" /> موثق
+                            </span>
+                          : profile?.verificationStatus === 'pending'
+                            ? <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-3 py-1.5 rounded-lg font-black">قيد المراجعة</span>
+                            : <button onClick={() => setShowIdentityVerification(true)} className="text-xs bg-gray-900 dark:bg-white dark:text-gray-900 text-white px-4 py-1.5 rounded-lg font-black hover:opacity-80 transition-all">
+                                التحقق الآن
+                              </button>
+                        }
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-black text-gray-900 dark:text-white flex items-center gap-2 justify-end">
+                          <ShieldAlert className="w-4 h-4 text-amber-400" />
+                          التحقق من الهوية
+                        </p>
+                        <FieldHint>توثيق بطاقتك الوطنية — إلزامي لبعض الخدمات وتحويل المبالغ الكبيرة</FieldHint>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+
+                {/* Legal links */}
+                <Card>
+                  <h3 className="text-xs font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-3">المستندات القانونية</h3>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { to: '/terms', label: 'شروط الاستخدام', icon: Globe, color: 'text-blue-500' },
+                      { to: '/privacy', label: 'سياسة الخصوصية', icon: Lock, color: 'text-violet-500' },
+                      { to: '/faq', label: 'الأسئلة الشائعة', icon: MessageSquare, color: 'text-green-500' },
+                    ].map(l => (
+                      <Link key={l.to} to={l.to} className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all group">
+                        <l.icon className={`w-4 h-4 ${l.color}`} />
+                        <span className="text-[10px] font-black text-gray-600 dark:text-gray-400 text-center leading-tight">{l.label}</span>
+                        <ExternalLink className="w-3 h-3 text-gray-300 group-hover:text-gray-400 transition-colors" />
+                      </Link>
+                    ))}
+                  </div>
+                </Card>
+
+                <SectionSaveBar loading={loadingSection === 'security'} saved={savedSection === 'security'} onSave={saveSecurity} label="حفظ إعدادات الأمان" />
+              </motion.div>
+            )}
+
+            {/* ═══════════════════════════════════════════════════════════
+                SECTION 3 — التنبيهات
+            ═══════════════════════════════════════════════════════════ */}
+            {activeSection === 'notifications' && (
+              <motion.div key="notifications" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
+                <SectionHeader icon={Bell} title="التنبيهات والإشعارات" desc="تحكم فيما تتلقاه من تنبيهات وعبر أي قناة" color="green" />
+
+                {/* App notifications */}
+                <Card>
+                  <h3 className="text-xs font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-4">تنبيهات التطبيق</h3>
+                  <div className="space-y-4">
+                    {[
+                      { key: 'notificationsEnabled',     label: 'إشعارات المنصة',        hint: 'تنبيهات الطلبات والرسائل المباشرة داخل التطبيق',          color: 'bg-blue-600'  },
+                      { key: 'pushNotificationsEnabled', label: 'إشعارات الدفع (Push)',   hint: 'تنبيهات فورية على المتصفح حتى عند إغلاق التطبيق',       color: 'bg-indigo-600'},
+                      { key: 'orderNotificationsEnabled',label: 'تحديثات الطلبات',       hint: 'إشعار فوري عند تغيير حالة صفقة (قبول، تسليم، إكمال)',    color: 'bg-blue-600'  },
+                      { key: 'systemAlertsEnabled',      label: 'تنبيهات النظام',        hint: 'إشعارات الصيانة والتحديثات الهامة في المنصة',            color: 'bg-slate-600' },
+                      { key: 'emailNotifications',       label: 'إشعارات البريد الإلكتروني',hint: 'تلقي ملخص أسبوعي ومستجدات مهمة عبر بريدك الإلكتروني',color: 'bg-blue-600'  },
+                    ].map((item, idx, arr) => (
+                      <React.Fragment key={item.key}>
+                        <div className="flex items-center justify-between gap-4">
+                          <Toggle
+                            checked={form[item.key as keyof typeof form] as boolean}
+                            onChange={() => set(item.key as keyof typeof form, !form[item.key as keyof typeof form])}
+                            color={item.color}
+                          />
+                          <div className="flex-1 text-right">
+                            <p className="text-sm font-bold text-gray-900 dark:text-white">{item.label}</p>
+                            <FieldHint>{item.hint}</FieldHint>
                           </div>
-                       </div>
-                    </motion.div>
-                 )}
-
-                 {activeTab === 'financial' && (
-                   <motion.div
-                      key="financial"
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="p-8 md:p-12 space-y-8"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="bg-green-50 text-green-600 px-4 py-2 rounded-xl text-[10px] font-black border border-green-100">
-                           نظام مشفر بالكامل
                         </div>
-                        <h2 className="text-2xl font-black text-gray-900">المعلومات المالية</h2>
-                      </div>
-                      
-                      <div className="bg-amber-50 p-6 rounded-[2rem] border border-amber-100 flex gap-4 justify-end">
-                         <p className="text-xs text-amber-800 leading-relaxed font-bold text-right">
-                            المعلومات المذكورة هنا تستخدم حصراً لتحويل مستحقاتك من الصفقات الناجحة. يرجى التأكد من دقة رقم الـ IBAN لتجنب تأخر التسويات.
-                         </p>
-                         <ShieldAlert className="w-6 h-6 text-amber-600 shrink-0" />
-                      </div>
+                        {idx < arr.length - 1 && <hr className="border-gray-100 dark:border-gray-800" />}
+                      </React.Fragment>
+                    ))}
+                  </div>
+                </Card>
 
-                      <div className="grid gap-6 mt-8">
-                         <div className="space-y-2 text-right">
-                            <label className="text-xs font-black text-gray-500 block mr-1 uppercase tracking-widest">اسم البنك</label>
+                {/* WhatsApp */}
+                <Card className="border-green-100 dark:border-green-900/30 bg-green-50/30 dark:bg-green-900/10">
+                  <div className="flex items-center justify-between mb-1">
+                    <Toggle
+                      checked={form.whatsappEnabled}
+                      onChange={() => set('whatsappEnabled', !form.whatsappEnabled)}
+                      color="bg-green-600"
+                    />
+                    <div className="text-right">
+                      <p className="text-sm font-black text-gray-900 dark:text-white flex items-center gap-2 justify-end">
+                        <span className="text-base">💬</span> تنبيهات الواتساب
+                      </p>
+                      <FieldHint>استقبل إشعارات صفقاتك مباشرة على واتساب وارد على الطلبات بكلمات بسيطة</FieldHint>
+                    </div>
+                  </div>
+
+                  <AnimatePresence>
+                    {form.whatsappEnabled && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="pt-4 mt-4 border-t border-green-100 dark:border-green-900/30 space-y-3">
+                          <div>
+                            <FieldLabel>رقم الواتساب</FieldLabel>
                             <div className="relative">
-                              <select 
-                                value={formData.payoutBank}
-                                onChange={(e) => setFormData({...formData, payoutBank: e.target.value})}
-                                className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 pr-12 focus:bg-white focus:ring-4 focus:ring-blue-50 focus:border-blue-500 outline-none transition-all font-bold appearance-none text-right"
-                              >
-                                <option value="">اختر البنك...</option>
-                                <option value="stc_pay">اس تي سي بنك (STC Bank)</option>
-                                <option value="alrajhi">مصرف الراجحي</option>
-                                <option value="snbe">البنك الأهلي السعودي</option>
-                                <option value="insider">بنك الإنماء</option>
-                                <option value="riyad">بنك الرياض</option>
-                              </select>
-                              <Building className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-300" />
-                            </div>
-                         </div>
-
-                         <div className="space-y-2 text-right">
-                            <label className="text-xs font-black text-gray-500 block mr-1 uppercase tracking-widest">اسم صاحب الحساب</label>
-                            <div className="relative">
-                              <input 
-                                type="text"
-                                value={formData.payoutAccountName}
-                                onChange={(e) => setFormData({...formData, payoutAccountName: e.target.value})}
-                                className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 pr-12 focus:bg-white focus:ring-4 focus:ring-blue-50 focus:border-blue-500 outline-none transition-all font-bold text-right"
-                                placeholder="كما يظهر في بطاقة البنك"
+                              <input
+                                type="tel"
+                                dir="ltr"
+                                value={form.whatsappNumber}
+                                onChange={e => set('whatsappNumber', e.target.value.replace(/[^\d+\s-]/g, ''))}
+                                className={`w-full bg-white dark:bg-gray-800 border rounded-xl px-4 py-3 pr-10 text-sm font-bold text-left outline-none transition-all
+                                  ${!waValid ? 'border-red-400 focus:ring-2 focus:ring-red-100 dark:focus:ring-red-900/30'
+                                             : 'border-green-200 dark:border-green-800 focus:border-green-400 focus:ring-2 focus:ring-green-100 dark:focus:ring-green-900/30'}`}
+                                placeholder="+9665XXXXXXXX أو 05XXXXXXXX"
                               />
-                              <User className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-300" />
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-base">
+                                {form.whatsappNumber === '' ? '💬' : waValid ? '✅' : '❌'}
+                              </span>
                             </div>
-                         </div>
+                            {!waValid && form.whatsappNumber !== '' && (
+                              <p className="text-[11px] text-red-600 font-black mt-1">الصيغ المقبولة: 05XXXXXXXX | +9665XXXXXXXX | 9665XXXXXXXX</p>
+                            )}
+                            {waValid && form.whatsappNumber !== '' && (
+                              <p className="text-[11px] text-green-600 dark:text-green-400 font-black mt-1">✅ الرقم صحيح وجاهز</p>
+                            )}
+                          </div>
 
-                         <div className="space-y-2 text-right">
-                            <label className="text-xs font-black text-gray-500 block mr-1 uppercase tracking-widest">رقم الآيبان (IBAN)</label>
-                            <div className="relative">
-                              <input 
-                                type="text"
-                                value={formData.payoutIban}
-                                onChange={(e) => setFormData({...formData, payoutIban: e.target.value})}
-                                className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 pr-12 focus:bg-white focus:ring-4 focus:ring-blue-50 focus:border-blue-500 outline-none transition-all font-bold tracking-widest uppercase text-right"
-                                placeholder="SAXXXXXXXXXXXXXXXXXXXXXX"
-                              />
-                              <CreditCard className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-300" />
+                          {/* Commands reference */}
+                          <div className="bg-white dark:bg-gray-800 rounded-xl p-3 border border-green-100 dark:border-green-900/30">
+                            <p className="text-[10px] font-black text-green-700 dark:text-green-400 mb-2 uppercase tracking-widest">الأوامر المتاحة عبر الواتساب</p>
+                            <div className="space-y-1">
+                              {[
+                                ['رصيدي', 'عرض رصيدك المتاح والمحجوز'],
+                                ['طلباتي', 'قائمة صفقاتك النشطة'],
+                                ['موافقة / رفض', 'الرد على طلبات بانتظار موافقتك'],
+                                ['استلام [رمز]', 'تأكيد استلام العمل وتحرير المبلغ'],
+                                ['رد [رمز]: رسالة', 'إرسال رسالة لمحادثة طلب'],
+                              ].map(([cmd, desc]) => (
+                                <div key={cmd} className="flex items-center justify-between text-[10px]">
+                                  <span className="text-gray-400 dark:text-gray-500">{desc}</span>
+                                  <code className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-0.5 rounded font-black">{cmd}</code>
+                                </div>
+                              ))}
                             </div>
-                         </div>
-                      </div>
-                   </motion.div>
-                 )}
-
-                 {activeTab === 'platform' && (
-                    <motion.div
-                       key="platform"
-                       initial={{ opacity: 0, scale: 0.98 }}
-                       animate={{ opacity: 1, scale: 1 }}
-                       className="p-8 md:p-12 space-y-10"
-                    >
-                      <div className="flex items-center justify-between mb-8">
-                         <div className="bg-purple-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest">
-                            Admin Only
-                         </div>
-                         <h2 className="text-2xl font-black text-gray-900">إعدادات المنصة</h2>
-                      </div>
-
-                      <div className="bg-purple-50 p-10 rounded-[3rem] space-y-8 border border-purple-100 relative overflow-hidden text-right">
-                        <div className="absolute top-0 left-0 w-32 h-32 bg-purple-600/5 rotate-12 -translate-x-10 -translate-y-10 rounded-full"></div>
-                        
-                        <div className="space-y-4 relative z-10">
-                          <label className="font-black text-purple-900 block text-lg">الهوية البصرية</label>
-                          <p className="text-xs text-purple-700/60 font-medium">اختر اللون الأساسي لواجهة المستخدم في المنصة</p>
-                          <div className="flex flex-wrap gap-4 mt-4 justify-end">
-                            {['#3b82f6', '#10b981', '#f43f5e', '#8b5cf6', '#f59e0b', '#000000'].map(color => (
-                              <button 
-                                key={color}
-                                className={`w-12 h-12 rounded-[1.2rem] border-4 transition-all shadow-sm active:scale-95 ${profile?.primaryColor === color ? 'border-white ring-4 ring-purple-600/20 scale-110' : 'border-white'}`}
-                                style={{ backgroundColor: color }}
-                              />
-                            ))}
                           </div>
                         </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </Card>
 
-                        <div className="grid md:grid-cols-2 gap-4">
-                           <button className="bg-white p-6 rounded-[2rem] border border-purple-100 flex items-center justify-between group hover:shadow-xl hover:shadow-purple-100 transition-all">
-                              <div className="w-12 h-7 bg-gray-200 rounded-full relative">
-                                 <div className="absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow-sm"></div>
-                              </div>
-                              <div className="text-right">
-                                <p className="font-black text-purple-900">وضع الصيانة</p>
-                                <p className="text-[10px] text-purple-400 mt-1">تجميد كافة العمليات حالياً</p>
-                              </div>
-                           </button>
+                <SectionSaveBar loading={loadingSection === 'notifications'} saved={savedSection === 'notifications'} onSave={saveNotifications} label="حفظ إعدادات التنبيهات" />
+              </motion.div>
+            )}
 
-                           <button className="bg-white p-6 rounded-[2rem] border border-purple-100 flex items-center justify-between group hover:shadow-xl hover:shadow-purple-100 transition-all">
-                              <div className="w-12 h-7 bg-purple-600 rounded-full relative">
-                                 <div className="absolute top-1 right-1 w-5 h-5 bg-white rounded-full shadow-sm"></div>
-                              </div>
-                              <div className="text-right">
-                                <p className="font-black text-purple-900">التحقق الإلزامي</p>
-                                <p className="text-[10px] text-purple-400 mt-1">إلزام المستخدمين بالتوثيق</p>
-                              </div>
-                           </button>
+            {/* ═══════════════════════════════════════════════════════════
+                SECTION 4 — المعلومات المالية
+            ═══════════════════════════════════════════════════════════ */}
+            {activeSection === 'financial' && (
+              <motion.div key="financial" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
+                <SectionHeader icon={CreditCard} title="المعلومات المالية" desc="بيانات حسابك البنكي لاستلام مستحقاتك" color="purple" />
+
+                {/* Warning */}
+                <div className="flex items-start gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-100 dark:border-amber-800">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-800 dark:text-amber-300 font-medium leading-relaxed">
+                    هذه المعلومات تُستخدم حصراً لتحويل مستحقاتك من الصفقات الناجحة. تأكد من دقة رقم الـ IBAN لتجنب تأخير التسويات.
+                  </p>
+                </div>
+
+                <Card>
+                  <h3 className="text-xs font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-4">بيانات الحساب البنكي</h3>
+                  <div className="space-y-4">
+                    {/* Bank */}
+                    <div>
+                      <FieldLabel>اسم البنك</FieldLabel>
+                      <div className="relative">
+                        <select
+                          value={form.payoutBank}
+                          onChange={e => set('payoutBank', e.target.value)}
+                          className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 pr-10 text-sm font-bold text-right dark:text-white outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 dark:focus:ring-violet-900/30 transition-all appearance-none"
+                        >
+                          <option value="">اختر البنك...</option>
+                          <option value="stc_pay">اس تي سي بنك (STC Bank)</option>
+                          <option value="alrajhi">مصرف الراجحي</option>
+                          <option value="snbe">البنك الأهلي السعودي</option>
+                          <option value="alinma">بنك الإنماء</option>
+                          <option value="riyad">بنك الرياض</option>
+                          <option value="bsf">البنك السعودي الفرنسي</option>
+                          <option value="sab">البنك العربي الوطني</option>
+                          <option value="jazira">بنك الجزيرة</option>
+                          <option value="other">بنك آخر</option>
+                        </select>
+                        <Building className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300 dark:text-gray-600 pointer-events-none" />
+                      </div>
+                      <FieldHint>اختر البنك الذي تريد استلام المبالغ فيه</FieldHint>
+                    </div>
+
+                    {/* Account name */}
+                    <div>
+                      <FieldLabel>اسم صاحب الحساب</FieldLabel>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={form.payoutAccountName}
+                          onChange={e => set('payoutAccountName', e.target.value)}
+                          className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 pr-10 text-sm font-bold text-right dark:text-white outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 dark:focus:ring-violet-900/30 transition-all"
+                          placeholder="كما يظهر في بطاقتك البنكية"
+                        />
+                        <User className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300 dark:text-gray-600" />
+                      </div>
+                      <FieldHint>يجب أن يتطابق تماماً مع الاسم المسجل في البنك — الأخطاء تؤدي لرفض التحويل</FieldHint>
+                    </div>
+
+                    {/* IBAN */}
+                    <div>
+                      <FieldLabel>رقم الآيبان (IBAN)</FieldLabel>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={form.payoutIban}
+                          onChange={e => set('payoutIban', e.target.value.toUpperCase())}
+                          className={`w-full bg-gray-50 dark:bg-gray-800 border rounded-xl px-4 py-3 pr-10 text-sm font-bold uppercase tracking-widest text-right dark:text-white outline-none transition-all
+                            ${form.payoutIban && !ibanValid
+                              ? 'border-red-400 focus:ring-2 focus:ring-red-100 dark:focus:ring-red-900/30'
+                              : 'border-gray-200 dark:border-gray-700 focus:border-violet-400 focus:ring-2 focus:ring-violet-100 dark:focus:ring-violet-900/30'}`}
+                          placeholder="SA29XXXXXXXXXXXXXXXXXXXX"
+                          dir="ltr"
+                        />
+                        <Wallet className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300 dark:text-gray-600" />
+                      </div>
+                      {form.payoutIban && !ibanValid && (
+                        <p className="text-[11px] text-red-600 font-black mt-1">❌ يجب أن يبدأ بـ SA ويتبعه 22 رقماً (مثال: SA29 8030 0000...)</p>
+                      )}
+                      {form.payoutIban && ibanValid && (
+                        <p className="text-[11px] text-green-600 dark:text-green-400 font-black mt-1">✅ رقم الآيبان صحيح</p>
+                      )}
+                      <FieldHint>يبدأ بـ SA ويتبعه 22 رقماً — تجده في تطبيق البنك أو كشف الحساب</FieldHint>
+                    </div>
+                  </div>
+                </Card>
+
+                {/* Security badge */}
+                <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-900/20 rounded-xl border border-green-100 dark:border-green-800">
+                  <ShieldCheck className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
+                  <p className="text-[11px] text-green-700 dark:text-green-400 font-bold">بياناتك المالية مشفرة ومحمية — لا يمكن لأحد الوصول إليها سواك</p>
+                </div>
+
+                <SectionSaveBar loading={loadingSection === 'financial'} saved={savedSection === 'financial'} onSave={saveFinancial} label="حفظ المعلومات المالية" />
+              </motion.div>
+            )}
+
+            {/* ═══════════════════════════════════════════════════════════
+                SECTION 5 — إعدادات المنصة (Admin)
+            ═══════════════════════════════════════════════════════════ */}
+            {activeSection === 'platform' && isAdmin && (
+              <motion.div key="platform" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
+                <SectionHeader icon={Settings} title="إعدادات المنصة" desc="إعدادات حصرية للمديرين فقط" color="rose" />
+
+                <Card>
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="text-[10px] bg-rose-600 text-white px-2 py-0.5 rounded font-black uppercase tracking-widest">Admin Only</span>
+                    <h3 className="text-xs font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest">تحكم النظام</h3>
+                  </div>
+                  <div className="grid md:grid-cols-2 gap-3">
+                    {[
+                      { label: 'وضع الصيانة', desc: 'تجميد جميع العمليات', active: false, color: 'bg-slate-600' },
+                      { label: 'التحقق الإلزامي', desc: 'إلزام المستخدمين بالتوثيق', active: true, color: 'bg-rose-600' },
+                    ].map(item => (
+                      <div key={item.label} className="flex items-center justify-between p-4 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
+                        <Toggle checked={item.active} onChange={() => {}} color={item.color} />
+                        <div className="text-right">
+                          <p className="text-sm font-black text-gray-900 dark:text-white">{item.label}</p>
+                          <p className="text-[11px] text-gray-400 dark:text-gray-500">{item.desc}</p>
                         </div>
                       </div>
-                    </motion.div>
-                 )}
-              </AnimatePresence>
+                    ))}
+                  </div>
+                </Card>
 
-              {/* Bottom Message */}
-              <div className="mt-auto px-8 py-6 bg-gray-50 border-t border-gray-100 flex items-center justify-between rounded-b-[3rem]">
-                 {savedStatus && (
-                    <motion.div 
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      className="flex items-center gap-2 text-green-600 font-black text-xs"
-                    >
-                      <div className="w-8 h-8 rounded-full bg-green-50 flex items-center justify-center">
-                         <CheckCircle2 className="w-4 h-4" />
-                      </div>
-                      تم الحفظ بنجاح
-                    </motion.div>
-                 )}
-                 <p className="text-[10px] text-gray-400 font-medium mr-auto">آخر تحديث: {profile?.updatedAt ? new Date(profile.updatedAt.toDate()).toLocaleDateString('ar-SA') : 'اليوم'}</p>
-              </div>
-           </div>
+                {/* Color theme */}
+                <Card>
+                  <h3 className="text-xs font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-3">اللون الأساسي للمنصة</h3>
+                  <div className="flex gap-3 flex-wrap">
+                    {['#3b82f6','#10b981','#f43f5e','#8b5cf6','#f59e0b','#000000'].map(c => (
+                      <button key={c} className={`w-10 h-10 rounded-xl border-4 border-white dark:border-gray-800 shadow-sm transition-all hover:scale-110 active:scale-95 ${profile?.primaryColor === c ? 'ring-4 ring-offset-1 ring-gray-400' : ''}`} style={{ backgroundColor: c }} />
+                    ))}
+                  </div>
+                  <FieldHint>يؤثر على لون الأزرار والعناصر الرئيسية في واجهة المنصة</FieldHint>
+                </Card>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 
-      {/* Verification Modals */}
+      {/* ── Modals ──────────────────────────────────────────────────────── */}
       <AnimatePresence>
         {showPhoneVerification && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-            >
-              <PhoneVerification 
-                onSuccess={() => {
-                  setShowPhoneVerification(false);
-                  setSavedStatus(true);
-                  setTimeout(() => setSavedStatus(false), 3000);
-                }}
-                onClose={() => setShowPhoneVerification(false)} 
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}>
+              <PhoneVerification
+                onSuccess={() => { setShowPhoneVerification(false); toast.success('تم توثيق رقم الجوال بنجاح'); }}
+                onClose={() => setShowPhoneVerification(false)}
               />
             </motion.div>
           </div>
         )}
-
         {showIdentityVerification && (
-          <IdentityVerification 
-            onClose={() => setShowIdentityVerification(false)} 
-          />
+          <IdentityVerification onClose={() => setShowIdentityVerification(false)} />
         )}
       </AnimatePresence>
     </div>

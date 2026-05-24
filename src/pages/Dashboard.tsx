@@ -15,7 +15,6 @@ import { ar } from 'date-fns/locale';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { IdentityVerification } from '../components/IdentityVerification';
 import { ServiceManager } from '../components/ServiceManager';
-import { StatCard } from '../components/ui/StatCard';
 import { InvoiceLinkGenerator } from '../components/InvoiceLinkGenerator';
 import { ChatRoom } from '../components/chat/ChatRoom';
 import { useNotifications } from '../components/providers/NotificationProvider';
@@ -23,49 +22,110 @@ import { markNotificationAsRead, markAllNotificationsAsRead } from '../lib/notif
 
 const getStatusBadge = (status: Order['status']) => {
   switch (status) {
-    case 'pending': return <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-[10px] font-black italic">قيد الانتظار</span>;
-    case 'escrowed': return <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-[10px] font-black border border-blue-200 shadow-sm">المبلغ محجوز</span>;
-    case 'delivered': return <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-[10px] font-black border border-purple-200">بانتظار الاستلام</span>;
-    case 'completed': return <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-[10px] font-black border border-green-200">مكتمل ✅</span>;
-    case 'disputed': return <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-[10px] font-black border border-red-200">نزاع نشط</span>;
-    case 'cancelled': return <span className="px-3 py-1 bg-gray-200 text-gray-500 rounded-full text-[10px] font-black">تم الإلغاء</span>;
+    case 'pending':    return <span className="px-2.5 py-1 bg-gray-100 text-gray-500 rounded-full text-[9px] font-black tracking-wide">⏳ قيد الانتظار</span>;
+    case 'escrowed':  return <span className="px-2.5 py-1 bg-amber-100 text-amber-700 rounded-full text-[9px] font-black border border-amber-200 animate-pulse">🔒 مُعمَّد — جارٍ التنفيذ</span>;
+    case 'delivered': return <span className="px-2.5 py-1 bg-purple-100 text-purple-700 rounded-full text-[9px] font-black border border-purple-200">📦 بانتظار الاستلام</span>;
+    case 'completed': return <span className="px-2.5 py-1 bg-green-100 text-green-700 rounded-full text-[9px] font-black border border-green-200">✅ مكتمل</span>;
+    case 'disputed':  return <span className="px-2.5 py-1 bg-red-100 text-red-700 rounded-full text-[9px] font-black border border-red-200 animate-pulse">🚨 نزاع نشط</span>;
+    case 'cancelled': return <span className="px-2.5 py-1 bg-gray-200 text-gray-400 rounded-full text-[9px] font-black">❌ ملغي</span>;
     default: return null;
   }
+};
+
+const statusBorderColor: Record<string, string> = {
+  pending:   'border-r-gray-200',
+  escrowed:  'border-r-amber-400',
+  delivered: 'border-r-purple-400',
+  completed: 'border-r-green-400',
+  disputed:  'border-r-red-500',
+  cancelled: 'border-r-gray-200',
+};
+
+const statusGlow: Record<string, string> = {
+  escrowed: 'shadow-amber-100 ring-1 ring-amber-200',
+  disputed: 'shadow-red-100 ring-1 ring-red-200',
+  delivered:'shadow-purple-100 ring-1 ring-purple-200',
 };
 
 interface OrderRowProps {
   order: Order;
   navigate: (path: string) => void;
+  userId?: string;
 }
 
-const OrderRow: React.FC<OrderRowProps> = ({ order, navigate }) => {
+const OrderRow: React.FC<OrderRowProps> = ({ order, navigate, userId }) => {
+  const isBuyer  = order.buyerId  === userId;
+  const isSeller = order.sellerId === userId;
+
+  const actionLabel: Partial<Record<Order['status'], string>> = {
+    escrowed:  isSeller ? '⚡ ابدأ التنفيذ الآن'  : '⏳ بانتظار البائع',
+    delivered: isBuyer  ? '✅ راجع واستلم العمل' : '⏳ بانتظار المشتري',
+    pending:   isBuyer  ? '💳 أكمل الدفع'        : '⏳ بانتظار الدفع',
+    disputed:  '🚨 نزاع — يراجعه الإداري',
+  };
+  const action = actionLabel[order.status];
+  const glow   = statusGlow[order.status] || '';
+  const border = statusBorderColor[order.status] || 'border-r-gray-100';
+
   return (
     <motion.div
-      whileHover={{ scale: 1.01, backgroundColor: '#fdfdff' }}
-      className="p-4 md:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all cursor-pointer bg-white border border-gray-100 rounded-2xl md:rounded-0 md:border-0 md:border-b md:border-gray-50/50 group hover:shadow-lg hover:shadow-blue-900/5 md:hover:shadow-none relative overflow-hidden"
+      whileHover={{ scale: 1.01 }}
+      className={`p-4 flex flex-col gap-3 cursor-pointer bg-white border border-gray-100 border-r-4 ${border} rounded-2xl transition-all shadow-sm hover:shadow-md ${glow}`}
       onClick={() => navigate(`/order/${order.id}`)}
     >
-      <div className="absolute top-0 right-0 w-1 h-full bg-blue-600 opacity-0 group-hover:opacity-100 transition-opacity" />
-      <div className="space-y-1 relative z-10">
-        <div className="flex items-center gap-2 mb-1">
-          {getStatusBadge(order.status)}
-          <span className="text-[10px] font-bold text-gray-400 font-mono tracking-tighter">#ARB-{order.id.slice(0, 4).toUpperCase()}</span>
+      {/* Header */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <h3 className="font-black text-sm text-gray-900 truncate leading-tight">{order.title}</h3>
+          <p className="text-[10px] text-gray-400 font-mono mt-0.5">#ARB-{order.id.slice(0, 8).toUpperCase()}</p>
         </div>
-        <div className="flex items-center gap-3">
-          <h3 className="font-black text-sm md:text-base text-gray-900 group-hover:text-blue-600 transition-colors uppercase truncate">{order.title}</h3>
-        </div>
-        <p className="text-[10px] md:text-xs text-gray-500 line-clamp-1 italic font-medium">{order.description}</p>
+        {getStatusBadge(order.status)}
       </div>
 
-      <div className="flex items-center justify-between md:justify-end gap-6 md:gap-10 mt-2 md:mt-0 relative z-10">
-        <div className="text-right">
-          <p className="text-[8px] md:text-[10px] text-gray-400 font-black uppercase tracking-widest leading-none mb-1">صافي القيمة</p>
-          <p className="text-base md:text-lg font-black text-gray-900 tracking-tight">{order.amount} <span className="text-[10px] md:text-xs font-bold text-gray-400">ر.س</span></p>
+      {/* Description */}
+      {order.description && (
+        <p className="text-[11px] text-gray-500 leading-relaxed line-clamp-2 border-r-2 border-gray-100 pr-2">
+          {order.description}
+        </p>
+      )}
+
+      {/* Details row */}
+      <div className="flex items-center justify-between gap-2 pt-1 border-t border-gray-50">
+        <div className="flex items-center gap-3">
+          <div className="text-right">
+            <p className="text-[8px] text-gray-400 font-black uppercase tracking-widest">قيمة الصفقة</p>
+            <p className="text-base font-black text-gray-900">{order.amount.toLocaleString()} <span className="text-[9px] text-gray-400 font-bold">ر.س</span></p>
+          </div>
+          {order.paymentFees && (
+            <div className="text-right border-r border-gray-100 pr-3">
+              <p className="text-[8px] text-gray-400 font-black uppercase tracking-widest">صافي البائع</p>
+              <p className="text-sm font-black text-green-600">{order.paymentFees.sellerNetShare?.toLocaleString()} ر.س</p>
+            </div>
+          )}
         </div>
-        <div className="flex items-center justify-center w-8 h-8 md:w-10 md:h-10 bg-gray-50 rounded-lg md:rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-all shadow-sm border border-gray-100/50">
-          <ChevronRight className="w-4 h-4 md:w-5 md:h-5 rtl:rotate-180 transition-transform group-hover:translate-x-[-2px]" />
+        <div className="text-left shrink-0">
+          {order.createdAt && (
+            <p className="text-[9px] text-gray-400 font-medium">
+              {format(order.createdAt.toDate(), 'd MMM yyyy', { locale: ar })}
+            </p>
+          )}
+          {order.deliveryDays && order.status === 'escrowed' && (
+            <p className="text-[9px] font-black text-amber-600 mt-0.5">⏰ {order.deliveryDays} أيام للتسليم</p>
+          )}
         </div>
       </div>
+
+      {/* Action label */}
+      {action && (
+        <div className={`text-center py-1.5 rounded-xl text-[10px] font-black ${
+          order.status === 'escrowed'  ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+          order.status === 'delivered' ? 'bg-purple-50 text-purple-700 border border-purple-200' :
+          order.status === 'disputed'  ? 'bg-red-50 text-red-700 border border-red-200' :
+          'bg-gray-50 text-gray-500 border border-gray-100'
+        }`}>
+          {action}
+        </div>
+      )}
     </motion.div>
   );
 };
@@ -473,47 +533,76 @@ export const Dashboard: React.FC = () => {
               </div>
             )}
 
-            <div className="grid lg:grid-cols-2 gap-6">
-              {/* Active Orders */}
-              <div className="bg-white rounded-[2rem] border border-gray-100/50 shadow-sm overflow-hidden flex flex-col h-full">
-                <div className="px-8 py-6 border-b border-gray-100/50 flex justify-between items-center bg-gray-50/30">
-                  <h2 className="text-lg font-display font-black text-gray-950">طلبات نشطة</h2>
-                  <span className="bg-blue-50/50 text-blue-700 px-3 py-1 rounded-full text-[10px] font-display font-black border border-blue-100/30">
-                    {orders.filter(o => o.status !== 'completed' && o.status !== 'cancelled').length} طلب
-                  </span>
+            {/* ── Requires Action Banner ───────────────────────────── */}
+            {(() => {
+              const actionOrders = orders.filter(o =>
+                (o.status === 'escrowed' && o.sellerId === user?.uid) ||
+                (o.status === 'delivered' && o.buyerId === user?.uid) ||
+                (o.status === 'pending' && o.buyerId === user?.uid) ||
+                o.status === 'disputed'
+              );
+              if (actionOrders.length === 0) return null;
+              return (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+                    <h2 className="text-sm font-black text-amber-700 uppercase tracking-widest">يحتاج إجراءك الآن</h2>
+                    <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full text-[10px] font-black">{actionOrders.length}</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                    {actionOrders.map(order => (
+                      <OrderRow key={order.id} order={order} navigate={navigate} userId={user?.uid} />
+                    ))}
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-1 gap-3 p-4 md:p-0 md:divide-y md:divide-gray-50 overflow-y-auto max-h-[600px] no-scrollbar">
-                  {loading ? (
-                    <div className="col-span-2 md:col-span-1 flex items-center justify-center h-64">
-                       <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                    </div>
-                  ) : orders.filter(o => o.status !== 'completed' && o.status !== 'cancelled').length === 0 ? (
-                    <div className="col-span-2 md:col-span-1 p-12 text-center text-gray-400 font-medium">لا توجد طلبات جارية حالياً.</div>
-                  ) : (
-                    orders.filter(o => o.status !== 'completed' && o.status !== 'cancelled').map(order => (
-                      <OrderRow key={order.id} order={order} navigate={navigate} />
-                    ))
-                  )}
-                </div>
-              </div>
+              );
+            })()}
 
-              {/* Archived Orders */}
-              <div className="bg-white rounded-[2rem] border border-gray-100/50 shadow-sm overflow-hidden flex flex-col h-full">
-                <div className="px-8 py-6 border-b border-gray-100/50 flex justify-between items-center bg-gray-50/30">
-                  <h2 className="text-lg font-display font-black text-gray-950 underline decoration-gray-200 underline-offset-8">الأرشيف</h2>
-                  <span className="bg-gray-100/50 text-gray-500 px-3 py-1 rounded-full text-[10px] font-display font-black border border-gray-200/30">
-                    {orders.filter(o => o.status === 'completed' || o.status === 'cancelled').length} صفقة
-                  </span>
-                </div>
-                <div className="divide-y divide-gray-50 overflow-y-auto max-h-[600px] no-scrollbar bg-gray-50/10">
-                  {orders.filter(o => o.status === 'completed' || o.status === 'cancelled').length === 0 ? (
-                    <div className="p-12 text-center text-gray-400 font-medium italic">الأرشيف فارغ.</div>
-                  ) : (
-                    orders.filter(o => o.status === 'completed' || o.status === 'cancelled').map(order => (
-                      <ArchivedOrderRow key={order.id} order={order} navigate={navigate} />
+            {/* ── Active Orders Grid ───────────────────────────────── */}
+            <div className="bg-white rounded-[2rem] border border-gray-100/50 shadow-sm overflow-hidden">
+              <div className="px-6 py-5 border-b border-gray-100/50 flex justify-between items-center bg-gray-50/30">
+                <h2 className="text-lg font-display font-black text-gray-950">طلبات نشطة</h2>
+                <span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-[10px] font-black border border-blue-100">
+                  {orders.filter(o => o.status !== 'completed' && o.status !== 'cancelled').length} طلب
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 p-4">
+                {loading ? (
+                  <div className="col-span-3 flex items-center justify-center h-40">
+                    <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : orders.filter(o => o.status !== 'completed' && o.status !== 'cancelled').length === 0 ? (
+                  <div className="col-span-3 py-16 text-center text-gray-400 font-medium">لا توجد طلبات جارية حالياً.</div>
+                ) : (
+                  orders
+                    .filter(o => o.status !== 'completed' && o.status !== 'cancelled')
+                    .sort((a, b) => {
+                      const priority: Record<string, number> = { disputed: 0, escrowed: 1, delivered: 2, pending: 3 };
+                      return (priority[a.status] ?? 9) - (priority[b.status] ?? 9);
+                    })
+                    .map(order => (
+                      <OrderRow key={order.id} order={order} navigate={navigate} userId={user?.uid} />
                     ))
-                  )}
-                </div>
+                )}
+              </div>
+            </div>
+
+            {/* ── Archive ──────────────────────────────────────────── */}
+            <div className="bg-white rounded-[2rem] border border-gray-100/50 shadow-sm overflow-hidden">
+              <div className="px-6 py-5 border-b border-gray-100/50 flex justify-between items-center bg-gray-50/30">
+                <h2 className="text-lg font-display font-black text-gray-950 opacity-60">الأرشيف</h2>
+                <span className="bg-gray-100 text-gray-500 px-3 py-1 rounded-full text-[10px] font-black">
+                  {orders.filter(o => o.status === 'completed' || o.status === 'cancelled').length} صفقة
+                </span>
+              </div>
+              <div className="divide-y divide-gray-50 overflow-y-auto max-h-[400px] no-scrollbar">
+                {orders.filter(o => o.status === 'completed' || o.status === 'cancelled').length === 0 ? (
+                  <div className="p-12 text-center text-gray-400 font-medium italic">الأرشيف فارغ.</div>
+                ) : (
+                  orders.filter(o => o.status === 'completed' || o.status === 'cancelled').map(order => (
+                    <ArchivedOrderRow key={order.id} order={order} navigate={navigate} />
+                  ))
+                )}
               </div>
             </div>
           </motion.div>
@@ -863,30 +952,6 @@ export const Dashboard: React.FC = () => {
         <IdentityVerification onClose={() => { setShowIdentityVerify(false); window.location.reload(); }} />
       )}
 
-      {/* Logout */}
-      <div className="pt-8 border-t border-gray-100 hidden md:flex justify-end">
-        <button onClick={() => setShowLogoutConfirm(true)} className="flex items-center gap-2 text-red-600 font-bold hover:bg-red-50 px-6 py-3 rounded-xl transition-all">
-          <LogOut className="w-5 h-5" />
-          <span>تسجيل الخروج</span>
-        </button>
-      </div>
-
-      <AnimatePresence>
-        {showLogoutConfirm && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowLogoutConfirm(false)} className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" />
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white rounded-[2.5rem] p-8 max-w-sm w-full relative z-10 shadow-2xl text-center">
-              <LogOut className="w-12 h-12 text-red-600 mx-auto mb-4" />
-              <h3 className="text-2xl font-black text-gray-900 mb-2">تسجيل الخروج</h3>
-              <p className="text-gray-500 mb-8">هل أنت متأكد من رغبتك في تسجيل الخروج؟</p>
-              <div className="grid grid-cols-2 gap-4">
-                <button onClick={() => setShowLogoutConfirm(false)} className="py-4 font-bold text-gray-500">تراجع</button>
-                <button onClick={() => { logout(); navigate('/'); }} className="bg-red-600 text-white py-4 rounded-xl font-bold shadow-lg shadow-red-100">خروج</button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </div>
   );
 };

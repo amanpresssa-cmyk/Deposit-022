@@ -3,11 +3,11 @@ import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, g
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../hooks/useAuth';
 import { Message, Order, UserProfile } from '../../types';
-import { Send, User as UserIcon, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Send, User as UserIcon, CheckCircle2, AlertCircle, Eye, EyeOff, Package, CreditCard, Receipt, Clock } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
-import { handleFirestoreError, OperationType } from '../../lib/error-handler';
-import { sendNotification, updateSellerPerformance } from '../../lib/notificationService';
+import { sendNotification } from '../../lib/notificationService';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface ChatRoomProps {
   orderId: string;
@@ -22,7 +22,10 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ orderId }) => {
   const [order, setOrder] = useState<Order | null>(null);
   const [isTyping, setIsTyping] = useState(false);
   const [otherUserTyping, setOtherUserTyping] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [otherUserInChat, setOtherUserInChat] = useState(false);
+  
+  const scrollRef    = useRef<HTMLDivElement>(null);
+  const containerRef  = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -30,17 +33,26 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ orderId }) => {
       try {
         const orderRef = doc(db, 'orders', orderId);
         
-        // Listen to order for typing status
+        // Listen to order for typing status and presence
         const unsubOrder = onSnapshot(orderRef, (snap) => {
           if (snap.exists()) {
             const orderData = { id: snap.id, ...snap.data() } as Order;
             setOrder(orderData);
             
             const otherUserId = orderData.buyerId === user?.uid ? orderData.sellerId : orderData.buyerId;
-            if (orderData.typingStatus && orderData.typingStatus[otherUserId]) {
-              setOtherUserTyping(true);
-            } else {
-              setOtherUserTyping(false);
+            if (otherUserId) {
+              // Check typing
+              if (orderData.typingStatus && orderData.typingStatus[otherUserId]) {
+                setOtherUserTyping(true);
+              } else {
+                setOtherUserTyping(false);
+              }
+              // Check chat presence
+              if (orderData.chatPresence && orderData.chatPresence[otherUserId]) {
+                setOtherUserInChat(true);
+              } else {
+                setOtherUserInChat(false);
+              }
             }
           }
         });
@@ -50,16 +62,23 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ orderId }) => {
           const orderData = orderSnap.data() as Order;
           const otherUserId = orderData.buyerId === user?.uid ? orderData.sellerId : orderData.buyerId;
           
-          // Listen to other user's profile for real-time presence
-          const unsubProfile = onSnapshot(doc(db, 'users', otherUserId), (snap) => {
-            if (snap.exists()) {
-              setOtherUser({ uid: snap.id, ...snap.data() } as UserProfile);
-            }
-          });
-          return () => {
-            unsubOrder();
-            unsubProfile();
-          };
+          if (otherUserId && otherUserId !== 'unknown') {
+            // Listen to other user's profile for real-time app presence
+            const unsubProfile = onSnapshot(doc(db, 'users', otherUserId), (snap) => {
+              if (snap.exists()) {
+                setOtherUser({ uid: snap.id, ...snap.data() } as UserProfile);
+              }
+            });
+            return () => {
+              unsubOrder();
+              unsubProfile();
+            };
+          } else {
+            setOtherUser(null);
+            return () => {
+              unsubOrder();
+            };
+          }
         }
       } catch (error) {
         console.error("Error fetching other user:", error);
@@ -80,7 +99,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ orderId }) => {
       const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
       setMessages(msgs);
     }, (error) => {
-       handleFirestoreError(error, OperationType.LIST, `orders/${orderId}/messages`);
+      console.error('[ChatRoom] messages listener error:', (error as any)?.code, (error as any)?.message);
     });
 
     return () => {
@@ -89,43 +108,84 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ orderId }) => {
     };
   }, [orderId, user?.uid]);
 
+  // Manage own Chat Presence
   useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (!user || !orderId) return;
+    
+    const setPresence = (status: boolean) => {
+      updateDoc(doc(db, 'orders', orderId), {
+        [`chatPresence.${user.uid}`]: status,
+        updatedAt: serverTimestamp()
+      }).catch(() => {});
+    };
+
+    setPresence(true);
+
+    const handleVisibilityChange = () => {
+      setPresence(document.visibilityState === 'visible');
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Also handle window blur/focus as a fallback for presence
+    window.addEventListener('focus', () => setPresence(true));
+    window.addEventListener('blur', () => setPresence(false));
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', () => setPresence(true));
+      window.removeEventListener('blur', () => setPresence(false));
+      setPresence(false);
+    };
+  }, [user, orderId]);
+
+  // Auto-scroll to bottom
+  useEffect(() => {
+    if (containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    }
+  }, [messages, otherUserTyping]);
+
+  const safeUpdateTyping = async (value: boolean) => {
+    if (!user?.uid) return;
+    try {
+      await updateDoc(doc(db, 'orders', orderId), {
+        [`typingStatus.${user.uid}`]: value,
+        updatedAt: serverTimestamp()
+      });
+    } catch {
+      // Silently ignore
+    }
+  };
 
   const handleTyping = () => {
     if (!user || !order) return;
     
     if (!isTyping) {
       setIsTyping(true);
-      updateDoc(doc(db, 'orders', orderId), {
-        [`typingStatus.${user.uid}`]: true
-      }).catch(console.error);
+      safeUpdateTyping(true);
     }
 
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     
     typingTimeoutRef.current = setTimeout(() => {
       setIsTyping(false);
-      updateDoc(doc(db, 'orders', orderId), {
-        [`typingStatus.${user.uid}`]: false
-      }).catch(console.error);
+      safeUpdateTyping(false);
     }, 3000);
   };
 
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !newMessage.trim() || !otherUser) return;
+    if (!user || !newMessage.trim()) return;
 
     const text = newMessage.trim();
     setSending(true);
+    setNewMessage('');
 
-    // Clear typing status immediately
+    // Clear typing status instantly
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     setIsTyping(false);
-    updateDoc(doc(db, 'orders', orderId), {
-      [`typingStatus.${user.uid}`]: false
-    }).catch(console.error);
+    safeUpdateTyping(false);
 
     try {
       await addDoc(collection(db, `orders/${orderId}/messages`), {
@@ -135,32 +195,27 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ orderId }) => {
         createdAt: serverTimestamp(),
       });
 
-      // Update order document with last message info
-      await updateDoc(doc(db, 'orders', orderId), {
+      updateDoc(doc(db, 'orders', orderId), {
         lastMessage: text,
         lastMessageAt: serverTimestamp(),
         updatedAt: serverTimestamp()
-      });
+      }).catch(() => {});
 
-      // Send Notification to recipient
-      await sendNotification(
-        otherUser.uid,
-        `رسالة جديدة من ${user.displayName || 'مستخدم'}`,
-        text,
-        'message',
-        'normal',
-        orderId,
-        user.uid
-      );
-
-      // If sender is a seller, update their performance metrics automatically
-      if (order?.sellerId === user.uid) {
-        await updateSellerPerformance(user.uid);
+      if (otherUser?.uid) {
+        sendNotification(
+          otherUser.uid,
+          `رسالة جديدة بخصوص: ${order?.title || 'طلب'}`,
+          text,
+          'message',
+          'normal',
+          orderId,
+          user.uid
+        ).catch(() => {});
       }
-
-      setNewMessage('');
-    } catch (error) {
-       handleFirestoreError(error, OperationType.CREATE, `orders/${orderId}/messages`);
+    } catch (error: any) {
+      console.error('Failed to send message:', error);
+      import('sonner').then(m => m.toast.error('تعذر الإرسال: ' + (error.message || 'خطأ غير معروف')));
+      setNewMessage(text);
     } finally {
       setSending(false);
     }
@@ -169,7 +224,6 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ orderId }) => {
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
-    // Force re-render every 30s to update "Last Seen" relative strings
     const interval = setInterval(() => {
       setRefreshKey(prev => prev + 1);
     }, 30000);
@@ -179,8 +233,6 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ orderId }) => {
   const isTrulyOnline = (u: UserProfile | null) => {
     if (!u) return false;
     if (!u.lastSeen) return false;
-    
-    // If heartbeat was within last 45 seconds, consider online
     const lastSeenDate = u.lastSeen.toDate ? u.lastSeen.toDate() : new Date(u.lastSeen);
     const diff = (new Date().getTime() - lastSeenDate.getTime()) / 1000;
     return u.isOnline && diff < 45;
@@ -192,36 +244,61 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ orderId }) => {
     return formatDistanceToNow(date, { addSuffix: true, locale: ar });
   };
 
+  // Helper to get order context icon and color
+  const getOrderStatusContext = () => {
+    if (!order) return null;
+    switch (order.status) {
+      case 'pending': return { icon: <Clock className="w-4 h-4 text-amber-600" />, text: 'بانتظار الدفع والإيداع', color: 'bg-amber-50 text-amber-800 border-amber-100' };
+      case 'escrowed': return { icon: <CreditCard className="w-4 h-4 text-blue-600" />, text: 'المبلغ محفوظ لدى عربون', color: 'bg-blue-50 text-blue-800 border-blue-100' };
+      case 'delivered': return { icon: <Package className="w-4 h-4 text-purple-600" />, text: 'تم التسليم، بانتظار الموافقة', color: 'bg-purple-50 text-purple-800 border-purple-100' };
+      case 'completed': return { icon: <CheckCircle2 className="w-4 h-4 text-green-600" />, text: 'مكتمل (تم تحويل المبلغ للبائع)', color: 'bg-green-50 text-green-800 border-green-100' };
+      case 'disputed': return { icon: <AlertCircle className="w-4 h-4 text-red-600" />, text: 'يوجد نزاع - قيد التحكيم', color: 'bg-red-50 text-red-800 border-red-100' };
+      case 'cancelled': return { icon: <AlertCircle className="w-4 h-4 text-gray-500" />, text: 'ملغى', color: 'bg-gray-100 text-gray-600 border-gray-200' };
+      default: return null;
+    }
+  };
+
+  const orderContext = getOrderStatusContext();
+
   return (
-    <div className="flex flex-col h-[500px] bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-      <div className="p-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+    <div className="flex flex-col h-full bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden relative">
+      {/* HEADER */}
+      <div className="p-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between shrink-0 z-10 shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-white rounded-xl border border-gray-100 flex items-center justify-center overflow-hidden relative">
+          <div className="w-12 h-12 bg-white rounded-2xl border border-gray-100 flex items-center justify-center overflow-hidden relative shadow-sm">
             {otherUser?.photoURL ? (
               <img src={otherUser.photoURL} alt="" className="w-full h-full object-cover" />
             ) : (
-              <UserIcon className="w-5 h-5 text-gray-400" />
+              <UserIcon className="w-6 h-6 text-gray-400" />
             )}
-            {isTrulyOnline(otherUser) && (
-              <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full" />
+            {(otherUserInChat || isTrulyOnline(otherUser)) && (
+              <div className={`absolute bottom-0 right-0 w-3.5 h-3.5 border-2 border-white rounded-full ${otherUserInChat ? 'bg-green-500 animate-pulse' : 'bg-emerald-400'}`} />
             )}
           </div>
           <div>
-            <h3 className="font-bold text-gray-900 text-sm">{otherUser?.displayName || 'جاري التحميل...'}</h3>
-            <div className="flex items-center gap-1.5 h-4">
+            <h3 className="font-black text-gray-900 text-sm">
+               {otherUser ? (otherUser.displayName || 'مستخدم') : 'الطرف الآخر (غير مسجل بعد)'}
+            </h3>
+            <div className="flex items-center gap-1.5 h-4 mt-0.5">
               {otherUserTyping ? (
-                <div className="flex items-center gap-1">
-                  <span className="text-[10px] font-black text-blue-600 animate-pulse">جاري الكتابة</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-black text-blue-600">جاري الكتابة</span>
                   <div className="flex gap-0.5">
                     <div className="w-1 h-1 bg-blue-600 rounded-full animate-bounce [animation-delay:-0.3s]" />
                     <div className="w-1 h-1 bg-blue-600 rounded-full animate-bounce [animation-delay:-0.15s]" />
                     <div className="w-1 h-1 bg-blue-600 rounded-full animate-bounce" />
                   </div>
                 </div>
+              ) : otherUserInChat ? (
+                <span className="text-[10px] font-black text-green-600 flex items-center gap-1">
+                  <Eye className="w-3 h-3" />
+                  يقرأ المحادثة الآن
+                </span>
               ) : isTrulyOnline(otherUser) ? (
-                <span className="text-[10px] font-bold text-green-600">متصل الآن</span>
+                <span className="text-[10px] font-bold text-emerald-600">متصل بالمنصة</span>
               ) : (
-                <span className="text-[10px] font-medium text-gray-500">
+                <span className="text-[10px] font-medium text-gray-400 flex items-center gap-1">
+                  <EyeOff className="w-3 h-3" />
                   آخر ظهور: {formatLastSeen(otherUser?.lastSeen)}
                 </span>
               )}
@@ -230,71 +307,109 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ orderId }) => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {order?.status === 'completed' && (
-          <div className="bg-green-50 border border-green-100 p-4 rounded-2xl flex items-center justify-center gap-3 mb-4">
-            <CheckCircle2 className="w-5 h-5 text-green-600" />
-            <p className="text-sm font-bold text-green-800">تم إكمال هذه الصفقة بنجاح. المحادثة الآن في الأرشيف.</p>
-          </div>
-        )}
-        {order?.status === 'cancelled' && (
-          <div className="bg-gray-50 border border-gray-100 p-4 rounded-2xl flex items-center justify-center gap-3 mb-4">
-            <AlertCircle className="w-5 h-5 text-gray-400" />
-            <p className="text-sm font-bold text-gray-500">تم إلغاء هذه الصفقة. المحادثة مؤرشفة.</p>
-          </div>
-        )}
-        {order?.status === 'disputed' && (
-          <div className="bg-red-50 border border-red-100 p-4 rounded-2xl flex items-start gap-3 mb-4 text-right">
-            <AlertCircle className="w-5 h-5 text-red-600 animate-pulse shrink-0 mt-0.5" />
-            <div>
-              <p className="text-xs font-black text-red-800">نزاع مالي نشط</p>
-              <p className="text-[10px] text-red-700 leading-relaxed font-bold mt-0.5">الصفقة تحت التحكيم والتدخل الإداري حالياً. يرجى توثيق كل الاتفاقات وتوضيح المشكلة والطلبات بدقة هنا لمساعدة الإداري في إصدار قرار التسوية العادل.</p>
+      {/* MESSAGES AREA */}
+      <div ref={containerRef} className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50 scroll-smooth">
+        {/* Order Context Sticky Banner inside chat */}
+        {order && orderContext && (
+          <div className={`sticky top-0 z-10 backdrop-blur-md bg-white/80 p-3 rounded-2xl border ${orderContext.color} flex items-center justify-between mb-6 shadow-sm`}>
+            <div className="flex items-center gap-2">
+               {orderContext.icon}
+               <span className="text-xs font-black">{orderContext.text}</span>
+            </div>
+            <div className="flex items-center gap-2 bg-white/50 px-3 py-1.5 rounded-xl border border-black/5">
+               <Receipt className="w-3.5 h-3.5 opacity-70" />
+               <span className="text-xs font-black font-mono">{order.amount.toLocaleString()} ر.س</span>
             </div>
           </div>
         )}
-        {messages.map((msg) => {
+
+        {messages.map((msg, idx) => {
           const isOwn = msg.senderId === user?.uid;
+          const showTime = idx === 0 || messages[idx-1].senderId !== msg.senderId || (msg.createdAt && messages[idx-1].createdAt && (msg.createdAt as any).seconds - (messages[idx-1].createdAt as any).seconds > 300);
+          
           return (
-            <div key={msg.id} className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[80%] space-y-1 ${isOwn ? 'items-end' : 'items-start'}`}>
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              key={msg.id} 
+              className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
+            >
+              <div className={`max-w-[85%] sm:max-w-[75%] space-y-1 ${isOwn ? 'items-end' : 'items-start'}`}>
                 <div
-                  className={`px-4 py-2 rounded-2xl text-sm ${
+                  className={`px-4 py-3 text-sm leading-relaxed shadow-sm ${
                     isOwn
-                      ? 'bg-blue-600 text-white rounded-br-none shadow-sm'
-                      : 'bg-gray-100 text-gray-800 rounded-bl-none border border-gray-200'
+                      ? 'bg-blue-600 text-white rounded-3xl rounded-br-sm'
+                      : 'bg-white text-gray-800 rounded-3xl rounded-bl-sm border border-gray-100'
                   }`}
+                  style={{ wordBreak: 'break-word' }}
                 >
                   {msg.text}
                 </div>
-                <p className="text-[10px] text-gray-400 font-medium px-1">
-                  {msg.createdAt ? format(msg.createdAt.toDate(), 'HH:mm', { locale: ar }) : ''}
-                </p>
+                {showTime && (
+                  <p className={`text-[9px] font-bold text-gray-400 px-2 ${isOwn ? 'text-right' : 'text-left'}`}>
+                    {msg.createdAt ? format(msg.createdAt.toDate(), 'hh:mm a', { locale: ar }) : 'الآن'}
+                  </p>
+                )}
               </div>
-            </div>
+            </motion.div>
           );
         })}
-        <div ref={scrollRef} />
+
+        {/* Dynamic Typing Indicator Bubble */}
+        <AnimatePresence>
+          {otherUserTyping && (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.8, originY: 1 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              className="flex justify-start"
+            >
+              <div className="bg-white border border-gray-100 rounded-3xl rounded-bl-sm px-4 py-3 shadow-sm flex items-center gap-1.5 w-16">
+                <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <div className="h-2" /> {/* Bottom Padding */}
       </div>
 
-      <form onSubmit={sendMessage} className="p-4 bg-gray-50/50 border-t border-gray-100 flex gap-2">
-        <input
-          type="text"
-          className="flex-1 px-4 py-2 rounded-xl border border-gray-200 focus:border-blue-500 outline-none text-sm transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
-          placeholder={order?.status === 'completed' || order?.status === 'cancelled' ? "تم إغلاق المحادثة" : "اكتب رسالتك هنا..."}
-          disabled={sending || order?.status === 'completed' || order?.status === 'cancelled'}
-          value={newMessage}
-          onChange={(e) => {
-            setNewMessage(e.target.value);
-            handleTyping();
-          }}
-        />
-        <button
-          type="submit"
-          disabled={sending || !newMessage.trim() || order?.status === 'completed' || order?.status === 'cancelled'}
-          className="bg-blue-600 text-white p-2 w-10 h-10 rounded-xl flex items-center justify-center hover:bg-blue-700 disabled:opacity-50 transition-all shadow-sm"
-        >
-          <Send className="w-5 h-5 rtl:scale-x-[-1]" />
-        </button>
+      {/* INPUT AREA */}
+      <form onSubmit={sendMessage} className="p-4 bg-white border-t border-gray-100 z-10 shadow-[0_-4px_20px_-15px_rgba(0,0,0,0.1)]">
+        <div className="flex gap-2 items-end">
+          <textarea
+            className="flex-1 max-h-32 min-h-[48px] px-4 py-3 rounded-2xl border border-gray-200 focus:border-blue-500 outline-none text-sm font-medium transition-all disabled:bg-gray-50 disabled:cursor-not-allowed resize-none bg-gray-50/50"
+            placeholder={order?.status === 'completed' || order?.status === 'cancelled' ? "تم إغلاق المحادثة لانتهاء الصفقة" : "اكتب رسالتك هنا..."}
+            disabled={sending || order?.status === 'completed' || order?.status === 'cancelled'}
+            value={newMessage}
+            onChange={(e) => {
+              setNewMessage(e.target.value);
+              handleTyping();
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage(e as any);
+              }
+            }}
+            rows={1}
+            style={{
+               height: newMessage ? 'auto' : '48px',
+            }}
+          />
+          <button
+            type="submit"
+            disabled={sending || !newMessage.trim() || order?.status === 'completed' || order?.status === 'cancelled'}
+            className="bg-blue-600 text-white p-3 h-12 w-12 rounded-2xl flex items-center justify-center hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600 transition-all shadow-md shadow-blue-600/20 active:scale-95 shrink-0"
+          >
+            <Send className="w-5 h-5 rtl:-scale-x-100 -ml-1" />
+          </button>
+        </div>
+        <p className="text-[9px] font-bold text-gray-400 text-center mt-3">
+          الرسائل مشفرة ومحفوظة لحماية حقوق الطرفين في منصة عربون.
+        </p>
       </form>
     </div>
   );

@@ -44,6 +44,7 @@ try {
       // Fallback: Application Default Credentials (works in Google Cloud)
       credential = admin.credential.applicationDefault();
       console.log('[Firebase] Using Application Default Credentials (no service account found)');
+      (global as any).usingADC = true;
     }
 
     admin.initializeApp({
@@ -71,6 +72,10 @@ const wwebjsAuthPath = path.join(__dirname, '.wwebjs_auth');
 async function backupWhatsAppSession() {
   if (!db) {
     console.warn("⚠️ [WhatsApp Backup] Firebase Admin not initialized. Skipping backup.");
+    return;
+  }
+  if ((global as any).usingADC) {
+    console.warn("⚠️ [WhatsApp Backup] Skipping on local dev (ADC prevents storage writes without service account).");
     return;
   }
   try {
@@ -119,6 +124,10 @@ async function backupWhatsAppSession() {
 async function restoreWhatsAppSession() {
   if (!db) {
     console.warn("⚠️ [WhatsApp Restore] Firebase Admin not initialized. Skipping restore.");
+    return;
+  }
+  if ((global as any).usingADC) {
+    console.warn("⚠️ [WhatsApp Restore] Skipping on local dev (ADC prevents storage reads without service account).");
     return;
   }
   try {
@@ -684,8 +693,12 @@ export function formatWhatsAppNumber(num: string): string {
 }
 
 // Real-time WhatsApp notifications listener
+function startFirebaseListeners() {
+  if (!db || (global as any).usingADC) {
+    console.warn("⚠️ [Firebase Listeners] Skipping on local dev without service account.");
+    return;
+  }
   const startupTime = new Date(); // needed for messages listener
-  if (db) {
     // On startup: bulk-mark OLD unprocessed notifications (older than 5 min) to avoid spam
     const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
     db.collection('notifications')
@@ -755,7 +768,7 @@ export function formatWhatsAppNumber(num: string): string {
                 const formattedNum = formatWhatsAppNumber(whatsappNumber);
                 const isOrder = notifData.type === 'order' || notifData.type === 'order_update' || (notifData.title || '').includes('طلب');
                 const plainText = isOrder
-                  ? `🔔 *${notifData.title}*\n\n${notifData.message}\n\n💡 *للرد السريع:*\n- أرسل "موافقة" أو "1" للقبول\n- أرسل "رفض" أو "2" للاعتذار\n\n_منصة عربون للمشاريع_`
+                  ? `🔔 *${notifData.title}*\n\n${notifData.message}\n\n💡 *للرد السريع:*\n- أرسل "موافقة" أو "1" للقبول\n- أرسل "رفض" أو "2" للاعتظار\n\n_منصة عربون للمشاريع_`
                   : `🔔 *${notifData.title}*\n\n${notifData.message}\n\n_منصة عربون للمشاريع_`;
                 
                 try {
@@ -815,7 +828,7 @@ export function formatWhatsAppNumber(num: string): string {
             const fmtNum = formatWhatsAppNumber(u.whatsappNumber);
             const isOrder = d.type === 'order' || d.type === 'order_update' || (d.title || '').includes('طلب');
             const plainText = isOrder
-              ? `🔔 *${d.title}*\n\n${d.message}\n\n💡 *للرد السريع:*\n- أرسل "موافقة" أو "1" للقبول\n- أرسل "رفض" أو "2" للاعتذار\n\n_منصة عربون للمشاريع_`
+              ? `🔔 *${d.title}*\n\n${d.message}\n\n💡 *للرد السريع:*\n- أرسل "موافقة" أو "1" للقبول\n- أرسل "رفض" أو "2" للاعتظار\n\n_منصة عربون للمشاريع_`
               : `🔔 *${d.title}*\n\n${d.message}\n\n_منصة عربون للمشاريع_`;
             
             try {
@@ -963,7 +976,7 @@ async function startServer() {
       const formattedNum = formatWhatsAppNumber(whatsappNumber);
       const isOrderNotif = type === 'order' || type === 'order_update' || (title || '').includes('طلب');
       const msgText = isOrderNotif
-        ? `🔔 *${title}*\n\n${message}\n\n💡 *للرد السريع:*\n- أرسل "موافقة" أو "1" للقبول\n- أرسل "رفض" أو "2" للاعتذار\n\n_منصة عربون للمشاريع_`
+        ? `🔔 *${title}*\n\n${message}\n\n💡 *للرد السريع:*\n- أرسل "موافقة" أو "1" للقبول\n- أرسل "رفض" أو "2" للاعتظار\n\n_منصة عربون للمشاريع_`
         : `🔔 *${title}*\n\n${message}\n\n_منصة عربون للمشاريع_`;
 
       await whatsappClient.sendMessage(formattedNum, msgText);
@@ -1088,7 +1101,6 @@ async function startServer() {
   });
 
   // Get the platform's WhatsApp phone number from Firestore settings
-
   app.get("/api/admin/whatsapp/platform-phone", async (req, res) => {
     try {
       if (!db) return res.json({ phone: '' });
@@ -1096,7 +1108,7 @@ async function startServer() {
       const phone = snap.exists ? (snap.data()?.platformPhone || '') : '';
       res.json({ phone });
     } catch (err: any) {
-      res.status(500).json({ phone: '', error: err.message });
+      res.status(500).json({ error: err.message });
     }
   });
 
@@ -1557,6 +1569,7 @@ async function startServer() {
 }
 // --- Automated Marketer Bot (تذكيرات العملاء الآلية) ---
 function startAutomatedMarketer() {
+  if ((global as any).usingADC) return;
   // Run every 30 minutes
   setInterval(async () => {
     if (!db || whatsappStatus !== 'connected' || !whatsappClient) return;

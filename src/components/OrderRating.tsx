@@ -22,6 +22,10 @@ export const OrderRating: React.FC<OrderRatingProps> = ({ orderId, reviewerId, r
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (rating === 0) return;
+    if (!revieweeId || revieweeId === 'unknown') {
+      alert('لا يمكن إرسال التقييم: حساب الطرف الآخر غير معروف.');
+      return;
+    }
 
     setLoading(true);
     try {
@@ -104,31 +108,31 @@ export const OrderRating: React.FC<OrderRatingProps> = ({ orderId, reviewerId, r
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-white p-8 rounded-[2.5rem] border-2 border-blue-50 shadow-xl shadow-blue-100/20"
+      className="bg-white p-5 rounded-3xl border border-blue-50 shadow-sm"
     >
-      <div className="text-center mb-8">
-        <div className="bg-blue-50 w-16 h-16 rounded-3xl flex items-center justify-center mx-auto mb-4">
-           <Star className="w-8 h-8 text-blue-600" />
+      <div className="text-center mb-6">
+        <div className="bg-blue-50 w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3">
+           <Star className="w-6 h-6 text-blue-600" />
         </div>
-        <h3 className="text-2xl font-black text-gray-900 mb-2">
-           {type === 'buyer-to-seller' ? 'كيف كانت تجربتك مع البائع؟' : 'كيف كان التعامل مع العميل؟'}
+        <h3 className="text-lg font-black text-gray-900 mb-1">
+           {type === 'buyer-to-seller' ? 'كيف كانت تجربتك؟' : 'كيف كان التعامل؟'}
         </h3>
-        <p className="text-gray-500 font-medium">تقييمك الصادق يساعد في بناء مجتمع أكثر أماناً.</p>
+        <p className="text-xs text-gray-500 font-medium">تقييمك يساعد في بناء مجتمع آمن.</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
-        <div className="flex justify-center gap-4">
+        <div className="flex justify-center gap-2">
           {[1, 2, 3, 4, 5].map((star) => (
             <button
               key={star}
               type="button"
-              className="transition-all transform hover:scale-125 focus:outline-none"
+              className="transition-all transform hover:scale-110 focus:outline-none"
               onMouseEnter={() => setHover(star)}
               onMouseLeave={() => setHover(0)}
               onClick={() => setRating(star)}
             >
               <Star
-                className={`w-12 h-12 ${
+                className={`w-10 h-10 ${
                   star <= (hover || rating) ? 'fill-orange-400 text-orange-400' : 'text-gray-200'
                 } transition-colors`}
               />
@@ -137,12 +141,12 @@ export const OrderRating: React.FC<OrderRatingProps> = ({ orderId, reviewerId, r
         </div>
 
         <div className="relative">
-          <MessageSquare className="absolute right-4 top-4 text-gray-400 w-5 h-5" />
+          <MessageSquare className="absolute right-3 top-3 text-gray-400 w-4 h-4" />
           <textarea
             value={comment}
             onChange={(e) => setComment(e.target.value)}
-            placeholder="اكتب تعليقك هنا (اختياري)..."
-            className="w-full pr-12 pl-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all font-medium text-gray-700 min-h-[120px]"
+            placeholder="اكتب تعليقك (اختياري)..."
+            className="w-full pr-10 pl-3 py-3 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-50 transition-all text-xs font-medium text-gray-700 min-h-[80px] resize-none"
           />
         </div>
 

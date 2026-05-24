@@ -3,10 +3,13 @@ import { useAuth } from '../hooks/useAuth';
 import { Settings, ShieldCheck, Mail, MapPin, Share2, Gift, Copy, Check } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
+import { useNavigate } from 'react-router-dom';
 
 export const UserProfilePage: React.FC = () => {
-  const { profile } = useAuth();
+  const { profile, logout } = useAuth();
+  const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   if (!profile) return null;
 
@@ -111,6 +114,17 @@ export const UserProfilePage: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {/* Logout */}
+          <div className="mt-8 border-t border-gray-100 pt-8 flex justify-end">
+            <button 
+              onClick={() => setShowLogoutConfirm(true)} 
+              className="flex items-center gap-2 text-red-600 font-bold hover:bg-red-50 px-6 py-3 rounded-xl transition-all border border-transparent hover:border-red-100"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+              <span>تسجيل الخروج</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -159,6 +173,23 @@ export const UserProfilePage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      <AnimatePresence>
+        {showLogoutConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowLogoutConfirm(false)} className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" />
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white rounded-[2.5rem] p-8 max-w-sm w-full relative z-10 shadow-2xl text-center">
+              <svg className="w-12 h-12 text-red-600 mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+              <h3 className="text-2xl font-black text-gray-900 mb-2">تسجيل الخروج</h3>
+              <p className="text-gray-500 mb-8">هل أنت متأكد من رغبتك في تسجيل الخروج؟</p>
+              <div className="grid grid-cols-2 gap-4">
+                <button onClick={() => setShowLogoutConfirm(false)} className="py-4 font-bold text-gray-500">تراجع</button>
+                <button onClick={() => { logout(); navigate('/'); }} className="bg-red-600 text-white py-4 rounded-xl font-bold shadow-lg shadow-red-100">خروج</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

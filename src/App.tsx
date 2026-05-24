@@ -20,6 +20,14 @@ import { AdminTransactions } from './pages/admin/AdminTransactions';
 import { AdminRevenue } from './pages/admin/AdminRevenue';
 import { AdminSettlements } from './pages/admin/AdminSettlements';
 import { AdminSettings } from './pages/admin/AdminSettings';
+import { AdminSettingsGeneral } from './pages/admin/settings/AdminSettingsGeneral';
+import { AdminSettingsUI } from './pages/admin/settings/AdminSettingsUI';
+import { AdminSettingsFinance } from './pages/admin/settings/AdminSettingsFinance';
+import { AdminSettingsSecurity } from './pages/admin/settings/AdminSettingsSecurity';
+import { AdminSettingsSupport } from './pages/admin/settings/AdminSettingsSupport';
+import { AdminSettingsLegal } from './pages/admin/settings/AdminSettingsLegal';
+import { AdminSettingsWhatsApp } from './pages/admin/settings/AdminSettingsWhatsApp';
+import { AdminAnnouncements } from './pages/admin/AdminAnnouncements';
 import { SystemLogsPage } from './pages/admin/SystemLogsPage';
 import { AdminAnalyticsDashboard } from './pages/admin/AdminAnalyticsDashboard';
 import { useLocation } from 'react-router-dom';
@@ -331,6 +339,14 @@ export default function App() {
                       <Route path="support" element={<AdminSupport />} />
                       <Route path="logs" element={<SystemLogsPage />} />
                       <Route path="settings" element={<AdminSettings />} />
+                      <Route path="settings/general" element={<AdminSettingsGeneral />} />
+                      <Route path="settings/ui" element={<AdminSettingsUI />} />
+                      <Route path="settings/finance" element={<AdminSettingsFinance />} />
+                      <Route path="settings/security" element={<AdminSettingsSecurity />} />
+                      <Route path="settings/support" element={<AdminSettingsSupport />} />
+                      <Route path="settings/legal" element={<AdminSettingsLegal />} />
+                      <Route path="settings/whatsapp" element={<AdminSettingsWhatsApp />} />
+                      <Route path="announcements" element={<AdminAnnouncements />} />
                       <Route path="analytics" element={<AdminAnalyticsDashboard />} />
                     </Route>
                   )}

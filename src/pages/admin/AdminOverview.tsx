@@ -8,7 +8,7 @@ import {
   ArrowUpRight, Users as UsersIcon, MessageSquare, 
   AlertTriangle, LayoutDashboard,
   Zap, ArrowLeftRight, FileText, Sliders, Sparkles, Server, Database,
-  RefreshCw, Key, Wifi, ShieldAlert, CheckCircle2, Lock, Smartphone
+  RefreshCw, Key, Wifi, ShieldAlert, CheckCircle2, Lock, Smartphone, Search
 } from 'lucide-react';
 import { format, startOfWeek, eachDayOfInterval, endOfWeek, isSameDay, startOfMonth, endOfMonth, eachWeekOfInterval } from 'date-fns';
 import { ar } from 'date-fns/locale';
@@ -16,12 +16,14 @@ import {
   AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, 
   Tooltip, ResponsiveContainer
 } from 'recharts';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ReportGenerator } from '../../components/admin/ReportGenerator';
 
 export const AdminOverview: React.FC = () => {
   const { profile, user } = useAuth();
   const isAdmin = user?.email === 'khyratfarmdates@gmail.com' || profile?.isAdmin;
+  const navigate = useNavigate();
+  const [searchOrderId, setSearchOrderId] = useState('');
 
   const [chartView, setChartView] = useState<'weekly' | 'monthly'>('weekly');
   const [chartType, setChartType] = useState<'area' | 'bar' | 'line'>('area');
@@ -571,6 +573,25 @@ export const AdminOverview: React.FC = () => {
             </div>
           </div>
 
+          <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm">
+            <div className="text-right mb-4">
+              <p className="text-gray-400 font-bold text-[10px] uppercase tracking-widest mb-1.5">البحث السريع عن طلب</p>
+              <h3 className="text-base font-black text-gray-900">أدخل رقم المعرف لفتح الطلب</h3>
+            </div>
+            <form onSubmit={(e) => { e.preventDefault(); if (searchOrderId.trim()) navigate(`/order/${searchOrderId.trim()}`); }} className="flex gap-2">
+              <button type="submit" className="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center hover:bg-blue-700 transition-all shadow-md shrink-0">
+                <Search className="w-5 h-5" />
+              </button>
+              <input
+                type="text"
+                value={searchOrderId}
+                onChange={(e) => setSearchOrderId(e.target.value)}
+                placeholder="رقم الطلب..."
+                className="w-full h-12 bg-gray-50 border border-gray-100 rounded-2xl px-4 text-left font-mono font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100"
+              />
+            </form>
+          </div>
+
           <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm flex items-center justify-between">
             <div className="text-right">
               <p className="text-gray-400 font-bold text-[10px] uppercase tracking-widest mb-1.5">طلب توثيق بانتظار المراجعة</p>
@@ -626,7 +647,7 @@ export const AdminOverview: React.FC = () => {
                               isEscrowed ? 'bg-orange-105 text-orange-850' :
                               'bg-gray-100 text-gray-700'
                             }`}>
-                              {isCompleted ? 'معاملة مكتملة ومسددة' : isEscrowed ? 'محتجز بحساب الضمان' : tx.status}
+                              {isCompleted ? 'معاملة مكتملة ومسددة' : isEscrowed ? 'محتجز بنظام المدفوعات' : tx.status}
                             </span>
                           </div>
                           <div className="flex items-center gap-1.5 mt-1 text-[9px] text-gray-400 font-bold text-right">

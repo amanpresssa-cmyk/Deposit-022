@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { collection, addDoc, serverTimestamp, query, where, getDocs, limit, getDoc, doc } from 'firebase/firestore';
+import { collection, addDoc, setDoc, serverTimestamp, query, where, getDocs, limit, getDoc, doc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Shield, ChevronRight, AlertCircle, Search, Smartphone, Mail, CreditCard, Clock, FileText, CheckCircle2 } from 'lucide-react';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
@@ -9,7 +9,7 @@ import { sendOrderSMS } from '../lib/smsService';
 import { sendNotification, recordOrderEvent } from '../lib/notificationService';
 
 export const CreateOrderPage: React.FC = () => {
-  const { user, login } = useAuth();
+  const { user, profile, login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [loading, setLoading] = useState(false);
@@ -114,7 +114,9 @@ export const CreateOrderPage: React.FC = () => {
           updatedAt: serverTimestamp(),
         };
 
-        const docRef = await addDoc(collection(db, 'orders'), orderData);
+        const newOrderId = Math.floor(10000000 + Math.random() * 90000000).toString();
+        const docRef = doc(db, 'orders', newOrderId);
+        await setDoc(docRef, orderData);
 
         await recordOrderEvent(
           docRef.id,
@@ -180,7 +182,17 @@ export const CreateOrderPage: React.FC = () => {
             )}
           </div>
 
-          {error && <p className="text-red-500 font-bold">{error}</p>}
+          {profile && (profile.freeFeeTransactions || 0) > 0 && (
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-4 text-white flex items-start gap-3 shadow-lg shadow-blue-900/10">
+              <CheckCircle2 className="w-6 h-6 shrink-0 text-blue-200 mt-0.5" />
+              <div>
+                <p className="font-black text-sm">🎉 مبروك! لديك صفقة وساطة مجانية</p>
+                <p className="text-xs text-blue-100 font-medium leading-relaxed mt-1">سيتم إعفاء هذه الصفقة من رسوم ضمان المنصة بالكامل! (خصم 100%)</p>
+              </div>
+            </div>
+          )}
+
+          {error && <p className="text-red-500 font-bold text-center mt-2">{error}</p>}
 
           {!user ? (
             <div className="pt-4 border-t border-gray-100">
@@ -279,7 +291,9 @@ export const CreateOrderPage: React.FC = () => {
         updatedAt: serverTimestamp(),
       };
 
-      const docRef = await addDoc(collection(db, 'orders'), orderData);
+      const newOrderId = Math.floor(10000000 + Math.random() * 90000000).toString();
+      const docRef = doc(db, 'orders', newOrderId);
+      await setDoc(docRef, orderData);
 
       if (targetUserId !== 'unknown') {
         const titleText = myRole === 'buyer' ? '🔔 طلب خدمة جديد بانتظار قبولك' : '🔔 عرض خدمة جديد بانتظار تعميدك';

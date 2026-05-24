@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Shield, CreditCard, MessageCircle, Star, X, ChevronLeft, ChevronRight, CheckCircle2, Rocket } from 'lucide-react';
+import { Shield, CreditCard, MessageCircle, Star, X, ChevronLeft, ChevronRight, CheckCircle2, Rocket, PlusCircle, LayoutDashboard } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../hooks/useAuth';
 
 interface TourStep {
   title: string;
@@ -12,14 +14,24 @@ interface TourStep {
 export const ProductTour: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
+  const [showChoices, setShowChoices] = useState(false);
+  const { user } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
-    const hasSeenTour = localStorage.getItem('arboon_tour_completed');
-    if (!hasSeenTour) {
-      const timer = setTimeout(() => setIsVisible(true), 1500);
-      return () => clearTimeout(timer);
+    const justLoggedIn = sessionStorage.getItem('justLoggedIn') === 'true';
+    const isFirstLogin = sessionStorage.getItem('isFirstLogin') === 'true';
+
+    if (justLoggedIn && user) {
+      if (isFirstLogin) {
+        const timer = setTimeout(() => setIsVisible(true), 1500);
+        return () => clearTimeout(timer);
+      } else {
+        const timer = setTimeout(() => setShowChoices(true), 500);
+        return () => clearTimeout(timer);
+      }
     }
-  }, []);
+  }, [user]);
 
   const steps: TourStep[] = [
     {
@@ -76,12 +88,29 @@ export const ProductTour: React.FC = () => {
 
   const completeTour = () => {
     setIsVisible(false);
-    localStorage.setItem('arboon_tour_completed', 'true');
+    setShowChoices(true); // Show choices after tour
+  };
+
+  const closeChoices = () => {
+    setShowChoices(false);
+    sessionStorage.removeItem('justLoggedIn');
+    sessionStorage.removeItem('isFirstLogin');
+  };
+
+  const handleCreateOrder = () => {
+    closeChoices();
+    navigate('/create-order');
+  };
+
+  const handleGoDashboard = () => {
+    closeChoices();
+    navigate('/dashboard');
   };
 
   return (
     <AnimatePresence>
       {isVisible && (
+
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm rtl" dir="rtl">
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
@@ -162,6 +191,53 @@ export const ProductTour: React.FC = () => {
                     {currentStep !== steps.length - 1 && <ChevronLeft className="w-5 h-5" />}
                   </button>
                 </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {showChoices && !isVisible && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm rtl" dir="rtl">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+            className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden relative"
+          >
+            <button 
+              onClick={closeChoices}
+              className="absolute top-6 left-6 text-gray-400 hover:text-gray-600 z-10 p-2 hover:bg-gray-100 rounded-full transition-all"
+            >
+              <X className="w-6 h-6" />
+            </button>
+
+            <div className="p-10 text-center space-y-6">
+              <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-2 border border-blue-100 shadow-inner">
+                <Shield className="w-10 h-10 text-blue-600" />
+              </div>
+              
+              <div className="space-y-2">
+                <h2 className="text-3xl font-black text-gray-900 tracking-tight">مرحباً بك في عربون</h2>
+                <p className="text-gray-500 font-medium">ماذا تود أن تفعل الآن؟</p>
+              </div>
+
+              <div className="grid gap-4 pt-4">
+                <button
+                  onClick={handleCreateOrder}
+                  className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold text-lg hover:bg-blue-700 shadow-xl shadow-blue-100 transition-all flex items-center justify-center gap-3"
+                >
+                  <PlusCircle className="w-6 h-6" />
+                  <span>إنشاء طلب جديد مباشرة</span>
+                </button>
+
+                <button
+                  onClick={handleGoDashboard}
+                  className="w-full bg-white border-2 border-gray-100 text-gray-700 py-4 rounded-2xl font-bold text-lg hover:bg-gray-50 transition-all flex items-center justify-center gap-3"
+                >
+                  <LayoutDashboard className="w-6 h-6 text-gray-400" />
+                  <span>الذهاب للوحة التحكم</span>
+                </button>
               </div>
             </div>
           </motion.div>

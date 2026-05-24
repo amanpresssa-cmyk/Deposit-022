@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { 
   ShieldCheck, Star, MapPin, Calendar, MessageCircle, 
   Share2, ArrowRight, ExternalLink, Globe, LayoutGrid, 
-  Info, Briefcase, ChevronLeft 
+  Info, Briefcase, ChevronLeft, Copy, Check 
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
@@ -25,6 +25,7 @@ export const SellerProfilePage: React.FC = () => {
   const [stats, setStats] = useState({ completed: 0, failed: 0, disputed: 0, cancelled: 0, total: 0 });
   const [confidence, setConfidence] = useState(100);
   const [copied, setCopied] = useState(false);
+  const [copiedServiceId, setCopiedServiceId] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const [orders, setOrders] = useState<Order[]>([]);
@@ -129,6 +130,16 @@ export const SellerProfilePage: React.FC = () => {
     navigator.clipboard.writeText(window.location.href);
     setCopied(true);
     setTimeout(() => setCopied(false), 3000);
+  };
+
+  const copyServiceLink = (e: React.MouseEvent, service: Service) => {
+    e.stopPropagation();
+    if (!seller) return;
+    const url = `${window.location.origin}/create-order?email=${encodeURIComponent(seller.email || '')}&targetId=${sellerId}&title=${encodeURIComponent(service.title)}&amount=${service.price}&category=${encodeURIComponent(service.category)}`;
+    navigator.clipboard.writeText(url);
+    setCopiedServiceId(service.id);
+    toast.success('تم نسخ رابط الشراء السريع');
+    setTimeout(() => setCopiedServiceId(null), 2000);
   };
 
   const handleChat = async () => {
@@ -358,10 +369,19 @@ export const SellerProfilePage: React.FC = () => {
                           <div className="p-6">
                             <h3 className="font-bold text-xl mb-2 group-hover:text-blue-600 transition-colors">{service.title}</h3>
                             <p className="text-gray-500 text-sm mb-4 line-clamp-2">{service.description}</p>
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs font-bold text-gray-400">{service.deliveryTime}</span>
-                              <button className="text-blue-600 font-bold flex items-center gap-1 text-sm">
-                                تفاصيل الخدمة
+                            <div className="flex items-center justify-between mt-4 border-t border-gray-50 pt-4">
+                              <button 
+                                onClick={(e) => copyServiceLink(e, service)}
+                                className={`text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${copiedServiceId === service.id ? 'bg-green-50 text-green-600' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
+                              >
+                                {copiedServiceId === service.id ? (
+                                  <><Check className="w-3 h-3" /> تم النسخ</>
+                                ) : (
+                                  <><Copy className="w-3 h-3" /> نسخ الرابط للمشتري</>
+                                )}
+                              </button>
+                              <button className="text-blue-600 font-bold flex items-center gap-1 text-sm bg-blue-50 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-all">
+                                اطلب الآن
                                 <ChevronLeft className="w-4 h-4" />
                               </button>
                             </div>

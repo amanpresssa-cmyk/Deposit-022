@@ -52,7 +52,7 @@ export const TermsPage: React.FC = () => {
                 </div>
                 <div className="flex items-start gap-3">
                   <CheckCircle2 className="w-5 h-5 text-green-500 mt-1 shrink-0" />
-                  <p className="text-gray-600 font-medium">عند الدفع، يتم حجز الأموال في حساب الضمان التابع للمنصة.</p>
+                  <p className="text-gray-600 font-medium">عند الدفع، يتم الاحتفاظ بالأموال بأمان عبر نظام المدفوعات.</p>
                 </div>
                 <div className="flex items-start gap-3">
                   <CheckCircle2 className="w-5 h-5 text-green-500 mt-1 shrink-0" />

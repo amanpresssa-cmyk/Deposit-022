@@ -20,6 +20,7 @@ export const AdminFinance: React.FC = () => {
 
   const [transactions, setTransactions] = useState<any[]>([]);
   const [feeTransfers, setFeeTransfers] = useState<any[]>([]);
+  const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Filters
@@ -59,9 +60,18 @@ export const AdminFinance: React.FC = () => {
       handleFirestoreError(error, OperationType.GET, 'fee_transfers');
     });
 
+    const withdrawQ = query(collection(db, 'withdrawals'), orderBy('createdAt', 'desc'));
+    const unsubWithdraw = onSnapshot(withdrawQ, (snapshot) => {
+      const wreqs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      setWithdrawals(wreqs);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'withdrawals');
+    });
+
     return () => {
       unsubTx();
       unsubPayout();
+      unsubWithdraw();
     };
   }, [isAdmin]);
 
@@ -373,6 +383,65 @@ export const AdminFinance: React.FC = () => {
                           <td className="px-8 py-4 font-black">+{payout.amount} ر.س</td>
                           <td className="px-8 py-4"><span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase">Confirmed</span></td>
                           <td className="px-8 py-4 text-gray-400 font-bold">{payout.receivedAt ? format(new Date(payout.receivedAt), 'dd/MM/yyyy HH:mm', { locale: ar }) : '---'}</td>
+                       </tr>
+                    ))
+                  )}
+               </tbody>
+            </table>
+         </div>
+      </div>
+
+      {/* Withdrawals Section */}
+      <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden">
+         <div className="p-6 border-b border-gray-50 flex items-center gap-3 bg-gray-50/30">
+            <Wallet className="w-5 h-5 text-blue-600" />
+            <h3 className="text-sm font-black text-gray-900">طلبات السحب المالي</h3>
+         </div>
+         <div className="overflow-x-auto">
+            <table className="w-full text-right border-collapse text-xs">
+               <thead>
+                  <tr className="bg-gray-50/50 text-gray-400 text-[9px] font-black uppercase tracking-widest border-b">
+                     <th className="px-8 py-4">البائع</th>
+                     <th className="px-8 py-4">المبلغ</th>
+                     <th className="px-8 py-4">النوع / الرسوم</th>
+                     <th className="px-8 py-4">الحساب البنكي</th>
+                     <th className="px-8 py-4">التاريخ</th>
+                     <th className="px-8 py-4">الحالة</th>
+                  </tr>
+               </thead>
+               <tbody className="divide-y divide-gray-50">
+                  {withdrawals.length === 0 ? (
+                    <tr><td colSpan={6} className="px-8 py-10 text-center text-gray-300 italic font-bold">لا توجد طلبات سحب مسجلة حالياً</td></tr>
+                  ) : (
+                    withdrawals.map(w => (
+                       <tr key={w.id} className={w.type === 'fast_track' ? 'bg-blue-50/30' : ''}>
+                          <td className="px-8 py-4">
+                            <p className="font-black text-gray-900">{w.userName}</p>
+                            <p className="text-[9px] text-gray-400">{w.userEmail}</p>
+                          </td>
+                          <td className="px-8 py-4 font-black text-gray-900">
+                             {w.amount} ر.س
+                             <p className="text-[9px] text-emerald-600">الصافي: {w.netAmount} ر.س</p>
+                          </td>
+                          <td className="px-8 py-4">
+                             {w.type === 'fast_track' ? (
+                               <span className="bg-red-50 text-red-600 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase">عاجل (خصم 1%)</span>
+                             ) : (
+                               <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase">عادي (مجاني)</span>
+                             )}
+                          </td>
+                          <td className="px-8 py-4">
+                             <p className="font-black text-[9px]">{w.bankAccount}</p>
+                             <p className="text-[8px] font-mono text-gray-400 tracking-widest">{w.iban}</p>
+                          </td>
+                          <td className="px-8 py-4 text-gray-400 font-bold">
+                             {w.createdAt ? format(w.createdAt.toDate(), 'dd/MM/yyyy HH:mm', { locale: ar }) : '---'}
+                          </td>
+                          <td className="px-8 py-4">
+                             <span className="bg-orange-50 text-orange-600 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase">
+                               {w.status === 'pending' ? 'قيد المراجعة' : w.status}
+                             </span>
+                          </td>
                        </tr>
                     ))
                   )}

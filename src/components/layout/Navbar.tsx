@@ -23,27 +23,51 @@ export const Navbar: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [activeFilter, setActiveFilter] = useState<'all' | 'urgent' | 'settlement' | 'normal'>('all');
 
-  const [announcement, setAnnouncement] = useState<any>(null);
-  const [isDismissed, setIsDismissed] = useState(false);
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [currentAnnIndex, setCurrentAnnIndex] = useState(0);
+  const [dismissedIds, setDismissedIds] = useState<string[]>([]);
 
   useEffect(() => {
-    const hidden = sessionStorage.getItem('announcement-dismissed');
-    if (hidden) setIsDismissed(true);
+    try {
+      const hidden = JSON.parse(sessionStorage.getItem('announcements-dismissed') || '[]');
+      setDismissedIds(hidden);
+    } catch (e) {}
 
-    const unsub = onSnapshot(doc(db, 'app_settings', 'announcement'), (snapshot) => {
+    const unsub = onSnapshot(doc(db, 'app_settings', 'announcements'), (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
-        setAnnouncement(data);
+        if (data.items && Array.isArray(data.items)) {
+          setAnnouncements(data.items);
+        }
+      } else {
+        // Fallback for old single announcement if new one doesn't exist yet
+        onSnapshot(doc(db, 'app_settings', 'announcement'), (oldSnap) => {
+          if (oldSnap.exists() && oldSnap.data().isActive) {
+            setAnnouncements([{ id: 'old-1', ...oldSnap.data() }]);
+          } else {
+            setAnnouncements([]);
+          }
+        });
       }
     }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'app_settings/announcement');
+      handleFirestoreError(error, OperationType.GET, 'app_settings/announcements');
     });
     return () => unsub();
   }, []);
 
-  const dismissAnnouncement = () => {
-    setIsDismissed(true);
-    sessionStorage.setItem('announcement-dismissed', 'true');
+  useEffect(() => {
+    if (announcements.length > 1) {
+      const timer = setInterval(() => {
+        setCurrentAnnIndex((prev) => (prev + 1) % announcements.length);
+      }, 5000);
+      return () => clearInterval(timer);
+    }
+  }, [announcements.length]);
+
+  const dismissAnnouncement = (id: string) => {
+    const newDismissed = [...dismissedIds, id];
+    setDismissedIds(newDismissed);
+    sessionStorage.setItem('announcements-dismissed', JSON.stringify(newDismissed));
   };
 
   const handleMarkAllAsRead = async () => {
@@ -95,39 +119,105 @@ export const Navbar: React.FC = () => {
   return (
     <div className="sticky top-0 z-50 w-full">
       {/* Announcement Bar */}
-      <AnimatePresence>
-        {announcement && announcement.isActive && !isDismissed && (
-          <motion.div 
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className={`px-4 py-2 text-center text-xs md:text-sm font-black relative overflow-hidden transition-all shadow-sm ${
-              announcement.type === 'urgent' ? 'bg-gradient-to-r from-red-600 to-rose-700 text-white' : 
-              announcement.type === 'promo' ? 'bg-gradient-to-r from-purple-600 to-indigo-700 text-white' : 
-              announcement.type === 'success' ? 'bg-gradient-to-r from-green-600 to-emerald-700 text-white' :
-              'bg-gradient-to-r from-blue-900 to-slate-900 text-white'
-            }`}
-          >
-            {announcement.link ? (
-              <a href={announcement.link} className="flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
-                <Sparkles className="w-3 h-3 md:w-4 md:h-4 animate-pulse shrink-0" />
-                <span>{announcement.text}</span>
-                <ChevronRight className="w-3 h-3 md:w-4 md:h-4 shrink-0" />
-              </a>
-            ) : (
-              <div className="flex items-center justify-center gap-2">
-                <Bell className="w-3 h-3 md:w-4 md:h-4 shrink-0 animate-bounce" />
-                <span>{announcement.text}</span>
-              </div>
-            )}
-            <button 
-              onClick={dismissAnnouncement}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-white/10 rounded-full transition-colors"
+      <AnimatePresence mode="wait">
+        {(() => {
+          const now = new Date().toISOString();
+          const activeAnnouncements = announcements.filter(ann => {
+            if (!ann.isActive) return false;
+            if (dismissedIds.includes(ann.id)) return false;
+            if (ann.visibility === 'logged_in' && !user) return false;
+            if (ann.visibility === 'logged_out' && user) return false;
+            if (ann.startDate && ann.startDate > now) return false;
+            if (ann.endDate && ann.endDate < now) return false;
+            return true;
+          });
+
+          if (activeAnnouncements.length === 0) return null;
+          
+          const currentAnn = activeAnnouncements[currentAnnIndex % activeAnnouncements.length];
+          if (!currentAnn) return null;
+
+          const bgStyle = currentAnn.gradientStart && currentAnn.gradientEnd 
+            ? { background: `linear-gradient(to right, ${currentAnn.gradientStart}, ${currentAnn.gradientEnd})` }
+            : {};
+          
+          const defaultBgClass = (!currentAnn.gradientStart && !currentAnn.gradientEnd) ? (
+            currentAnn.type === 'urgent' ? 'bg-gradient-to-r from-red-600 to-rose-700' : 
+            currentAnn.type === 'promo' ? 'bg-gradient-to-r from-purple-600 to-indigo-700' : 
+            currentAnn.type === 'success' ? 'bg-gradient-to-r from-green-600 to-emerald-700' :
+            'bg-gradient-to-r from-blue-900 to-slate-900'
+          ) : '';
+
+          return (
+            <motion.div 
+              key={currentAnn.id}
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className={`px-4 py-3 text-center text-xs md:text-sm font-black relative overflow-hidden transition-all shadow-sm flex flex-col md:flex-row items-center justify-center gap-3 md:gap-6 text-white ${defaultBgClass}`}
+              style={bgStyle}
             >
-              <X className="w-3 h-3" />
-            </button>
-          </motion.div>
-        )}
+              <div className="flex items-center justify-center gap-2 overflow-hidden w-full md:w-auto">
+                <span className="shrink-0 text-[16px]">
+                  {currentAnn.icon || (currentAnn.type === 'promo' ? '✨' : currentAnn.type === 'urgent' ? '⚠️' : currentAnn.type === 'success' ? '✅' : '🔔')}
+                </span>
+                
+                {currentAnn.isTicker ? (
+                  <div className="overflow-hidden whitespace-nowrap w-full">
+                    <div className="animate-marquee inline-block">
+                      {currentAnn.link ? (
+                        <a href={currentAnn.link} className="hover:opacity-90 transition-opacity underline decoration-white/30 underline-offset-4 mx-4">
+                          {currentAnn.text}
+                        </a>
+                      ) : (
+                        <span className="mx-4">{currentAnn.text}</span>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  currentAnn.link ? (
+                    <a href={currentAnn.link} className="hover:opacity-90 transition-opacity underline decoration-white/30 underline-offset-4">
+                      {currentAnn.text}
+                    </a>
+                  ) : (
+                    <span>{currentAnn.text}</span>
+                  )
+                )}
+              </div>
+
+              {(currentAnn.primaryBtnText || currentAnn.secondaryBtnText) && (
+                <div className="flex items-center gap-2 shrink-0 z-10">
+                  {currentAnn.primaryBtnText && currentAnn.primaryBtnLink && (
+                    <a 
+                      href={currentAnn.primaryBtnLink} 
+                      className="px-4 py-1.5 bg-white/20 hover:bg-white/30 backdrop-blur-sm border border-white/10 rounded-full text-[10px] md:text-xs font-black transition-all"
+                    >
+                      {currentAnn.primaryBtnText}
+                    </a>
+                  )}
+                  {currentAnn.secondaryBtnText && currentAnn.secondaryBtnLink && (
+                    <a 
+                      href={currentAnn.secondaryBtnLink} 
+                      className="px-4 py-1.5 hover:bg-white/10 rounded-full text-[10px] md:text-xs font-bold transition-all"
+                    >
+                      {currentAnn.secondaryBtnText}
+                    </a>
+                  )}
+                </div>
+              )}
+
+              {!currentAnn.hideCloseButton && (
+                <button 
+                  onClick={() => dismissAnnouncement(currentAnn.id)}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/20 rounded-full transition-all text-white/70 hover:text-white"
+                  title="إغلاق التنبيه"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </motion.div>
+          );
+        })()}
       </AnimatePresence>
 
       <nav className="w-full bg-white/80 dark:bg-gray-950/80 backdrop-blur-xl border-b border-gray-100 dark:border-gray-800 shadow-sm pt-[env(safe-area-inset-top)] transition-colors duration-300">
@@ -390,7 +480,7 @@ export const Navbar: React.FC = () => {
                 <motion.button 
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  onClick={() => navigate(isAdmin ? '/admin' : '/dashboard')}
+                  onClick={() => navigate(isAdmin ? '/admin' : '/profile')}
                   className="flex items-center gap-3 bg-gray-50 dark:bg-gray-900 p-1.5 pr-4 rounded-2xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-all border border-gray-100 dark:border-gray-800 group"
                 >
                   <div className="text-right hidden sm:block">

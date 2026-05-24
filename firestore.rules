@@ -49,12 +49,13 @@ service cloud.firestore {
                       request.auth.uid == userId ||
                       resource.data.get('uid', '') == request.auth.uid
                     )) ||
-                    // Search by email or phone for order creation
+                    // Search by email, phone, referral, shortId, or whatsappNumber (uniqueness checks)
                     (request.query.limit <= 1 && (
                       'email' in resource.data || 
                       'phoneNumber' in resource.data || 
                       'referralCode' in resource.data ||
-                      'userShortId' in resource.data
+                      'userShortId' in resource.data ||
+                      'whatsappNumber' in resource.data
                     ));
       allow create: if isOwner(userId);
       
@@ -111,11 +112,20 @@ service cloud.firestore {
             // Action: Seller claims order (sets their UID if sellerId was unknown/placeholder)
             (existing().sellerId == 'unknown' && incoming().sellerId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['sellerId', 'updatedAt'])) ||
             
+            // Action: Chat - update typingStatus or lastMessage or chatPresence (non-critical metadata)
+            (incoming().diff(existing()).affectedKeys().hasAny(['typingStatus', 'chatPresence', 'lastMessage', 'lastMessageAt', 'updatedAt']) &&
+             incoming().diff(existing()).affectedKeys().hasOnly(['typingStatus', 'chatPresence', 'lastMessage', 'lastMessageAt', 'updatedAt'])) ||
+
             (isValidOrder(incoming()) && (
-              // Action: Buyer actions
+              // Action: Buyer escrow (pending → escrowed) - allows payment metadata fields
+              (isOwner(existing().buyerId) &&
+               existing().status == 'pending' && incoming().status == 'escrowed' &&
+               incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt', 'paymentMethod', 'paymentFees', 'paymentRef'])
+              ) ||
+
+              // Action: Other buyer state changes (status + updatedAt only)
               (isOwner(existing().buyerId) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) 
                 && (
-                  (existing().status == 'pending' && incoming().status == 'cancelled') ||
                   (existing().status == 'delivered' && incoming().status == 'completed') ||
                   (existing().status == 'escrowed' && incoming().status == 'disputed') ||
                   (existing().status == 'delivered' && incoming().status == 'disputed')
@@ -125,7 +135,9 @@ service cloud.firestore {
               ((isOwner(existing().sellerId) || ('sellerEmail' in existing() && isOwnerByEmail(existing().sellerEmail))) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
                 && (
                   (existing().status == 'pending' && incoming().status == 'escrowed') ||
-                  (existing().status == 'escrowed' && incoming().status == 'delivered')
+                  (existing().status == 'escrowed' && incoming().status == 'delivered') ||
+                  (existing().status == 'awaiting_acceptance' && incoming().status == 'pending') ||
+                  (existing().status == 'awaiting_acceptance' && incoming().status == 'cancelled')
                 )
               )
             ))
@@ -145,9 +157,10 @@ service cloud.firestore {
         let orderPath = /databases/$(database)/documents/orders/$(ordId);
         let hasOrder = exists(orderPath);
         return isAdmin() || (hasOrder && (
-          get(orderPath).data.buyerId == request.auth.uid || 
-          get(orderPath).data.sellerId == request.auth.uid || 
-          ('sellerEmail' in get(orderPath).data && 'email' in request.auth.token && get(orderPath).data.sellerEmail == request.auth.token.email)
+          get(orderPath).data.get('buyerId', '') == request.auth.uid || 
+          get(orderPath).data.get('sellerId', '') == request.auth.uid || 
+          get(orderPath).data.get('creatorId', '') == request.auth.uid || 
+          (get(orderPath).data.get('sellerEmail', '') != '' && 'email' in request.auth.token && get(orderPath).data.get('sellerEmail', '') == request.auth.token.email)
         ));
       }
 
@@ -156,7 +169,7 @@ service cloud.firestore {
         && isValidMessage(incoming())
         && incoming().senderId == request.auth.uid
         && incoming().orderId == orderId
-        && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isBlocked != true)
+        && (!exists(/databases/$(database)/documents/users/$(request.auth.uid)) || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isBlocked', false) != true)
         && canChat(orderId);
     }
 
@@ -233,8 +246,14 @@ service cloud.firestore {
 
     // --- Transactions ---
     match /transactions/{txId} {
-      allow read: if isAdmin();
-      allow create, update: if isAdmin();
+      allow read: if isAdmin() || (isSignedIn() && resource.data.buyerId == request.auth.uid);
+      // Admin can do anything; authenticated buyers/sellers can create their own transaction records
+      allow create: if isAdmin() || (
+        isSignedIn() && 
+        incoming().buyerId == request.auth.uid &&
+        incoming().status in ['escrowed', 'completed', 'refunded']
+      );
+      allow update: if isAdmin();
     }
 
     // --- Fee Transfers (Geidea) ---
