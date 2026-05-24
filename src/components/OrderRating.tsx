@@ -108,20 +108,20 @@ export const OrderRating: React.FC<OrderRatingProps> = ({ orderId, reviewerId, r
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-white p-5 rounded-3xl border border-blue-50 shadow-sm"
+      className="bg-white p-4 rounded-3xl border border-blue-50 shadow-sm"
     >
-      <div className="text-center mb-6">
-        <div className="bg-blue-50 w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3">
-           <Star className="w-6 h-6 text-blue-600" />
+      <div className="text-center mb-4">
+        <div className="bg-blue-50 w-10 h-10 rounded-2xl flex items-center justify-center mx-auto mb-2">
+           <Star className="w-5 h-5 text-blue-600" />
         </div>
-        <h3 className="text-lg font-black text-gray-900 mb-1">
+        <h3 className="text-base font-black text-gray-900 mb-1">
            {type === 'buyer-to-seller' ? 'كيف كانت تجربتك؟' : 'كيف كان التعامل؟'}
         </h3>
         <p className="text-xs text-gray-500 font-medium">تقييمك يساعد في بناء مجتمع آمن.</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-8">
-        <div className="flex justify-center gap-2">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="flex justify-center gap-1.5">
           {[1, 2, 3, 4, 5].map((star) => (
             <button
               key={star}
@@ -132,7 +132,7 @@ export const OrderRating: React.FC<OrderRatingProps> = ({ orderId, reviewerId, r
               onClick={() => setRating(star)}
             >
               <Star
-                className={`w-10 h-10 ${
+                className={`w-8 h-8 ${
                   star <= (hover || rating) ? 'fill-orange-400 text-orange-400' : 'text-gray-200'
                 } transition-colors`}
               />
@@ -153,13 +153,13 @@ export const OrderRating: React.FC<OrderRatingProps> = ({ orderId, reviewerId, r
         <button
           type="submit"
           disabled={rating === 0 || loading}
-          className="w-full bg-blue-600 text-white py-5 rounded-[1.5rem] font-black text-xl hover:bg-blue-700 transition-all shadow-xl shadow-blue-100 disabled:opacity-50 flex items-center justify-center gap-2"
+          className="w-full bg-blue-600 text-white py-3 rounded-2xl font-black text-sm hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 disabled:opacity-50 flex items-center justify-center gap-2"
         >
           {loading ? (
-             <div className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin" />
+             <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
           ) : (
             <>
-               <Send className="w-6 h-6" />
+               <Send className="w-4 h-4" />
                إرسال التقييم
             </>
           )}
