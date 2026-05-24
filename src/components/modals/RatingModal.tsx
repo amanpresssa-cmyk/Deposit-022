@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Star, MessageSquare, Send, ShieldCheck, Heart } from 'lucide-react';
 import { OrderRating } from '../OrderRating';
@@ -35,7 +36,11 @@ export const RatingModal: React.FC<RatingModalProps> = ({
 
   const handlePlatformSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!platformRating || platformLoading || !user) return;
+    if (!platformRating) {
+      alert('الرجاء اختيار التقييم بالنجوم أولاً.');
+      return;
+    }
+    if (platformLoading || !user) return;
     
     setPlatformLoading(true);
     try {
@@ -55,7 +60,7 @@ export const RatingModal: React.FC<RatingModalProps> = ({
     }
   };
 
-  return (
+  const modalContent = (
     <AnimatePresence>
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -151,7 +156,7 @@ export const RatingModal: React.FC<RatingModalProps> = ({
 
                     <button
                       type="submit"
-                      disabled={platformRating === 0 || platformLoading}
+                      disabled={platformLoading}
                       className="w-full bg-gray-900 text-white py-2.5 rounded-xl font-bold text-xs hover:bg-gray-800 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-md shadow-gray-200"
                     >
                       {platformLoading ? (
@@ -173,4 +178,6 @@ export const RatingModal: React.FC<RatingModalProps> = ({
       )}
     </AnimatePresence>
   );
+
+  return createPortal(modalContent, document.body);
 };

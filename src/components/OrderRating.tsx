@@ -22,7 +22,10 @@ export const OrderRating: React.FC<OrderRatingProps> = ({ orderId, reviewerId, r
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (rating === 0) return;
+    if (rating === 0) {
+      alert('الرجاء اختيار التقييم بالنجوم أولاً.');
+      return;
+    }
     if (!revieweeId || revieweeId === 'unknown') {
       alert('لا يمكن إرسال التقييم: حساب الطرف الآخر غير معروف.');
       return;
@@ -182,7 +185,7 @@ export const OrderRating: React.FC<OrderRatingProps> = ({ orderId, reviewerId, r
 
         <button
           type="submit"
-          disabled={rating === 0 || loading}
+          disabled={loading}
           className="w-full bg-blue-600 text-white py-2.5 rounded-xl font-bold text-xs hover:bg-blue-700 transition-all shadow-md shadow-blue-100 disabled:opacity-50 flex items-center justify-center gap-1.5"
         >
           {loading ? (
