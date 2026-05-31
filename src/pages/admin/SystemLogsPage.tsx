@@ -165,7 +165,7 @@ export const SystemLogsPage: React.FC = () => {
     const type = getLogOperation(log);
     const msg = log.message || log.details || '';
 
-    if (type === 'PAYOUT_CONFIRMATION') return 'تم استلام وتأكيد تحويل رسوم المنصة من جيديا بنجاح.';
+    if (type === 'PAYOUT_CONFIRMATION') return 'تم استلام وتأكيد تحويل رسوم المنصة عبر بوابة الدفع الإلكتروني بنجاح.';
     if (type === 'AUTH') return 'عملية دخول أو تسجيل في النظام من قبل مستخدم.';
     if (type === 'PAYMENT') return 'معالجة عملية دفع مالي أو طلب تفويض بنكي.';
     if (type === 'ERROR') return 'حدث خطأ تقني في أحد أجزاء النظام، يرجى المراجعة.';

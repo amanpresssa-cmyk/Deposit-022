@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, getDoc, updateDoc } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '../../lib/firebase';
 import { useAuth } from '../../hooks/useAuth';
 import { Message, Order, UserProfile } from '../../types';
-import { Send, User as UserIcon, CheckCircle2, AlertCircle, Eye, EyeOff, Package, CreditCard, Receipt, Clock } from 'lucide-react';
+import { Send, User as UserIcon, CheckCircle2, AlertCircle, Eye, EyeOff, Package, CreditCard, Receipt, Clock, Image as ImageIcon, X } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { sendNotification } from '../../lib/notificationService';
@@ -23,6 +24,9 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ orderId }) => {
   const [isTyping, setIsTyping] = useState(false);
   const [otherUserTyping, setOtherUserTyping] = useState(false);
   const [otherUserInChat, setOtherUserInChat] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const scrollRef    = useRef<HTMLDivElement>(null);
   const containerRef  = useRef<HTMLDivElement>(null);
@@ -174,13 +178,30 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ orderId }) => {
     }, 3000);
   };
 
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        import('sonner').then(m => m.toast.error('حجم الصورة يجب أن لا يتجاوز 5 ميجابايت'));
+        return;
+      }
+      setSelectedImage(file);
+      setImagePreview(URL.createObjectURL(file));
+    }
+  };
+
+  const removeSelectedImage = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !newMessage.trim()) return;
+    if (!user || (!newMessage.trim() && !selectedImage)) return;
 
     const text = newMessage.trim();
     setSending(true);
-    setNewMessage('');
 
     // Clear typing status instantly
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -188,15 +209,26 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ orderId }) => {
     safeUpdateTyping(false);
 
     try {
-      await addDoc(collection(db, `orders/${orderId}/messages`), {
+      let imageUrl = '';
+      if (selectedImage) {
+        const fileRef = ref(storage, `chat_images/${orderId}/${Date.now()}_${selectedImage.name}`);
+        await uploadBytes(fileRef, selectedImage);
+        imageUrl = await getDownloadURL(fileRef);
+      }
+
+      const msgData: any = {
         orderId,
         senderId: user.uid,
         text,
         createdAt: serverTimestamp(),
-      });
+      };
+      
+      if (imageUrl) msgData.imageUrl = imageUrl;
+
+      await addDoc(collection(db, `orders/${orderId}/messages`), msgData);
 
       updateDoc(doc(db, 'orders', orderId), {
-        lastMessage: text,
+        lastMessage: text || '📎 صورة مرفقة',
         lastMessageAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       }).catch(() => {});
@@ -205,17 +237,19 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ orderId }) => {
         sendNotification(
           otherUser.uid,
           `رسالة جديدة بخصوص: ${order?.title || 'طلب'}`,
-          text,
+          text || '📎 صورة مرفقة',
           'message',
           'normal',
           orderId,
           user.uid
         ).catch(() => {});
       }
+      
+      setNewMessage('');
+      removeSelectedImage();
     } catch (error: any) {
       console.error('Failed to send message:', error);
       import('sonner').then(m => m.toast.error('تعذر الإرسال: ' + (error.message || 'خطأ غير معروف')));
-      setNewMessage(text);
     } finally {
       setSending(false);
     }
@@ -325,7 +359,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ orderId }) => {
 
         {messages.map((msg, idx) => {
           const isOwn = msg.senderId === user?.uid;
-          const isSystem = msg.senderId === 'SYSTEM' || msg.senderId === 'ADMIN';
+          const isSystem = msg.senderId === 'SYSTEM' || msg.isSystem;
           const showTime = idx === 0 || messages[idx-1].senderId !== msg.senderId || (msg.createdAt && messages[idx-1].createdAt && (msg.createdAt as any).seconds - (messages[idx-1].createdAt as any).seconds > 300);
           
           return (
@@ -337,17 +371,24 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ orderId }) => {
             >
               <div className={`max-w-[85%] sm:max-w-[85%] space-y-1 flex flex-col ${isSystem ? 'items-center w-full' : isOwn ? 'items-end' : 'items-start'}`}>
                 <div
-                  className={`px-4 py-3 text-sm leading-relaxed shadow-sm w-full ${
+                  className={`px-4 py-3 text-sm leading-relaxed shadow-sm w-full flex flex-col ${
                     isSystem 
-                      ? 'bg-amber-50/80 text-amber-900 border border-amber-200/60 rounded-2xl font-bold flex gap-3 items-start'
+                      ? 'bg-amber-50/80 text-amber-900 border border-amber-200/60 rounded-2xl font-bold gap-3 items-start'
                       : isOwn
                         ? 'bg-blue-600 text-white rounded-3xl rounded-br-sm'
                         : 'bg-white text-gray-800 rounded-3xl rounded-bl-sm border border-gray-100'
                   }`}
                   style={{ wordBreak: 'break-word' }}
                 >
-                  {isSystem && <AlertCircle className="w-5 h-5 shrink-0 text-amber-600 mt-0.5" />}
-                  <span style={{ whiteSpace: 'pre-wrap' }}>{msg.text}</span>
+                  <div className="flex gap-3">
+                    {isSystem && <AlertCircle className="w-5 h-5 shrink-0 text-amber-600 mt-0.5" />}
+                    {msg.text && <span style={{ whiteSpace: 'pre-wrap' }}>{msg.text}</span>}
+                  </div>
+                  {msg.imageUrl && (
+                    <a href={msg.imageUrl} target="_blank" rel="noreferrer" className="block mt-2 rounded-xl overflow-hidden border border-black/10 hover:opacity-90 transition-opacity">
+                      <img src={msg.imageUrl} alt="مرفق" className="max-w-[200px] sm:max-w-[250px] object-cover" />
+                    </a>
+                  )}
                 </div>
                 {showTime && !isSystem && (
                   <p className={`text-[9px] font-bold text-gray-400 px-2 ${isOwn ? 'text-right' : 'text-left'}`}>
@@ -381,40 +422,73 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ orderId }) => {
       </div>
 
       {/* INPUT AREA */}
-      <form onSubmit={sendMessage} className="p-4 bg-white border-t border-gray-100 z-10 shadow-[0_-4px_20px_-15px_rgba(0,0,0,0.1)]">
-        <div className="flex gap-2 items-end">
-          <textarea
-            className="flex-1 max-h-32 min-h-[48px] px-4 py-3 rounded-2xl border border-gray-200 focus:border-blue-500 outline-none text-sm font-medium transition-all disabled:bg-gray-50 disabled:cursor-not-allowed resize-none bg-gray-50/50"
-            placeholder={order?.status === 'completed' || order?.status === 'cancelled' ? "تم إغلاق المحادثة لانتهاء الصفقة" : "اكتب رسالتك هنا..."}
-            disabled={sending || order?.status === 'completed' || order?.status === 'cancelled'}
-            value={newMessage}
-            onChange={(e) => {
-              setNewMessage(e.target.value);
-              handleTyping();
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendMessage(e as any);
-              }
-            }}
-            rows={1}
-            style={{
-               height: newMessage ? 'auto' : '48px',
-            }}
-          />
-          <button
-            type="submit"
-            disabled={sending || !newMessage.trim() || order?.status === 'completed' || order?.status === 'cancelled'}
-            className="bg-blue-600 text-white p-3 h-12 w-12 rounded-2xl flex items-center justify-center hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600 transition-all shadow-md shadow-blue-600/20 active:scale-95 shrink-0"
-          >
-            <Send className="w-5 h-5 rtl:-scale-x-100 -ml-1" />
-          </button>
-        </div>
-        <p className="text-[9px] font-bold text-gray-400 text-center mt-3">
-          الرسائل مشفرة ومحفوظة لحماية حقوق الطرفين في منصة عربون.
-        </p>
-      </form>
+      <div className="bg-white border-t border-gray-100 z-10 shadow-[0_-4px_20px_-15px_rgba(0,0,0,0.1)]">
+        {imagePreview && (
+          <div className="p-3 border-b border-gray-100 flex items-start gap-3 bg-gray-50/50">
+            <div className="relative">
+              <img src={imagePreview} alt="Preview" className="w-16 h-16 object-cover rounded-xl border border-gray-200 shadow-sm" />
+              <button 
+                type="button"
+                onClick={removeSelectedImage}
+                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition-colors"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+            <div className="text-xs text-gray-500 font-medium py-2">صورة مرفقة</div>
+          </div>
+        )}
+        <form onSubmit={sendMessage} className="p-4">
+          <div className="flex gap-2 items-end">
+            <input 
+              type="file" 
+              accept="image/*" 
+              className="hidden" 
+              ref={fileInputRef} 
+              onChange={handleImageSelect}
+              disabled={sending || order?.status === 'completed' || order?.status === 'cancelled'}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={sending || order?.status === 'completed' || order?.status === 'cancelled'}
+              className="p-3 h-12 w-12 rounded-2xl flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-50 transition-all shrink-0"
+            >
+              <ImageIcon className="w-6 h-6" />
+            </button>
+            <textarea
+              className="flex-1 max-h-32 min-h-[48px] px-4 py-3 rounded-2xl border border-gray-200 focus:border-blue-500 outline-none text-sm font-medium transition-all disabled:bg-gray-50 disabled:cursor-not-allowed resize-none bg-gray-50/50"
+              placeholder={order?.status === 'completed' || order?.status === 'cancelled' ? "تم إغلاق المحادثة لانتهاء الصفقة" : "اكتب رسالتك هنا..."}
+              disabled={sending || order?.status === 'completed' || order?.status === 'cancelled'}
+              value={newMessage}
+              onChange={(e) => {
+                setNewMessage(e.target.value);
+                handleTyping();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  sendMessage(e as any);
+                }
+              }}
+              rows={1}
+              style={{
+                 height: newMessage ? 'auto' : '48px',
+              }}
+            />
+            <button
+              type="submit"
+              disabled={sending || (!newMessage.trim() && !selectedImage) || order?.status === 'completed' || order?.status === 'cancelled'}
+              className="bg-blue-600 text-white p-3 h-12 w-12 rounded-2xl flex items-center justify-center hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600 transition-all shadow-md shadow-blue-600/20 active:scale-95 shrink-0"
+            >
+              <Send className="w-5 h-5 rtl:-scale-x-100 -ml-1" />
+            </button>
+          </div>
+          <p className="text-[9px] font-bold text-gray-400 text-center mt-3">
+            الرسائل مشفرة ومحفوظة لحماية حقوق الطرفين في منصة عربون.
+          </p>
+        </form>
+      </div>
     </div>
   );
 };

@@ -5,6 +5,7 @@ import { Home } from './pages/Home';
 import { Dashboard } from './pages/Dashboard';
 import { OrderDetailsPage } from './pages/OrderDetailsPage';
 import { CreateOrderPage } from './pages/CreateOrderPage';
+import { PayLinkPage } from './pages/PayLinkPage';
 import { SearchPage } from './pages/SearchPage';
 import { SellerProfilePage } from './pages/SellerProfilePage';
 import { SettingsPage } from './pages/SettingsPage';
@@ -375,6 +376,8 @@ export default function App() {
                     path="/create-order"
                     element={user ? (isAdmin && !isViewingAsUser ? <Navigate to="/admin" /> : <CreateOrderPage />) : <Navigate to="/" />}
                   />
+                  <Route path="/create" element={<CreateOrderPage />} />
+                  <Route path="/pay/:linkId" element={<PayLinkPage />} />
                   <Route path="/help-center" element={<HelpCenterPage />} />
                   <Route path="/terms" element={<TermsPage />} />
                   <Route path="/privacy" element={<PrivacyPolicyPage />} />

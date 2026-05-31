@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { Link2, Copy, Check, Clock, CreditCard, Shield, AlertCircle } from 'lucide-react';
+import { Link2, Copy, Check, Clock, CreditCard, Shield, AlertCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'motion/react';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 export const InvoiceLinkGenerator: React.FC = () => {
   const { user } = useAuth();
@@ -19,9 +21,11 @@ export const InvoiceLinkGenerator: React.FC = () => {
   const [generatedLink, setGeneratedLink] = useState('');
   const [copied, setCopied] = useState(false);
 
+  const [loading, setLoading] = useState(false);
+
   const categories = ['عقارات', 'سيارات', 'خدمات إلكترونية', 'تعقيب معاملات', 'برمجة وتطوير', 'صناعة تطبيقات', 'مواقع إلكترونية', 'استضافات', 'أجهزة إلكترونية', 'عام'];
 
-  const generateLink = () => {
+  const generateLink = async () => {
     if (!formData.title || !formData.amount) {
       toast.error('يرجى إدخال عنوان الخدمة والمبلغ');
       return;
@@ -32,18 +36,32 @@ export const InvoiceLinkGenerator: React.FC = () => {
       return;
     }
 
-    const baseUrl = window.location.origin;
-    const params = new URLSearchParams({
-      targetId: user?.uid || '',
-      title: formData.title,
-      amount: formData.amount,
-      category: formData.category,
-      desc: formData.description,
-      bnpl: formData.allowBNPL.toString(),
-      days: formData.deliveryDays
-    });
+    setLoading(true);
+    try {
+      const shortId = Math.random().toString(36).substring(2, 10).toUpperCase();
+      const docRef = doc(db, 'payment_links', shortId);
+      
+      await setDoc(docRef, {
+        sellerId: user?.uid,
+        title: formData.title,
+        amount: parseFloat(formData.amount),
+        category: formData.category,
+        description: formData.description,
+        allowBNPL: formData.allowBNPL,
+        deliveryDays: parseInt(formData.deliveryDays) || 3,
+        status: 'active',
+        createdAt: serverTimestamp()
+      });
 
-    setGeneratedLink(`${baseUrl}/create?${params.toString()}`);
+      const baseUrl = window.location.origin;
+      setGeneratedLink(`${baseUrl}/pay/${shortId}`);
+      toast.success('تم إنشاء الرابط بنجاح');
+    } catch (err: any) {
+      console.error(err);
+      toast.error('حدث خطأ أثناء توليد الرابط: ' + (err.message || 'خطأ غير معروف'));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCopy = () => {
@@ -167,9 +185,10 @@ export const InvoiceLinkGenerator: React.FC = () => {
 
               <button
                 onClick={generateLink}
-                className="w-full bg-gray-900 hover:bg-black text-white py-4 rounded-2xl font-black text-lg transition-all shadow-lg hover:shadow-xl active:scale-95"
+                disabled={loading}
+                className="w-full bg-gray-900 hover:bg-black text-white py-4 rounded-2xl font-black text-lg transition-all shadow-lg hover:shadow-xl active:scale-95 disabled:opacity-70 flex items-center justify-center gap-2"
               >
-                توليد الرابط الذكي
+                {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : 'توليد الرابط الذكي'}
               </button>
 
               {generatedLink && (

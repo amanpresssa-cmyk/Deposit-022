@@ -64,16 +64,17 @@ service cloud.firestore {
           isAdmin() || 
           // Action: Reward Inviter (Allows an invitee to reward their inviter upon completion)
           (incoming().diff(existing()).affectedKeys().hasOnly(['freeFeeTransactions', 'updatedAt']) && 
-           incoming().get('freeFeeTransactions', 0) == existing().get('freeFeeTransactions', 0) + 1)
+           incoming().get('freeFeeTransactions', 0) == existing().get('freeFeeTransactions', 0) + 1) ||
+          // Action: Receiving Rating (Allows users to receive ratings from others)
+          (incoming().diff(existing()).affectedKeys().hasAny(['rating', 'reviewsCount', 'trustLevel', 'avgResponseTime', 'isEliteSeller', 'isFeatured', 'completedOrdersCount', 'updatedAt']) &&
+           incoming().diff(existing()).affectedKeys().hasOnly(['rating', 'reviewsCount', 'trustLevel', 'avgResponseTime', 'isEliteSeller', 'isFeatured', 'completedOrdersCount', 'updatedAt']))
         ));
     }
 
     // --- Orders ---
     function isValidOrder(data) {
       return data.get('buyerId', '') is string && data.get('sellerId', '') is string
-        && data.get('title', '').size() <= 200
-        && data.get('amount', 0) is number && data.get('amount', 0) > 0
-        && data.get('status', 'pending') in ['pending', 'escrowed', 'delivered', 'completed', 'disputed', 'cancelled'];
+        && data.get('status', 'pending') in ['awaiting_acceptance', 'pending', 'escrowed', 'delivered', 'rating', 'completed', 'disputed', 'cancelled'];
     }
 
     match /orders/{orderId} {
@@ -97,9 +98,9 @@ service cloud.firestore {
       
       allow create: if isSignedIn() 
         && isValidOrder(incoming())
-        && (isOwner(incoming().buyerId) || isOwner(incoming().sellerId) || isOwner(incoming().creatorId))
+        && (isOwner(incoming().get('buyerId', '')) || isOwner(incoming().get('sellerId', '')) || isOwner(incoming().get('creatorId', '')))
         && (!exists(/databases/$(database)/documents/users/$(request.auth.uid)) || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isBlocked', false) != true)
-        && incoming().status == 'pending'
+        && (incoming().status == 'pending' || incoming().status == 'awaiting_acceptance')
         && incoming().createdAt == request.time;
         
       allow update: if (isAdmin() || (isSignedIn() && (
@@ -126,30 +127,60 @@ service cloud.firestore {
               // Action: Other buyer state changes (status + updatedAt only)
               (isOwner(existing().buyerId) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) 
                 && (
-                  (existing().status == 'delivered' && incoming().status == 'completed') ||
+                  (existing().status == 'awaiting_acceptance' && incoming().status == 'pending') ||
+                  (existing().status == 'awaiting_acceptance' && incoming().status == 'cancelled') ||
+                  (existing().status == 'delivered' && incoming().status == 'rating') ||
+                  (existing().status == 'rating' && incoming().status == 'completed') ||
+                  (existing().status == 'delivered' && incoming().status == 'completed') || // fallback for older ones
                   (existing().status == 'escrowed' && incoming().status == 'disputed') ||
-                  (existing().status == 'delivered' && incoming().status == 'disputed')
+                  (existing().status == 'delivered' && incoming().status == 'disputed') ||
+                  (existing().status == 'rating' && incoming().status == 'disputed') ||
+                  (existing().status == 'pending' && incoming().status == 'cancelled')
                 )
               ) ||
+              // Action: Buyer giving rating
+              (isOwner(existing().buyerId) && incoming().diff(existing()).affectedKeys().hasOnly(['buyerRatingCompleted', 'sellerRating', 'updatedAt'])) ||
+              
               // Action: Seller actions
-              ((isOwner(existing().sellerId) || ('sellerEmail' in existing() && isOwnerByEmail(existing().sellerEmail))) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+              ((isOwner(existing().sellerId) || ('sellerEmail' in existing() && isOwnerByEmail(existing().sellerEmail))) 
                 && (
-                  (existing().status == 'pending' && incoming().status == 'escrowed') ||
-                  (existing().status == 'escrowed' && incoming().status == 'delivered') ||
-                  (existing().status == 'awaiting_acceptance' && incoming().status == 'pending') ||
-                  (existing().status == 'awaiting_acceptance' && incoming().status == 'cancelled')
+                  (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) &&
+                    (
+                      (existing().status == 'pending' && incoming().status == 'escrowed') ||
+                      (existing().status == 'awaiting_acceptance' && incoming().status == 'pending') ||
+                      (existing().status == 'awaiting_acceptance' && incoming().status == 'cancelled') ||
+                      (existing().status == 'delivered' && incoming().status == 'disputed') ||
+                      (existing().status == 'escrowed' && incoming().status == 'disputed')
+                    )
+                  ) ||
+                  (existing().status == 'escrowed' && incoming().status == 'delivered' && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt', 'deliveryNote', 'deliveryAttachmentUrl']))
                 )
-              )
+              ) ||
+              // Action: Seller giving rating
+              ((isOwner(existing().sellerId) || ('sellerEmail' in existing() && isOwnerByEmail(existing().sellerEmail))) && incoming().diff(existing()).affectedKeys().hasOnly(['sellerRatingCompleted', 'buyerRating', 'updatedAt']))
             ))
           )
         );
     }
 
+    // --- Payment Links ---
+    match /payment_links/{linkId} {
+      allow read: if true;
+      allow create: if isSignedIn() && incoming().sellerId == request.auth.uid;
+      allow update: if isSignedIn() 
+        && existing().status == 'active' 
+        && incoming().status == 'used' 
+        && incoming().usedBy == request.auth.uid
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'usedBy', 'usedAt', 'orderId']);
+    }
+
     // --- Messages ---
     function isValidMessage(data) {
       return data.senderId is string && data.senderId.size() <= 128
-        && data.text is string && data.text.size() <= 1000
-        && data.orderId is string;
+        && data.text is string && data.text.size() <= 2000
+        && data.orderId is string
+        && (!('imageUrl' in data) || data.imageUrl is string)
+        && (!('isSystem' in data) || data.isSystem is bool);
     }
 
     match /orders/{orderId}/messages/{messageId} {
@@ -178,7 +209,7 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isSignedIn()
         && incoming().reviewerId == request.auth.uid
-        && get(/databases/$(database)/documents/orders/$(incoming().orderId)).data.status == 'completed'
+        && get(/databases/$(database)/documents/orders/$(incoming().orderId)).data.status in ['rating', 'completed']
         && (
            get(/databases/$(database)/documents/orders/$(incoming().orderId)).data.buyerId == request.auth.uid ||
            get(/databases/$(database)/documents/orders/$(incoming().orderId)).data.sellerId == request.auth.uid

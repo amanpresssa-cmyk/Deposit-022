@@ -206,8 +206,12 @@ export const SettingsPage: React.FC = () => {
       toast.error('رقم الجوال غير صحيح. الصيغ المقبولة: 05XXXXXXXX أو 9665XXXXXXXX'); return;
     }
     if (form.phoneNumber && form.phoneNumber !== profile?.phoneNumber) {
-      const snap = await getDocs(query(collection(db, 'users'), where('phoneNumber', '==', form.phoneNumber), limit(1)));
-      if (!snap.empty) { toast.error('رقم الجوال مسجل لحساب آخر'); return; }
+      try {
+        const snap = await getDocs(query(collection(db, 'users'), where('phoneNumber', '==', form.phoneNumber), limit(1)));
+        if (!snap.empty) { toast.error('رقم الجوال مسجل لحساب آخر'); return; }
+      } catch (queryErr: any) {
+        console.warn('[saveProfile] phoneNumber uniqueness check skipped:', queryErr?.code);
+      }
     }
     savingRef.current = true;
     setLoadingSection('profile');

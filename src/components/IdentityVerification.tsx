@@ -46,7 +46,7 @@ export const IdentityVerification: React.FC<Props> = ({ onClose }) => {
       
       setStep('otp');
       setTimer(120); 
-      toast.success(`تم إرسال رمز التحقق إلى جوالك المسجّل في أبشر ${maskedPhone} عبر بوابة يمامة`);
+      toast.success(`تم إرسال رمز التحقق إلى جوالك المسجّل في أبشر ${maskedPhone} عبر بوابة التحقق الآمنة`);
     } catch (err) {
       toast.error('حدث خطأ في النظام، يرجى المحاولة لاحقاً');
     } finally {
@@ -104,19 +104,19 @@ export const IdentityVerification: React.FC<Props> = ({ onClose }) => {
                   <div className="h-0.5 w-12 bg-gray-700" />
                   <div className="bg-white/10 px-3 py-1 rounded-lg border border-white/10 flex items-center gap-1.5">
                     <Smartphone className="w-3.5 h-3.5 text-blue-400" />
-                    <span className="text-[10px] font-black uppercase tracking-tighter">Yamama Gateway</span>
+                    <span className="text-[10px] font-black uppercase tracking-tighter">Verification Gateway</span>
                   </div>
                 </div>
                 <h2 className="text-xl md:text-2xl font-black mb-3 italic">بوابة التوثيق الموحدة</h2>
                 <p className="text-gray-400 text-[10px] md:text-sm font-medium leading-relaxed">
-                   عبر شراكتنا مع منصة <span className="text-blue-400">"يمامة"</span>، نقوم بالتحقق من هويتك مباشرة عبر قواعد بيانات النفاذ الوطني الموحد لضمان أعلى معايير الأمان.
+                   نقوم بالتحقق من هويتك مباشرة عبر قواعد بيانات النفاذ الوطني الموحد لضمان أعلى معايير الأمان للجميع.
                 </p>
               </div>
               
               <div className="relative z-10 space-y-3 mt-auto hidden md:block">
                  <div className="flex items-center gap-3 text-[10px] font-bold bg-white/5 p-3 rounded-xl border border-white/5">
                     <ShieldCheck className="w-4 h-4 text-blue-400" />
-                    موفر الخدمة: منصة يمامة
+                    موفر الخدمة: نظام النفاذ الوطني الموحد
                  </div>
                  <p className="text-[9px] text-gray-500 text-center">جميع البيانات مشفرة وفق معايير SAMA</p>
               </div>
@@ -189,7 +189,7 @@ export const IdentityVerification: React.FC<Props> = ({ onClose }) => {
                                <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center rounded-2xl z-10">
                                   <div className="flex items-center gap-3">
                                      <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
-                                     <span className="text-[10px] font-black text-blue-600">جاري الاتصال بيمامة...</span>
+                                     <span className="text-[10px] font-black text-blue-600">جاري الاتصال ببوابة التحقق...</span>
                                   </div>
                                </div>
                             )}
@@ -198,7 +198,7 @@ export const IdentityVerification: React.FC<Props> = ({ onClose }) => {
 
                         <div className="flex items-center gap-3 text-[10px] text-gray-400 bg-gray-50 p-4 rounded-xl border border-gray-100 italic">
                            <AlertCircle className="w-4 h-4 text-blue-500 shrink-0" />
-                           <p>سيتم إرسال الرمز تلقائياً إلى الجوال المسجل في أبشر عبر بوابة يمامة الآمنة.</p>
+                           <p>سيتم إرسال الرمز تلقائياً إلى الجوال المسجل في الأنظمة الوطنية عبر بوابة التحقق الآمنة.</p>
                         </div>
 
                         <button 
@@ -225,7 +225,7 @@ export const IdentityVerification: React.FC<Props> = ({ onClose }) => {
                              <Smartphone className="w-6 h-6 animate-bounce" />
                           </div>
                           <h3 className="text-lg font-black text-gray-900">أدخل الرمز المستلم</h3>
-                          <p className="text-[10px] font-bold text-gray-400">تم إرسال الرمز إلى الجوال المسجل في أبشر <span className="text-blue-600" dir="ltr">{formData.phoneNumber}</span></p>
+                          <p className="text-[10px] font-bold text-gray-400">تم إرسال الرمز إلى الجوال المسجل في النفاذ الوطني <span className="text-blue-600" dir="ltr">{formData.phoneNumber}</span></p>
                        </div>
 
                        <div className="space-y-4">
@@ -250,7 +250,7 @@ export const IdentityVerification: React.FC<Props> = ({ onClose }) => {
                                  className="text-[10px] font-black text-blue-600 flex items-center gap-1 hover:underline"
                                >
                                  <AlertCircle className="w-3 h-3" />
-                                 إعادة إرسال الرمز عبر يمامة
+                                 إعادة إرسال رمز التحقق
                                </button>
                             )}
                           </div>
@@ -279,7 +279,7 @@ export const IdentityVerification: React.FC<Props> = ({ onClose }) => {
                        </div>
                        <h3 className="text-2xl font-black text-gray-900 mb-2 italic">تم التحقق بنجاح!</h3>
                        <p className="text-gray-500 text-[11px] font-medium leading-loose mb-8 max-w-[240px] mx-auto">
-                          تم ربط حسابك رسمياً بمنصة "عربون" كعضو موثق الهوية عبر بوابة يمامة. أنت الآن موثق بالكامل بشارة "موثوق" ويمكنك البدء في كافة المعاملات المالية فوراً.
+                          تم ربط حسابك رسمياً بمنصة "عربون" كعضو موثق الهوية عبر بوابة التحقق الآمنة. أنت الآن موثق بالكامل بشارة "موثوق" ويمكنك البدء في كافة المعاملات المالية فوراً.
                        </p>
                        <button 
                           onClick={onClose}

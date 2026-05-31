@@ -4,15 +4,16 @@ import { db } from '../lib/firebase';
 import { Order } from '../types';
 import { Search, Filter, Tag, ArrowLeft } from 'lucide-react';
 import { motion } from 'motion/react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 
 export const SearchPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('الكل');
+  const [selectedCategory, setSelectedCategory] = useState(searchParams.get('category') || 'الكل');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -39,7 +40,7 @@ export const SearchPage: React.FC = () => {
   const filteredOrders = orders.filter(o => {
     const matchesSearch = o.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
                          o.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'الكل' || o.category === selectedCategory;
+    const matchesCategory = selectedCategory === 'الكل' || (o.category || '').includes(selectedCategory);
     return matchesSearch && matchesCategory;
   });
 

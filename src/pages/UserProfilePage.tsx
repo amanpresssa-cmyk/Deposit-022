@@ -4,12 +4,14 @@ import { Settings, ShieldCheck, Mail, MapPin, Share2, Gift, Copy, Check } from '
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
+import { AddServiceModal } from '../components/AddServiceModal';
 
 export const UserProfilePage: React.FC = () => {
   const { profile, logout } = useAuth();
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [isAddServiceModalOpen, setIsAddServiceModalOpen] = useState(false);
 
   if (!profile) return null;
 
@@ -41,7 +43,11 @@ export const UserProfilePage: React.FC = () => {
     <div className="max-w-4xl mx-auto py-8 px-4 space-y-8">
       <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden">
         {/* Header Cover & Avatar */}
-        <div className="h-48 bg-gradient-to-r from-blue-600 to-indigo-600 relative">
+        <div 
+          className="h-80 bg-gradient-to-r from-blue-600 to-indigo-600 relative bg-cover bg-center"
+          style={{ backgroundImage: profile?.bannerUrl ? `url(${profile.bannerUrl})` : undefined }}
+        >
+          {profile?.bannerUrl && <div className="absolute inset-0 bg-black/40" />}
           <div className="absolute -bottom-16 right-8">
             <div className="w-32 h-32 rounded-3xl bg-white p-2 shadow-xl border border-gray-100">
               <div className="w-full h-full rounded-[1.2rem] bg-indigo-50 border border-indigo-100 flex items-center justify-center text-4xl font-black text-indigo-600 overflow-hidden">
@@ -111,6 +117,23 @@ export const UserProfilePage: React.FC = () => {
                 <span className={`font-bold ${profile.isVerified ? 'text-green-600' : 'text-orange-500'}`}>
                   {profile.isVerified ? 'موثق ومعتمد' : 'غير موثق'}
                 </span>
+              </div>
+            </div>
+            <div className="bg-gray-50 border border-gray-100 p-6 rounded-2xl flex flex-col gap-4 hover:border-purple-200 transition-colors md:col-span-2">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-purple-100 text-purple-600 flex items-center justify-center rounded-xl shrink-0 shadow-inner">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
+                </div>
+                <div className="flex-1">
+                  <span className="block text-xs font-bold text-gray-400 mb-1">الخدمات</span>
+                  <span className="font-bold text-gray-800">إدارة خدماتك المعروضة للعملاء</span>
+                </div>
+                <button 
+                  onClick={() => setIsAddServiceModalOpen(true)} 
+                  className="bg-purple-600 text-white px-6 py-2 rounded-xl text-sm font-bold shadow-md shadow-purple-100 hover:bg-purple-700 transition-all flex items-center gap-2"
+                >
+                  إضافة خدمة
+                </button>
               </div>
             </div>
           </div>
@@ -190,6 +213,15 @@ export const UserProfilePage: React.FC = () => {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Add Service Modal */}
+      {profile && (
+        <AddServiceModal 
+          isOpen={isAddServiceModalOpen}
+          onClose={() => setIsAddServiceModalOpen(false)}
+          sellerId={profile.uid}
+        />
+      )}
     </div>
   );
 };

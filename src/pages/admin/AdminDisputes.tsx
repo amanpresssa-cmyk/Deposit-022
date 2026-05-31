@@ -122,7 +122,7 @@ export const AdminDisputes: React.FC = () => {
       });
       return response.ok;
     } catch (err) {
-      console.error('Geidea capture API failed:', err);
+      console.error('Payment gateway capture API failed:', err);
       return false;
     }
   };
@@ -136,7 +136,7 @@ export const AdminDisputes: React.FC = () => {
       });
       return response.ok;
     } catch (err) {
-      console.error('Geidea refund API failed:', err);
+      console.error('Payment gateway refund API failed:', err);
       return false;
     }
   };

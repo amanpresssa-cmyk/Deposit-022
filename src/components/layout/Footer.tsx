@@ -23,7 +23,7 @@ export const Footer: React.FC = () => {
   }, []);
 
   return (
-    <footer className="hidden md:block bg-[#0A0D14] pt-20 pb-10 overflow-hidden relative">
+    <footer className="hidden md:block bg-[#0B1221] pt-20 pb-10 overflow-hidden relative">
       {/* Decorative Background Elements */}
       <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-blue-500/20 to-transparent" />
       <div className="absolute -top-24 -left-24 w-64 h-64 bg-blue-600/5 blur-[100px] rounded-full" />

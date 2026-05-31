@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { doc, getDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, collection, addDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../hooks/useAuth';
 import { Order, UserProfile } from '../types';
@@ -94,7 +94,17 @@ export const ServiceDetailsPage: React.FC = () => {
         updatedAt: serverTimestamp(),
       };
 
-      const docRef = await addDoc(collection(db, 'orders'), newOrder);
+      // Generate a highly recognizable, unique, and search-friendly Order ID (6-digit random numbers + exactly one letter)
+      const generateOrderNumberId = () => {
+        const numbers = Math.floor(100000 + Math.random() * 900000); // 6-digit random number
+        const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        const randomLetter = letters.charAt(Math.floor(Math.random() * letters.length));
+        return `${numbers}${randomLetter}`; // e.g. "839204A"
+      };
+
+      const orderId = generateOrderNumberId();
+      const docRef = doc(db, 'orders', orderId);
+      await setDoc(docRef, newOrder);
       
       // Trigger automatic platform, push, and WhatsApp notifications to the seller
       try {

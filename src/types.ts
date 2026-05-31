@@ -66,7 +66,7 @@ export interface Notification {
   createdAt: any;
 }
 
-export type OrderStatus = 'awaiting_acceptance' | 'pending' | 'escrowed' | 'delivered' | 'completed' | 'disputed' | 'cancelled';
+export type OrderStatus = 'awaiting_acceptance' | 'pending' | 'escrowed' | 'delivered' | 'rating' | 'completed' | 'disputed' | 'cancelled';
 
 export interface Order {
   id: string;
@@ -79,6 +79,10 @@ export interface Order {
   amount: number;
   status: OrderStatus;
   category: string;
+  allowBNPL?: boolean;
+  deliveryDays?: number;
+  deliveryNote?: string;
+  deliveryAttachmentUrl?: string;
   paymentMethod?: 'standard' | 'bnpl';
   paymentFees?: {
     platformCommission: number;
@@ -106,6 +110,8 @@ export interface Message {
   orderId: string;
   senderId: string;
   text: string;
+  imageUrl?: string;
+  isSystem?: boolean;
   createdAt: any;
 }
 

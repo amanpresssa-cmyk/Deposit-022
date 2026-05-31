@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
+import { AddServiceModal } from '../components/AddServiceModal';
 
 export const SellerProfilePage: React.FC = () => {
   const { sellerId } = useParams<{ sellerId: string }>();
@@ -26,6 +27,7 @@ export const SellerProfilePage: React.FC = () => {
   const [confidence, setConfidence] = useState(100);
   const [copied, setCopied] = useState(false);
   const [copiedServiceId, setCopiedServiceId] = useState<string | null>(null);
+  const [isAddServiceModalOpen, setIsAddServiceModalOpen] = useState(false);
   const navigate = useNavigate();
 
   const [orders, setOrders] = useState<Order[]>([]);
@@ -217,7 +219,7 @@ export const SellerProfilePage: React.FC = () => {
     <div className="max-w-7xl mx-auto px-4 py-12">
       {/* Header Profile Section */}
       <div className="bg-white rounded-[3rem] border border-gray-100 shadow-xl shadow-blue-100/20 overflow-hidden mb-12">
-        <div className="h-64 bg-gradient-to-r from-blue-600 to-indigo-700 relative bg-cover bg-center" style={{ backgroundImage: seller.bannerUrl ? `url(${seller.bannerUrl})` : undefined }}>
+        <div className="h-80 bg-gradient-to-r from-blue-600 to-indigo-700 relative bg-cover bg-center" style={{ backgroundImage: seller.bannerUrl ? `url(${seller.bannerUrl})` : undefined }}>
           {seller.bannerUrl && <div className="absolute inset-0 bg-black/40" />}
           <div className="absolute top-8 left-8 flex gap-3 z-10">
             <button 
@@ -295,7 +297,7 @@ export const SellerProfilePage: React.FC = () => {
               </button>
               
               <button 
-                onClick={handleOrder}
+                onClick={() => handleOrder()}
                 className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold text-lg hover:bg-blue-700 transition-all flex items-center gap-2 shadow-xl shadow-blue-100"
               >
                 <Briefcase className="w-6 h-6 pointer-events-none" />
@@ -390,8 +392,32 @@ export const SellerProfilePage: React.FC = () => {
                       )) : (
                         <div className="col-span-2 py-20 text-center bg-gray-50 rounded-[3rem]">
                            <Briefcase className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                           <h3 className="text-xl font-bold text-gray-400">لا توجد خدمات معروضة حالياً</h3>
+                           <h3 className="text-xl font-bold text-gray-400 mb-6">لا توجد خدمات معروضة حالياً</h3>
+                           {user?.uid === sellerId && (
+                             <button
+                               onClick={() => setIsAddServiceModalOpen(true)}
+                               className="bg-blue-600 text-white px-8 py-3 rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-md shadow-blue-100"
+                             >
+                               إضافة خدمة جديدة
+                             </button>
+                           )}
                         </div>
+                      )}
+                      
+                      {/* Show Add button even if there are services if owner */}
+                      {services.length > 0 && user?.uid === sellerId && (
+                        <motion.div 
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          onClick={() => setIsAddServiceModalOpen(true)}
+                          className="bg-blue-50/50 rounded-3xl border-2 border-dashed border-blue-200 overflow-hidden hover:bg-blue-50 hover:border-blue-300 transition-all group cursor-pointer flex flex-col items-center justify-center min-h-[300px]"
+                        >
+                           <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-inner">
+                             <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                           </div>
+                           <h3 className="font-bold text-xl text-blue-600">إضافة خدمة جديدة</h3>
+                           <p className="text-sm text-blue-400 mt-2">قم بنشر المزيد من خدماتك للعملاء</p>
+                        </motion.div>
                       )}
                     </div>
                   )}
@@ -508,6 +534,15 @@ export const SellerProfilePage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Add Service Modal */}
+      {user?.uid === sellerId && (
+        <AddServiceModal 
+          isOpen={isAddServiceModalOpen}
+          onClose={() => setIsAddServiceModalOpen(false)}
+          sellerId={sellerId}
+        />
+      )}
     </div>
   );
 };

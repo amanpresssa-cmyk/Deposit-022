@@ -948,7 +948,7 @@ export const AdminUsers: React.FC = () => {
                              {/* Verification status toggle */}
                              <div className="flex items-center justify-between p-3.5 bg-gray-50 dark:bg-gray-900/60 rounded-2xl border border-gray-100 dark:border-gray-800">
                                 <div className="text-right">
-                                   <p className="text-xs font-black text-gray-900 dark:text-white">حالة التوثيق (أبشر / يمامة)</p>
+                                   <p className="text-xs font-black text-gray-900 dark:text-white">حالة التوثيق (أبشر / نفاذ)</p>
                                    <p className="text-[9px] text-gray-400">حالة التوثيق من البيانات الوطنية</p>
                                 </div>
                                 <div className="flex gap-1.5 justify-end">

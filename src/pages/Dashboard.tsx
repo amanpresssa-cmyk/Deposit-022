@@ -25,6 +25,7 @@ const getStatusBadge = (status: Order['status']) => {
     case 'pending':    return <span className="px-2.5 py-1 bg-gray-100 text-gray-500 rounded-full text-[9px] font-black tracking-wide">⏳ قيد الانتظار</span>;
     case 'escrowed':  return <span className="px-2.5 py-1 bg-amber-100 text-amber-700 rounded-full text-[9px] font-black border border-amber-200 animate-pulse">🔒 مُعمَّد — جارٍ التنفيذ</span>;
     case 'delivered': return <span className="px-2.5 py-1 bg-purple-100 text-purple-700 rounded-full text-[9px] font-black border border-purple-200">📦 بانتظار الاستلام</span>;
+    case 'rating':    return <span className="px-2.5 py-1 bg-blue-100 text-blue-700 rounded-full text-[9px] font-black border border-blue-200 animate-pulse">⭐ بانتظار التقييم</span>;
     case 'completed': return <span className="px-2.5 py-1 bg-green-100 text-green-700 rounded-full text-[9px] font-black border border-green-200">✅ مكتمل</span>;
     case 'disputed':  return <span className="px-2.5 py-1 bg-red-100 text-red-700 rounded-full text-[9px] font-black border border-red-200 animate-pulse">🚨 نزاع نشط</span>;
     case 'cancelled': return <span className="px-2.5 py-1 bg-gray-200 text-gray-400 rounded-full text-[9px] font-black">❌ ملغي</span>;
@@ -36,6 +37,7 @@ const statusBorderColor: Record<string, string> = {
   pending:   'border-r-gray-200',
   escrowed:  'border-r-amber-400',
   delivered: 'border-r-purple-400',
+  rating:    'border-r-blue-400',
   completed: 'border-r-green-400',
   disputed:  'border-r-red-500',
   cancelled: 'border-r-gray-200',
@@ -45,6 +47,7 @@ const statusGlow: Record<string, string> = {
   escrowed: 'shadow-amber-100 ring-1 ring-amber-200',
   disputed: 'shadow-red-100 ring-1 ring-red-200',
   delivered:'shadow-purple-100 ring-1 ring-purple-200',
+  rating:   'shadow-blue-100 ring-1 ring-blue-200',
 };
 
 interface OrderRowProps {
@@ -60,6 +63,7 @@ const OrderRow: React.FC<OrderRowProps> = ({ order, navigate, userId }) => {
   const actionLabel: Partial<Record<Order['status'], string>> = {
     escrowed:  isSeller ? '⚡ ابدأ التنفيذ الآن'  : '⏳ بانتظار البائع',
     delivered: isBuyer  ? '✅ راجع واستلم العمل' : '⏳ بانتظار المشتري',
+    rating:    isBuyer  ? '⭐ قيّم التجربة للإنهاء' : '⏳ بانتظار تقييم المشتري',
     pending:   isBuyer  ? '💳 أكمل الدفع'        : '⏳ بانتظار الدفع',
     disputed:  '🚨 نزاع — يراجعه الإداري',
   };
@@ -120,6 +124,7 @@ const OrderRow: React.FC<OrderRowProps> = ({ order, navigate, userId }) => {
         <div className={`text-center py-1.5 rounded-xl text-[10px] font-black ${
           order.status === 'escrowed'  ? 'bg-amber-50 text-amber-700 border border-amber-200' :
           order.status === 'delivered' ? 'bg-purple-50 text-purple-700 border border-purple-200' :
+          order.status === 'rating'    ? 'bg-blue-50 text-blue-700 border border-blue-200' :
           order.status === 'disputed'  ? 'bg-red-50 text-red-700 border border-red-200' :
           'bg-gray-50 text-gray-500 border border-gray-100'
         }`}>
@@ -176,6 +181,7 @@ export const Dashboard: React.FC = () => {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [reviews, setReviews] = useState<any[]>([]);
   const [confidenceScore, setConfidenceScore] = useState(100);
+  const [isArchiveOpen, setIsArchiveOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'orders' | 'services' | 'messages' | 'stats' | 'system' | 'notifications'>('orders');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [logs, setLogs] = useState<any[]>([]);
@@ -538,6 +544,7 @@ export const Dashboard: React.FC = () => {
               const actionOrders = orders.filter(o =>
                 (o.status === 'escrowed' && o.sellerId === user?.uid) ||
                 (o.status === 'delivered' && o.buyerId === user?.uid) ||
+                (o.status === 'rating' && o.buyerId === user?.uid) ||
                 (o.status === 'pending' && o.buyerId === user?.uid) ||
                 o.status === 'disputed'
               );
@@ -588,22 +595,39 @@ export const Dashboard: React.FC = () => {
             </div>
 
             {/* ── Archive ──────────────────────────────────────────── */}
-            <div className="bg-white rounded-[2rem] border border-gray-100/50 shadow-sm overflow-hidden">
-              <div className="px-6 py-5 border-b border-gray-100/50 flex justify-between items-center bg-gray-50/30">
-                <h2 className="text-lg font-display font-black text-gray-950 opacity-60">الأرشيف</h2>
+            <div className="bg-white rounded-[2rem] border border-gray-100/50 shadow-sm overflow-hidden transition-all">
+              <div 
+                onClick={() => setIsArchiveOpen(!isArchiveOpen)}
+                className="px-6 py-5 border-b border-gray-100/50 flex justify-between items-center bg-gray-50/30 cursor-pointer hover:bg-gray-100/50 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <ChevronRight className={`w-5 h-5 text-gray-400 transition-transform ${isArchiveOpen ? 'rotate-90' : 'rtl:rotate-180'}`} />
+                  <h2 className="text-lg font-display font-black text-gray-950 opacity-60">الأرشيف</h2>
+                </div>
                 <span className="bg-gray-100 text-gray-500 px-3 py-1 rounded-full text-[10px] font-black">
                   {orders.filter(o => o.status === 'completed' || o.status === 'cancelled').length} صفقة
                 </span>
               </div>
-              <div className="divide-y divide-gray-50 overflow-y-auto max-h-[400px] no-scrollbar">
-                {orders.filter(o => o.status === 'completed' || o.status === 'cancelled').length === 0 ? (
-                  <div className="p-12 text-center text-gray-400 font-medium italic">الأرشيف فارغ.</div>
-                ) : (
-                  orders.filter(o => o.status === 'completed' || o.status === 'cancelled').map(order => (
-                    <ArchivedOrderRow key={order.id} order={order} navigate={navigate} />
-                  ))
+              <AnimatePresence>
+                {isArchiveOpen && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="divide-y divide-gray-50 overflow-y-auto max-h-[400px] no-scrollbar">
+                      {orders.filter(o => o.status === 'completed' || o.status === 'cancelled').length === 0 ? (
+                        <div className="p-12 text-center text-gray-400 font-medium italic">الأرشيف فارغ.</div>
+                      ) : (
+                        orders.filter(o => o.status === 'completed' || o.status === 'cancelled').map(order => (
+                          <ArchivedOrderRow key={order.id} order={order} navigate={navigate} />
+                        ))
+                      )}
+                    </div>
+                  </motion.div>
                 )}
-              </div>
+              </AnimatePresence>
             </div>
           </motion.div>
         )}
