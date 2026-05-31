@@ -1,0 +1,855 @@
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../constants/colors.dart';
+import '../models/user.dart';
+import '../models/order.dart';
+import 'order_details_screen.dart';
+import 'verification_screen.dart';
+import 'services_screen.dart';
+import 'create_order_screen.dart';
+import 'support_screen.dart';
+import 'settings_screen.dart';
+
+class DashboardScreen extends StatefulWidget {
+  final UserProfile mockUser;
+  final List<OrderModel> mockOrders;
+  final bool isDarkMode;
+  final VoidCallback onThemeToggle;
+  final VoidCallback? onLogout;
+
+  const DashboardScreen({
+    Key? key,
+    required this.mockUser,
+    required this.mockOrders,
+    required this.isDarkMode,
+    required this.onThemeToggle,
+    this.onLogout,
+  }) : super(key: key);
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  int _currentIndex = 0;
+  bool _showBalance = true;
+
+  @override
+  Widget build(BuildContext context) {
+    // Generate screens dynamically to receive real-time Firestore stream updates
+    final List<Widget> pages = [
+      _buildHomeContent(),
+      const ServicesScreen(),
+      CreateOrderScreen(currentUser: widget.mockUser),
+      const SupportScreen(),
+      SettingsScreen(
+        currentUser: widget.mockUser,
+        isDarkMode: widget.isDarkMode,
+        onThemeToggle: widget.onThemeToggle,
+      ),
+    ];
+
+    return Scaffold(
+      backgroundColor: AppColors.backgroundDark,
+      body: SafeArea(
+        child: IndexedStack(
+          index: _currentIndex,
+          children: pages,
+        ),
+      ),
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: AppColors.cardDark,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.3),
+              blurRadius: 20,
+              offset: const Offset(0, -4),
+            ),
+          ],
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(28),
+            topRight: Radius.circular(28),
+          ),
+        ),
+        child: ClipRRect(
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(28),
+            topRight: Radius.circular(28),
+          ),
+          child: BottomNavigationBar(
+            currentIndex: _currentIndex,
+            onTap: (index) => setState(() => _currentIndex = index),
+            backgroundColor: AppColors.cardDark,
+            selectedItemColor: AppColors.accentGold,
+            unselectedItemColor: AppColors.textMuted,
+            type: BottomNavigationBarType.fixed,
+            selectedLabelStyle: GoogleFonts.cairo(fontWeight: FontWeight.w900, fontSize: 10),
+            unselectedLabelStyle: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 9),
+            items: const [
+              BottomNavigationBarItem(
+                icon: Icon(Icons.home_outlined),
+                activeIcon: Icon(Icons.home),
+                label: 'الرئيسية',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.handshake_outlined),
+                activeIcon: Icon(Icons.handshake),
+                label: 'الوسطاء',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.add_moderator_outlined),
+                activeIcon: Icon(Icons.add_moderator),
+                label: 'تعميد جديد',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.psychology_outlined),
+                activeIcon: Icon(Icons.psychology),
+                label: 'المستشار',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.settings_outlined),
+                activeIcon: Icon(Icons.settings),
+                label: 'الإعدادات',
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHomeContent() {
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 1. Header Section
+          _buildHeader(),
+
+          // 2. The Platinum Balance Card
+          _buildPlatinumCard(),
+
+          // 3. Locked Funds & Escrow Status Widget
+          _buildEscrowStatusWidget(),
+
+          // 4. Quick Actions Grid
+          _buildQuickActions(),
+
+          // 5. Active Escrows List Header
+          _buildSectionHeader('الصفقات والضمانات النشطة', () {
+            setState(() => _currentIndex = 1); // Navigate to Services/Brokers list
+          }),
+
+          // 6. Active Escrow List Items
+          _buildActiveEscrowList(),
+          
+          const SizedBox(height: 30),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Row(
+              children: [
+                Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.accentGold, width: 2),
+                    image: widget.mockUser.photoURL.isNotEmpty
+                        ? DecorationImage(image: NetworkImage(widget.mockUser.photoURL))
+                        : null,
+                  ),
+                  child: widget.mockUser.photoURL.isEmpty
+                      ? const Icon(Icons.person, color: AppColors.accentGold, size: 28)
+                      : null,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'أهلاً بك، شريكنا المالي',
+                        style: GoogleFonts.cairo(
+                          color: AppColors.textMuted,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              widget.mockUser.displayName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.cairo(
+                                color: AppColors.textLight,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          if (widget.mockUser.isVerified)
+                            const Icon(Icons.verified, color: AppColors.success, size: 16)
+                          else
+                            const Icon(Icons.shield_outlined, color: AppColors.alert, size: 16),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Row(
+            children: [
+              GestureDetector(
+                onTap: widget.onThemeToggle,
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: widget.isDarkMode ? AppColors.cardDark : Colors.grey.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.textMuted.withOpacity(0.1)),
+                  ),
+                  child: Icon(
+                    widget.isDarkMode ? Icons.wb_sunny_outlined : Icons.nightlight_outlined,
+                    color: AppColors.accentGold,
+                    size: 24,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: widget.isDarkMode ? AppColors.cardDark : Colors.grey.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.textMuted.withOpacity(0.1)),
+                ),
+                child: Icon(
+                  Icons.notifications_none,
+                  color: widget.isDarkMode ? AppColors.textLight : AppColors.textDark,
+                  size: 24,
+                ),
+              ),
+              if (widget.onLogout != null) ...[
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: widget.onLogout,
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: widget.isDarkMode ? AppColors.cardDark : Colors.grey.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.alert.withOpacity(0.2)),
+                    ),
+                    child: const Icon(Icons.logout_rounded, color: AppColors.alert, size: 24),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPlatinumCard() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+      width: double.infinity,
+      height: 200,
+      decoration: BoxDecoration(
+        gradient: AppColors.goldCardGradient,
+        borderRadius: BorderRadius.circular(32),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.accentGold.withOpacity(0.15),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            right: -20,
+            bottom: -20,
+            child: Icon(
+              Icons.shield_outlined,
+              size: 180,
+              color: AppColors.textLight.withOpacity(0.05),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(26),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'بطاقة الضمان والصفقات الآمنة',
+                      style: GoogleFonts.cairo(
+                        color: AppColors.textLight.withOpacity(0.8),
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Icon(Icons.security, color: AppColors.textLight, size: 20),
+                  ],
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'الضمانات الجارية قيد التنفيذ',
+                          style: GoogleFonts.cairo(
+                            color: AppColors.textLight.withOpacity(0.7),
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: () => setState(() => _showBalance = !_showBalance),
+                          child: Icon(
+                            _showBalance ? Icons.visibility_off : Icons.visibility,
+                            color: AppColors.textLight.withOpacity(0.7),
+                            size: 16,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Text(
+                          _showBalance 
+                              ? widget.mockUser.pendingBalance.toStringAsFixed(2) 
+                              : '••••••',
+                          style: GoogleFonts.outfit(
+                            color: AppColors.textLight,
+                            fontSize: 28,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'ر.س',
+                          style: GoogleFonts.cairo(
+                            color: AppColors.textLight,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '#ARB-${widget.mockUser.userShortId}',
+                      style: GoogleFonts.outfit(
+                        color: AppColors.textLight.withOpacity(0.8),
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.textLight.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        'حساب موثق بالكامل',
+                        style: GoogleFonts.cairo(
+                          color: AppColors.textLight,
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEscrowStatusWidget() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.cardDark,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.textMuted.withOpacity(0.08)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.accentGold.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Icon(Icons.account_balance_outlined, color: AppColors.accentGold, size: 24),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'الأرباح المتاحة للتسوية والتحويل البنكي',
+                  style: GoogleFonts.cairo(
+                    color: AppColors.textMuted,
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Row(
+                  children: [
+                    Text(
+                      widget.mockUser.balance.toStringAsFixed(2),
+                      style: GoogleFonts.outfit(
+                        color: AppColors.accentGold,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'ريال',
+                      style: GoogleFonts.cairo(
+                        color: AppColors.accentGold,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppColors.success.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              'تسوية مباشرة',
+              style: GoogleFonts.cairo(
+                color: AppColors.success,
+                fontSize: 8,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickActions() {
+    final List<Map<String, dynamic>> actions = [
+      {
+        'title': 'تعميد جديد',
+        'icon': Icons.add_moderator_outlined,
+        'color': AppColors.accentGold,
+        'action': () {
+          setState(() => _currentIndex = 2); // Switch to Create Order tab
+        },
+      },
+      {
+        'title': 'توثيق الحساب',
+        'icon': Icons.fingerprint_outlined,
+        'color': AppColors.info,
+        'action': () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => VerificationScreen(mockUser: widget.mockUser),
+            ),
+          );
+        },
+      },
+      {
+        'title': 'بوابة الدفع',
+        'icon': Icons.credit_card_outlined,
+        'color': AppColors.success,
+        'action': () {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              backgroundColor: AppColors.cardDark,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+              title: Text(
+                'بوابة الدفع المباشر',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.cairo(color: AppColors.accentGold, fontWeight: FontWeight.w900, fontSize: 16),
+              ),
+              content: Text(
+                'تطبيق عربون يعمل كوسيط مالي رقمي متكامل يربط تعاملاتك ببوابة دفع إلكترونية مباشرة (مدى، فيزا، Apple Pay). لا تحتاج إلى أي شحن مسبق أو محافظ أرصدة؛ بل يتم حجز وسداد قيمة الضمان لكل تعميد بشكل مستقل ومؤمن بالكامل فور السداد لحين اكتمال التسليم.',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.cairo(color: AppColors.textLight, fontSize: 12, height: 1.6),
+              ),
+              actions: [
+                Center(
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.accentGold,
+                      foregroundColor: AppColors.primaryDark,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      minimumSize: const Size(120, 44),
+                    ),
+                    child: Text('فهمت ذلك', style: GoogleFonts.cairo(fontWeight: FontWeight.w900)),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      },
+      {
+        'title': 'سجل الحساب',
+        'icon': Icons.receipt_long_outlined,
+        'color': AppColors.textMuted,
+        'action': () {
+          showModalBottomSheet(
+            context: context,
+            backgroundColor: AppColors.cardDark,
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(32),
+                topRight: Radius.circular(32),
+              ),
+            ),
+            builder: (context) => Padding(
+              padding: const EdgeInsets.all(28),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'سجل معاملات الحساب المالي',
+                    style: GoogleFonts.cairo(color: AppColors.textLight, fontWeight: FontWeight.w900, fontSize: 16),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildRecordItem('إجمالي الضمانات الجارية', '${widget.mockUser.pendingBalance.toStringAsFixed(2)} ر.س', Icons.lock_outline, AppColors.info),
+                  _buildRecordItem('الأرباح المتاحة للتسوية البنكية', '${widget.mockUser.balance.toStringAsFixed(2)} ر.س', Icons.account_balance_outlined, AppColors.success),
+                  _buildRecordItem('الصفقات النشطة بالمنصة', '${widget.mockOrders.length} صفقات جارية', Icons.description_outlined, AppColors.accentGold),
+                  const SizedBox(height: 20),
+                ],
+              ),
+            ),
+          );
+        },
+      },
+    ];
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 15),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: actions.map((act) {
+          return InkWell(
+            onTap: act['action'] as VoidCallback,
+            borderRadius: BorderRadius.circular(20),
+            child: Column(
+              children: [
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: AppColors.cardDark,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.textMuted.withOpacity(0.08)),
+                  ),
+                  child: Icon(act['icon'] as IconData, color: act['color'] as Color, size: 26),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  act['title'] as String,
+                  style: GoogleFonts.cairo(
+                    color: AppColors.textLight,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildRecordItem(String label, String val, IconData icon, Color color) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(width: 12),
+          Text(label, style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 12, fontWeight: FontWeight.bold)),
+          const Spacer(),
+          Text(val, style: GoogleFonts.outfit(color: AppColors.textLight, fontSize: 13, fontWeight: FontWeight.w900)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title, VoidCallback onTap) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 15),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            title,
+            style: GoogleFonts.cairo(
+              color: AppColors.textLight,
+              fontSize: 14,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          TextButton(
+            onPressed: onTap,
+            child: Text(
+              'عرض الكل',
+              style: GoogleFonts.cairo(
+                color: AppColors.accentGold,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActiveEscrowList() {
+    if (widget.mockOrders.isEmpty) {
+      return Container(
+        margin: const EdgeInsets.symmetric(horizontal: 24),
+        padding: const EdgeInsets.all(30),
+        decoration: BoxDecoration(
+          color: AppColors.cardDark,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Center(
+          child: Text(
+            'ليس لديك صفقات أو ضمانات نشطة حالياً',
+            style: GoogleFonts.cairo(
+              color: AppColors.textMuted,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: widget.mockOrders.length,
+      itemBuilder: (context, index) {
+        final order = widget.mockOrders[index];
+        return _buildEscrowCard(order);
+      },
+    );
+  }
+
+  Widget _buildEscrowCard(OrderModel order) {
+    Color statusColor = AppColors.pending;
+    String statusText = 'قيد المراجعة';
+
+    switch (order.status) {
+      case 'pending':
+        statusColor = AppColors.pending;
+        statusText = '⏳ بانتظار الاعتماد';
+        break;
+      case 'escrowed':
+        statusColor = AppColors.info;
+        statusText = '🔒 مجمد بالضمان';
+        break;
+      case 'delivered':
+        statusColor = AppColors.success;
+        statusText = '📦 تم التسليم';
+        break;
+      case 'completed':
+        statusColor = AppColors.success;
+        statusText = '✅ مكتمل';
+        break;
+      case 'disputed':
+        statusColor = AppColors.alert;
+        statusText = '🚨 نزاع قائم';
+        break;
+    }
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => OrderDetailsScreen(order: order, currentUserId: widget.mockUser.uid),
+          ),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: AppColors.cardDark,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppColors.textMuted.withOpacity(0.05)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Row(
+                children: [
+                  Container(
+                    width: 50,
+                    height: 50,
+                    decoration: BoxDecoration(
+                      color: statusColor.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Icon(
+                      order.status == 'escrowed' 
+                          ? Icons.lock_outline 
+                          : order.status == 'delivered'
+                              ? Icons.assignment_turned_in_outlined
+                              : Icons.schedule_outlined,
+                      color: statusColor, 
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          order.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.cairo(
+                            color: AppColors.textLight,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: statusColor.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                statusText,
+                                style: GoogleFonts.cairo(
+                                  color: statusColor,
+                                  fontSize: 8,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '#ARB-${order.id.substring(0, 4).toUpperCase()}',
+                              style: GoogleFonts.outfit(
+                                color: AppColors.textMuted,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Text(
+                      order.amount.toStringAsFixed(0),
+                      style: GoogleFonts.outfit(
+                        color: AppColors.textLight,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    Text(
+                      'ر.س',
+                      style: GoogleFonts.cairo(
+                        color: AppColors.textLight,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${order.deliveryDays} أيام تسليم',
+                  style: GoogleFonts.cairo(
+                    color: AppColors.textMuted,
+                    fontSize: 8,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
