@@ -289,11 +289,19 @@ class BaileysClientWrapper {
     }
   }
 
-  async sendMessage(jid: string, text: string) {
+  async sendMessage(jid: string, text: any) {
     const baileysJid = jid.replace('@c.us', '@s.whatsapp.net');
     if (this.sock) {
       try {
-        await this.sock.sendMessage(baileysJid, { text });
+        let payload: any;
+        if (typeof text === 'string') {
+          payload = { text: text };
+        } else if (text && typeof text === 'object') {
+          payload = text;
+        } else {
+          payload = { text: String(text) };
+        }
+        await this.sock.sendMessage(baileysJid, payload);
         console.log(`📡 [WhatsApp Baileys] Sent message to ${baileysJid}`);
       } catch (err) {
         console.error(`❌ [WhatsApp Baileys] Failed to send message to ${baileysJid}:`, err);
@@ -643,7 +651,8 @@ async function handleWhatsAppMessage(msg: any) {
 
       // Call payment capture endpoint in background
       try {
-        await axios.post(`${process.env.APP_URL || 'http://localhost:5000'}/api/payment/capture`, {
+        const localPort = process.env.PORT || 3000;
+        await axios.post(`http://127.0.0.1:${localPort}/api/payment/capture`, {
           orderId: matchedOrder.id,
           amount: orderData.amount,
           transactionId: orderData.paymentRef
@@ -1564,6 +1573,39 @@ async function startServer() {
     const { orderId, amount, transactionId } = req.body;
     console.log(`[Payment] Capturing ${amount} SAR for order ${orderId} (Ref: ${transactionId})`);
     
+    // Securely update the seller's balance on the server side to bypass client-side Firestore restrictions
+    if (db && orderId) {
+      try {
+        const orderSnap = await db.collection('orders').doc(orderId).get();
+        if (orderSnap.exists) {
+          const orderData = orderSnap.data() || {};
+          if (orderData.isBalanceReleased !== true) {
+            const sellerId = orderData.sellerId;
+            const sellerNetShare = orderData.paymentFees?.sellerNetShare || orderData.amount || amount;
+            
+            if (sellerId && sellerId !== 'unknown') {
+              console.log(`🏦 [Payment Capture] Securely incrementing balance for seller ${sellerId} by ${sellerNetShare} SAR`);
+              await db.collection('users').doc(sellerId).update({
+                balance: admin.firestore.FieldValue.increment(sellerNetShare),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+              });
+              
+              // Mark order as balance released to prevent double credit
+              await db.collection('orders').doc(orderId).update({
+                isBalanceReleased: true,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+              });
+              console.log(`✅ [Payment Capture] Balance updated for seller ${sellerId}`);
+            }
+          } else {
+            console.log(`ℹ️ [Payment Capture] Balance already released for order ${orderId}, skipping duplicate release`);
+          }
+        }
+      } catch (err: any) {
+        console.error("❌ [Payment Capture] Failed to securely update seller balance:", err.message || err);
+      }
+    }
+
     if (!isGeideaConfigured) {
       return res.json({
         status: 'captured',
@@ -2272,6 +2314,7 @@ function startAutomatedBanker() {
           // 1. Update Order Status
           await doc.ref.update({
             status: 'completed',
+            isBalanceReleased: true,
             updatedAt: admin.firestore.FieldValue.serverTimestamp()
           });
 
