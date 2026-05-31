@@ -62,6 +62,35 @@ try {
   db = getFirestore(admin.app(), databaseId);
 
   console.log("[Firebase] Admin SDK initialized successfully at startup");
+
+  // Verify database credentials asynchronously to prevent startup crashes on local dev
+  console.log("🔍 [Firebase Admin] Verifying database credentials...");
+  db.collection('notifications').limit(1).get()
+    .then(() => {
+      console.log("✅ [Firebase Admin] Database credentials verified. Starting background services...");
+      (global as any).hasValidCredentials = true;
+      // Start background services
+      try {
+        startFirebaseListeners();
+      } catch (err) {
+        console.error("❌ Error starting Firebase listeners:", err);
+      }
+      try {
+        startAutomatedMarketer();
+      } catch (err) {
+        console.error("❌ Error starting Automated Marketer:", err);
+      }
+      try {
+        startAutomatedBanker();
+      } catch (err) {
+        console.error("❌ Error starting Automated Banker:", err);
+      }
+    })
+    .catch((err: any) => {
+      console.warn("⚠️ [Firebase Admin] Running without valid credentials. Background services (WhatsApp notifications, automated bots) are disabled.");
+      console.warn("👉 To enable them, please provide a valid 'service-account.json' file or configure the 'FIREBASE_SERVICE_ACCOUNT_JSON' environment variable.");
+      (global as any).hasValidCredentials = false;
+    });
 } catch (err) {
   console.error("❌ Failed to initialize Firebase Admin SDK at startup:", err);
 }
@@ -694,8 +723,8 @@ export function formatWhatsAppNumber(num: string): string {
 
 // Real-time WhatsApp notifications listener
 function startFirebaseListeners() {
-  if (!db || (global as any).usingADC) {
-    console.warn("⚠️ [Firebase Listeners] Skipping on local dev without service account.");
+  if (!db) {
+    console.warn("⚠️ [Firebase Listeners] Skipping: Database not initialized.");
     return;
   }
   const startupTime = new Date(); // needed for messages listener
@@ -1882,7 +1911,7 @@ async function startServer() {
 }
 // --- Automated Marketer Bot (تذكيرات العملاء الآلية) ---
 function startAutomatedMarketer() {
-  if ((global as any).usingADC) return;
+  if (!db) return;
   // Run every 30 minutes
   setInterval(async () => {
     if (!db || whatsappStatus !== 'connected' || !whatsappClient) return;
@@ -2217,7 +2246,7 @@ async function runAutoModeratorScan() {
 
 // --- Automated Banker Bot (إدارة النزاعات والمحاسبة الآلية) ---
 function startAutomatedBanker() {
-  if ((global as any).usingADC) return;
+  if (!db) return;
   // Run every 1 hour
   setInterval(async () => {
     if (!db) return;
@@ -2346,5 +2375,3 @@ function startAutomatedBanker() {
     }
   }, 60 * 60 * 1000); // 1 hour
 }
-
-startAutomatedBanker();
