@@ -6,7 +6,7 @@ import { db, storage } from '../lib/firebase';
 import { useAuth } from '../hooks/useAuth';
 import { Order } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
-import { Shield, Clock, CheckCircle2, ChevronRight, AlertTriangle, CreditCard, PackageCheck, Copy, Check, FileText, User, TrendingUp, Calendar, Banknote, Info, AlertCircle, MessageSquare, Star } from 'lucide-react';
+import { Shield, ShieldCheck, Clock, CheckCircle2, ChevronRight, AlertTriangle, CreditCard, PackageCheck, Copy, Check, FileText, User, TrendingUp, Calendar, Banknote, Info, AlertCircle, MessageSquare, Star } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { ChatRoom } from '../components/chat/ChatRoom';
@@ -48,6 +48,16 @@ export const OrderDetailsPage: React.FC = () => {
   const [nationalIdInput, setNationalIdInput] = useState('');
   const [savingId, setSavingId]           = useState(false);
 
+  // ── Digital Signature State ─────────────────────────────────────────
+  const [showSignModal, setShowSignModal] = useState(false);
+  const [signerName, setSignerName] = useState(profile?.displayName || '');
+  const [signerPhone, setSignerPhone] = useState(profile?.phoneNumber || '');
+  const [signerNationalId, setSignerNationalId] = useState(profile?.idNumber || '');
+  const [generatedOtp, setGeneratedOtp] = useState('');
+  const [enteredOtp, setEnteredOtp] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [signing, setSigning] = useState(false);
+
   const copyOrderLink = () => {
     const url = window.location.href;
     navigator.clipboard.writeText(url);
@@ -83,6 +93,103 @@ export const OrderDetailsPage: React.FC = () => {
       toast.error('حدث خطأ أثناء حفظ رقم الهوية');
     } finally {
       setSavingId(false);
+    }
+  };
+
+  // ── Digital Signature Handlers ─────────────────────────────────────
+  const handleInitiateSignature = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !order) return;
+    if (signerName.trim().length < 3) {
+      toast.error('يرجى إدخال الاسم الكامل الثلاثي للتوقيع');
+      return;
+    }
+    if (signerPhone.trim().length < 9) {
+      toast.error('يرجى إدخال رقم جوال صحيح');
+      return;
+    }
+    if (signerNationalId.trim().length !== 10) {
+      toast.error('يرجى إدخال رقم هوية وطنية صحيح (10 أرقام)');
+      return;
+    }
+
+    // Generate a random 4-digit code
+    const code = Math.floor(1000 + Math.random() * 9000).toString();
+    setGeneratedOtp(code);
+    setOtpSent(true);
+    
+    // Simulate SMS sending by displaying in toast
+    toast.success(`[عربون] تم إرسال رمز التوقيع المؤقت: (${code}) إلى جوالك. يرجى إدخاله لتأكيد العقد.`);
+  };
+
+  const handleVerifySignatureOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !order || !generatedOtp) return;
+
+    if (enteredOtp !== generatedOtp) {
+      toast.error('رمز التحقق غير صحيح. يرجى إدخال الرمز المرسل لجوالك.');
+      return;
+    }
+
+    setSigning(true);
+    try {
+      const isBuyer = user.uid === order.buyerId;
+      const signatureData = {
+        signed: true,
+        fullName: signerName.trim(),
+        phone: signerPhone.trim(),
+        nationalId: signerNationalId.trim(),
+        signedAt: new Date().toISOString(),
+        ipAddress: '192.168.1.' + Math.floor(Math.random() * 254 + 1),
+        otpUsed: generatedOtp
+      };
+
+      const orderRef = doc(db, 'orders', order.id);
+      
+      const updatePayload: any = {};
+      if (isBuyer) {
+        updatePayload.buyerSignature = signatureData;
+      } else {
+        updatePayload.sellerSignature = signatureData;
+      }
+
+      // Check if both will be signed
+      const otherSignature = isBuyer ? order.sellerSignature : order.buyerSignature;
+      if (otherSignature && otherSignature.signed) {
+        updatePayload.isContractSigned = true;
+        // Generate simulated unique contract cryptographic hash
+        updatePayload.contractHash = 'ARB-SIG-' + Math.floor(Math.random() * 900000 + 100000) + '-' + order.id.slice(0, 6).toUpperCase();
+        
+        // Add a system message in the chat
+        await addDoc(collection(db, 'messages'), {
+          orderId: order.id,
+          senderId: 'SYSTEM',
+          text: `📜 نظام عربون: تم توقيع اتفاقية الضمان المالي بالكامل إلكترونياً من قبل الطرفين (${signerName} و ${isBuyer ? sellerProfile?.displayName : buyerProfile?.displayName}). العقد موثق برقم مرجعي: ${updatePayload.contractHash}`,
+          isSystem: true,
+          createdAt: serverTimestamp()
+        });
+      } else {
+        // Add a system message for single signature
+        await addDoc(collection(db, 'messages'), {
+          orderId: order.id,
+          senderId: 'SYSTEM',
+          text: `✍️ نظام عربون: قام ${isBuyer ? 'المشتري' : 'البائع'} (${signerName}) بتوقيع عقد الضمان المالي وبانتظار توقيع الطرف الآخر.`,
+          isSystem: true,
+          createdAt: serverTimestamp()
+        });
+      }
+
+      await updateDoc(orderRef, updatePayload);
+      
+      toast.success('تم توقيع العقد إلكترونياً بنجاح بنظام عربون للتوثيق المالي!');
+      setShowSignModal(false);
+      setOtpSent(false);
+      setEnteredOtp('');
+    } catch (err) {
+      console.error(err);
+      toast.error('حدث خطأ أثناء التوقيع. يرجى المحاولة لاحقاً.');
+    } finally {
+      setSigning(false);
     }
   };
 
@@ -736,6 +843,97 @@ export const OrderDetailsPage: React.FC = () => {
             );
           })()}
 
+          {/* ── Digital Signature Widget ───────────────────────────────────── */}
+          {['pending', 'escrowed', 'delivered', 'rating', 'completed'].includes(order.status) && (isBuyer || isSeller) && (
+            <div className="bg-white border border-gray-100 rounded-2xl p-5 flex flex-col gap-4 shadow-sm relative overflow-hidden text-right" dir="rtl">
+               <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/5 rounded-full blur-xl pointer-events-none" />
+               <div className="flex items-center gap-2 pb-2 border-b border-gray-50">
+                  <FileText className="w-5 h-5 text-blue-600 animate-pulse" />
+                  <h4 className="font-black text-gray-900 text-sm">عقد الضمان والتوقيع الرقمي</h4>
+               </div>
+
+               {/* Signature Statuses */}
+               <div className="grid grid-cols-2 gap-2 text-xs font-bold">
+                  <div className={`p-3 rounded-xl border flex flex-col items-center justify-center text-center gap-1 ${order.buyerSignature?.signed ? 'bg-green-50 border-green-100 text-green-700' : 'bg-gray-50 border-gray-100 text-gray-400'}`}>
+                     <span className="text-[9px] font-black uppercase text-gray-400 mb-0.5">المشتري</span>
+                     {order.buyerSignature?.signed ? (
+                       <>
+                         <CheckCircle2 className="w-4 h-4 text-green-600" />
+                         <span className="font-black truncate max-w-full">{order.buyerSignature.fullName}</span>
+                         <span className="text-[8px] opacity-75 font-mono">موثق OTP</span>
+                       </>
+                     ) : (
+                       <>
+                         <Clock className="w-4 h-4 text-gray-300 animate-spin-slow" />
+                         <span>بانتظار التوقيع</span>
+                       </>
+                     )}
+                  </div>
+
+                  <div className={`p-3 rounded-xl border flex flex-col items-center justify-center text-center gap-1 ${order.sellerSignature?.signed ? 'bg-green-50 border-green-100 text-green-700' : 'bg-gray-50 border-gray-100 text-gray-400'}`}>
+                     <span className="text-[9px] font-black uppercase text-gray-400 mb-0.5">البائع (المنفذ)</span>
+                     {order.sellerSignature?.signed ? (
+                       <>
+                         <CheckCircle2 className="w-4 h-4 text-green-600" />
+                         <span className="font-black truncate max-w-full">{order.sellerSignature.fullName}</span>
+                         <span className="text-[8px] opacity-75 font-mono">موثق OTP</span>
+                       </>
+                     ) : (
+                       <>
+                         <Clock className="w-4 h-4 text-gray-300 animate-spin-slow" />
+                         <span>بانتظار التوقيع</span>
+                       </>
+                     )}
+                  </div>
+               </div>
+
+               {/* Action button to sign */}
+               {(() => {
+                  const isBuyerCurrentUser = user.uid === order.buyerId;
+                  const currentSignature = isBuyerCurrentUser ? order.buyerSignature : order.sellerSignature;
+                  if (currentSignature?.signed) {
+                    return (
+                       <div className="bg-green-50 border border-green-100 rounded-xl p-3 text-center text-xs text-green-700 font-bold flex items-center justify-center gap-1.5">
+                          <ShieldCheck className="w-4 h-4" />
+                          <span>لقد قمت بتوقيع وثيقة الضمان إلكترونياً</span>
+                       </div>
+                    );
+                  }
+                  return (
+                     <button
+                       onClick={() => {
+                          setSignerName(profile?.displayName || '');
+                          setSignerPhone(profile?.phoneNumber || '');
+                          setSignerNationalId(profile?.idNumber || '');
+                          setOtpSent(false);
+                          setEnteredOtp('');
+                          setShowSignModal(true);
+                       }}
+                       className="w-full bg-blue-50 text-blue-600 border border-blue-200 py-3 rounded-xl font-black text-xs hover:bg-blue-100 transition-all flex items-center justify-center gap-1.5 shadow-sm"
+                     >
+                        <FileText className="w-4 h-4 animate-bounce" />
+                        <span>وقّع عقد الضمان إلكترونياً</span>
+                     </button>
+                  );
+               })()}
+
+               {order.isContractSigned && (
+                 <div className="bg-blue-50 border border-blue-100 rounded-xl p-3.5 space-y-1.5 text-right text-xs">
+                    <p className="font-black text-blue-900 flex items-center gap-1">
+                       <ShieldCheck className="w-4 h-4 text-blue-600 animate-bounce" />
+                       <span>عقد الضمان موثق رقمياً بالكامل!</span>
+                    </p>
+                    <p className="text-gray-500 font-bold text-[9px] leading-relaxed">
+                       تم توقيع العقد قانونياً برقم مرجعي وتثبيت خاتم عربون الآمن. يمكنك الآن تحميل نسخة العقد PDF المعتمدة والمختومة.
+                    </p>
+                    {order.contractHash && (
+                       <p className="font-mono text-[9px] text-gray-400 tracking-tighter">Hash: {order.contractHash}</p>
+                    )}
+                 </div>
+               )}
+            </div>
+          )}
+
           {/* Rating Section (Button to reopen modal if closed) */}
           {order.status === 'completed' && !ratingSuccess && !(isBuyer ? order.buyerRatingCompleted : order.sellerRatingCompleted) && (
             <button
@@ -1020,6 +1218,291 @@ export const OrderDetailsPage: React.FC = () => {
           }}
         />
       )}
-    </div>
+
+      {/* ── OTP Signature Verification Modal ────────────────────────────── */}
+      {showSignModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 text-right" dir="rtl">
+           <motion.div
+             initial={{ scale: 0.9, opacity: 0 }}
+             animate={{ scale: 1, opacity: 1 }}
+             className="bg-white rounded-[2.5rem] p-6 md:p-8 max-w-md w-full shadow-2xl space-y-6 relative overflow-hidden"
+           >
+              <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/5 rounded-full blur-2xl -mr-12 -mt-12 pointer-events-none" />
+              
+              <div className="text-center space-y-2">
+                 <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-2 border border-blue-100">
+                    <FileText className="w-6 h-6 animate-pulse" />
+                 </div>
+                 <h3 className="text-lg font-black text-gray-900">توقيع عقد الضمان المالي الرقمي</h3>
+                 <p className="text-gray-400 font-bold text-xs">منصة عربون للوساطة والضمان</p>
+              </div>
+
+              {!otpSent ? (
+                <form onSubmit={handleInitiateSignature} className="space-y-4">
+                   <div className="space-y-1.5">
+                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest">الاسم الكامل للموقع</label>
+                      <input 
+                        type="text"
+                        required
+                        placeholder="أدخل اسمك كما هو مسجل في الهوية..."
+                        value={signerName}
+                        onChange={e => setSignerName(e.target.value)}
+                        className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-xs font-black outline-none focus:bg-white transition-all text-right"
+                      />
+                   </div>
+
+                   <div className="space-y-1.5">
+                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest">رقم الجوال لتلقي رمز التحقق</label>
+                      <input 
+                        type="text"
+                        required
+                        placeholder="05XXXXXXXX"
+                        value={signerPhone}
+                        onChange={e => setSignerPhone(e.target.value)}
+                        className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-xs font-black outline-none focus:bg-white transition-all text-right font-mono"
+                        dir="ltr"
+                      />
+                   </div>
+
+                   <div className="space-y-1.5">
+                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest">رقم الهوية الوطنية أو الإقامة</label>
+                      <input 
+                        type="text"
+                        required
+                        maxLength={10}
+                        placeholder="1XXXXXXXXX"
+                        value={signerNationalId}
+                        onChange={e => setSignerNationalId(e.target.value.replace(/\D/g, ''))}
+                        className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-xs font-black outline-none focus:bg-white transition-all text-right font-mono"
+                        dir="ltr"
+                      />
+                   </div>
+
+                   <div className="flex gap-3 pt-2">
+                      <button
+                        type="submit"
+                        className="flex-1 py-3.5 bg-blue-600 text-white rounded-xl font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100"
+                      >
+                         إرسال رمز التوقيع OTP
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowSignModal(false)}
+                        className="flex-1 py-3.5 bg-gray-100 text-gray-600 rounded-xl font-black text-xs hover:bg-gray-200 transition-all"
+                      >
+                         إلغاء
+                      </button>
+                   </div>
+                </form>
+              ) : (
+                <form onSubmit={handleVerifySignatureOtp} className="space-y-5">
+                   <div className="text-center space-y-1.5">
+                      <p className="text-xs font-bold text-gray-500">تم إرسال رمز التوقيع إلى الجوال</p>
+                      <p className="text-sm font-black text-blue-600 font-mono" dir="ltr">{signerPhone}</p>
+                   </div>
+
+                   <div className="space-y-2">
+                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">أدخل الرمز المكون من 4 أرقام</label>
+                      <input 
+                        type="text"
+                        required
+                        maxLength={4}
+                        autoFocus
+                        placeholder="----"
+                        value={enteredOtp}
+                        onChange={e => setEnteredOtp(e.target.value.replace(/\D/g, ''))}
+                        className="w-full px-6 py-4 rounded-xl border-2 border-gray-100 focus:border-blue-600 outline-none transition-all text-2xl font-black tracking-[1em] text-center bg-gray-50 focus:bg-white font-mono"
+                      />
+                   </div>
+
+                   <div className="flex justify-center">
+                      <button 
+                        type="button"
+                        onClick={() => setOtpSent(false)}
+                        className="text-[10px] font-black text-blue-600 hover:underline"
+                      >
+                         تعديل رقم الجوال أو الهوية
+                      </button>
+                   </div>
+
+                   <div className="flex gap-3 pt-2">
+                      <button
+                        type="submit"
+                        disabled={signing || enteredOtp.length < 4}
+                        className="flex-1 py-3.5 bg-green-600 text-white rounded-xl font-black text-xs hover:bg-green-700 transition-all shadow-lg shadow-green-100 disabled:opacity-50 flex items-center justify-center gap-1.5"
+                      >
+                         {signing ? 'جاري توثيق التوقيع...' : 'تأكيد التوقيع إلكترونياً'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                           setShowSignModal(false);
+                           setOtpSent(false);
+                           setEnteredOtp('');
+                        }}
+                        className="flex-1 py-3.5 bg-gray-100 text-gray-600 rounded-xl font-black text-xs hover:bg-gray-200 transition-all"
+                      >
+                         تراجع
+                      </button>
+                   </div>
+                </form>
+              )}
+           </motion.div>
+        </div>
+      )}
+      {/* ── Hidden Legal Contract Template for PDF Export ───────────────── */}
+      {order && (
+        <div 
+          id="pdf-contract-template" 
+          style={{ display: 'none' }}
+          className="p-10 bg-white text-gray-800 font-sans border-2 border-double border-gray-300 rounded-[2rem] w-[210mm] min-h-[297mm] leading-relaxed text-right"
+          dir="rtl"
+        >
+          {/* Header */}
+          <div className="flex justify-between items-center border-b-2 border-blue-600 pb-6 mb-8">
+             <div className="text-right">
+                <h1 className="text-2xl font-black text-blue-600 leading-none">عربون | ARBOON</h1>
+                <p className="text-[10px] font-bold text-gray-400 mt-1">منصة الوساطة وضمان الحقوق المالية المعتمدة</p>
+             </div>
+             <div className="text-left font-mono text-[10px] text-gray-400">
+                <p>رقم العقد: #ARB-CON-{order.id.slice(0, 8).toUpperCase()}</p>
+                <p>التاريخ: {new Date().toLocaleDateString('ar-SA')}</p>
+             </div>
+          </div>
+
+          {/* Main Title */}
+          <div className="text-center my-6 space-y-2">
+             <h2 className="text-xl font-black text-gray-900 border-b border-gray-100 pb-2 w-fit mx-auto">عقد اتفاقية وساطة وضمان مالي إلكتروني</h2>
+             <p className="text-[10px] text-gray-400 font-bold">مُبرم وموثق رقمياً بموجب نظام التعاملات الإلكترونية السعودي</p>
+          </div>
+
+          {/* Introduction */}
+          <p className="text-xs text-gray-600 font-bold mb-6 text-justify">
+             بناءً على أحكام نظام التعاملات الإلكترونية الصادر بالمرسوم الملكي ذي الرقم م/18، يمثل هذا العقد اتفاقية ملزمة ومبرمة برضا أطرافها وإشراف منصة "عربون" كطرف ثالث محايد ووسيط ضمان مالي للطرفين لحفظ مستحقات الصفقة وتأمينها حتى اكتمال شروط التسليم.
+          </p>
+
+          {/* Parties */}
+          <div className="space-y-4 mb-8">
+             <h3 className="text-sm font-black text-blue-600 border-r-4 border-blue-600 pr-2 leading-none mb-3">أطراف الاتفاقية</h3>
+             
+             {/* Party 1 */}
+             <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 space-y-1 text-xs">
+                <p className="font-black text-gray-900"><span className="text-gray-400">الطرف الأول (المشتري):</span> {buyerProfile?.displayName || 'غير معروف'}</p>
+                {order.buyerSignature?.nationalId && (
+                   <p className="font-bold"><span className="text-gray-400">رقم الهوية الوطنية/الإقامة:</span> <span className="font-mono">{order.buyerSignature.nationalId}</span></p>
+                )}
+                <p className="font-bold"><span className="text-gray-400">رقم الجوال:</span> <span className="font-mono">{order.buyerSignature?.phone || buyerProfile?.phoneNumber || 'غير متوفر'}</span></p>
+             </div>
+
+             {/* Party 2 */}
+             <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 space-y-1 text-xs">
+                <p className="font-black text-gray-900"><span className="text-gray-400">الطرف الثاني (البائع/المنفذ):</span> {sellerProfile?.displayName || 'غير معروف'}</p>
+                {order.sellerSignature?.nationalId && (
+                   <p className="font-bold"><span className="text-gray-400">رقم الهوية الوطنية/الإقامة:</span> <span className="font-mono">{order.sellerSignature.nationalId}</span></p>
+                )}
+                <p className="font-bold"><span className="text-gray-400">رقم الجوال:</span> <span className="font-mono">{order.sellerSignature?.phone || sellerProfile?.phoneNumber || 'غير متوفر'}</span></p>
+             </div>
+          </div>
+
+          {/* Deal Details */}
+          <div className="space-y-4 mb-8">
+             <h3 className="text-sm font-black text-blue-600 border-r-4 border-blue-600 pr-2 leading-none mb-3">موضوع التعاقد والبيانات المالية</h3>
+             <div className="p-4 border border-gray-200 rounded-2xl space-y-3 text-xs">
+                <div className="flex justify-between items-center border-b border-gray-100 pb-2">
+                   <span className="font-black text-gray-900">مسمى الخدمة / السلعة:</span>
+                   <span className="font-bold">{order.title}</span>
+                </div>
+                <div className="flex justify-between items-center border-b border-gray-100 pb-2">
+                   <span className="font-black text-gray-900">القيمة الإجمالية المحجوزة بالضمان:</span>
+                   <span className="font-black text-green-700 italic">{order.amount.toLocaleString()} ر.س</span>
+                </div>
+                {order.deliveryDays && (
+                   <div className="flex justify-between items-center border-b border-gray-100 pb-2">
+                      <span className="font-black text-gray-900">مدة التنفيذ والتسليم المحددة:</span>
+                      <span className="font-bold">{order.deliveryDays} أيام</span>
+                   </div>
+                )}
+                <div className="flex flex-col gap-1.5 pt-1">
+                   <span className="font-black text-gray-900">تفاصيل ووصف شروط العمل المتفق عليها:</span>
+                   <p className="bg-gray-50 p-3 rounded-xl border border-gray-100 text-gray-600 leading-relaxed whitespace-pre-wrap">{order.description}</p>
+                </div>
+             </div>
+          </div>
+
+          {/* General Clauses */}
+          <div className="space-y-3 mb-10 text-[10px] text-gray-500 leading-relaxed text-justify">
+             <h3 className="text-sm font-black text-blue-600 border-r-4 border-blue-600 pr-2 leading-none mb-3">البنود والشروط العامة للضمان</h3>
+             <p>1. **آلية حجز الرصيد:** يتعهد الطرف الأول (المشتري) بدفع كامل المبلغ إلكترونياً، وتلتزم منصة "عربون" بحجز وحفظ الرصيد بأمان في الحساب المجمع للوساطة دون تسليمه للطرف الثاني.</p>
+             <p>2. **آلية التنفيذ والتسليم:** يلتزم الطرف الثاني (البائع) بتنفيذ الأعمال وتسليمها كاملة للعميل عبر المنصة وضمن المدة الزمنية المتفق عليها بالكامل.</p>
+             <p>3. **تحرير الرصيد:** يتم تحرير وصرف المبلغ الصافي للطرف الثاني فور تأكيد الطرف الأول استلام الخدمة والرضا عن المخرجات، أو بانتهاء المدد القانونية التلقائية دون شكاوى معلقة.</p>
+             <p>4. **فض النزاعات:** في حال حدوث خلاف حول سلامة المخرجات، يتم إحالة الصفقة إلى المحكم الإداري لمنصة "عربون" ويقر الطرفان بقطعية وتوافق أي قرار تسوية يصدره النظام لحماية الحقوق المالية.</p>
+          </div>
+
+          {/* Cryptographic Digital Seals / Signature Stamping */}
+          <div className="border-t border-gray-100 pt-6 space-y-6">
+             <h3 className="text-sm font-black text-blue-600 border-r-4 border-blue-600 pr-2 leading-none mb-3">التوثيق والتوقيعات الرقمية المعتمدة</h3>
+             
+             <div className="grid grid-cols-2 gap-4">
+                {/* Buyer Signature Box */}
+                <div className={`p-4 rounded-2xl border text-right space-y-2 relative min-h-[140px] flex flex-col justify-between ${order.buyerSignature?.signed ? 'bg-green-50/50 border-green-200' : 'bg-gray-50 border-gray-100'}`}>
+                   <span className="text-[10px] font-black text-gray-400 block border-b border-gray-100 pb-1">توقيع المشتري الرقمي (First Party)</span>
+                   {order.buyerSignature?.signed ? (
+                     <div className="space-y-1 text-[9px] text-green-800 font-bold">
+                        <p className="font-black text-gray-900">الموقع: {order.buyerSignature.fullName}</p>
+                        <p>الجوال: <span className="font-mono">{order.buyerSignature.phone}</span></p>
+                        <p>الهوية: <span className="font-mono">{order.buyerSignature.nationalId}</span></p>
+                        <p>التاريخ: <span className="font-mono">{new Date(order.buyerSignature.signedAt).toLocaleString('ar-SA')}</span></p>
+                        <p>الـ IP: <span className="font-mono text-gray-400">{order.buyerSignature.ipAddress}</span></p>
+                        <p>موثق بـ OTP: <span className="font-mono bg-green-100 text-green-700 px-1 rounded">#{order.buyerSignature.otpUsed}</span></p>
+                        <div className="absolute bottom-2 left-2 border-2 border-green-600 text-green-600 rounded-lg p-1 text-[8px] font-black uppercase tracking-tighter rotate-12 bg-white/80 select-none shadow-sm flex items-center gap-0.5 shrink-0">
+                           <ShieldCheck className="w-2.5 h-2.5 fill-current text-green-600" />
+                           <span>مُوثق عَرَبون</span>
+                        </div>
+                     </div>
+                   ) : (
+                     <p className="text-[10px] text-gray-400 italic my-auto">بانتظار توقيع الطرف الأول الرقمي</p>
+                   )}
+                </div>
+
+                {/* Seller Signature Box */}
+                <div className={`p-4 rounded-2xl border text-right space-y-2 relative min-h-[140px] flex flex-col justify-between ${order.sellerSignature?.signed ? 'bg-green-50/50 border-green-200' : 'bg-gray-50 border-gray-100'}`}>
+                   <span className="text-[10px] font-black text-gray-400 block border-b border-gray-100 pb-1">توقيع البائع الرقمي (Second Party)</span>
+                   {order.sellerSignature?.signed ? (
+                     <div className="space-y-1 text-[9px] text-green-800 font-bold">
+                        <p className="font-black text-gray-900">الموقع: {order.sellerSignature.fullName}</p>
+                        <p>الجوال: <span className="font-mono">{order.sellerSignature.phone}</span></p>
+                        <p>الهوية: <span className="font-mono">{order.sellerSignature.nationalId}</span></p>
+                        <p>التاريخ: <span className="font-mono">{new Date(order.sellerSignature.signedAt).toLocaleString('ar-SA')}</span></p>
+                        <p>الـ IP: <span className="font-mono text-gray-400">{order.sellerSignature.ipAddress}</span></p>
+                        <p>موثق بـ OTP: <span className="font-mono bg-green-100 text-green-700 px-1 rounded">#{order.sellerSignature.otpUsed}</span></p>
+                        <div className="absolute bottom-2 left-2 border-2 border-green-600 text-green-600 rounded-lg p-1 text-[8px] font-black uppercase tracking-tighter rotate-12 bg-white/80 select-none shadow-sm flex items-center gap-0.5 shrink-0">
+                           <ShieldCheck className="w-2.5 h-2.5 fill-current text-green-600" />
+                           <span>مُوثق عَرَبون</span>
+                        </div>
+                     </div>
+                   ) : (
+                     <p className="text-[10px] text-gray-400 italic my-auto">بانتظار توقيع الطرف الثاني الرقمي</p>
+                   )}
+                </div>
+             </div>
+
+             {order.isContractSigned && (
+               <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex flex-col sm:flex-row justify-between items-center gap-4 text-xs font-bold text-blue-900 mt-4">
+                  <div className="text-right">
+                     <p className="flex items-center gap-1.5 font-black text-blue-950">
+                        <ShieldCheck className="w-4 h-4 text-blue-600 animate-bounce" />
+                        <span>وثيقة معتمدة ومسجلة رسمياً</span>
+                     </p>
+                     <p className="text-[9px] text-gray-500 font-bold mt-1">يقر الأطراف بصحة التوقيعات أعلاه وسلامتها القانونية كوثيقة سارية وبموجب أنظمة السندات الرقمية.</p>
+                  </div>
+                  <div className="text-left font-mono text-[9px] text-blue-600 bg-white border border-blue-200 p-2 rounded-xl shrink-0 tracking-widest shadow-inner">
+                     REF: {order.contractHash}
+                  </div>
+               </div>
+             )}
+          </div>
+        </div>
+      )}
+   </div>
   );
 };

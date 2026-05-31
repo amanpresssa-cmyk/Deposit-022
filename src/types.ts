@@ -68,6 +68,16 @@ export interface Notification {
 
 export type OrderStatus = 'awaiting_acceptance' | 'pending' | 'escrowed' | 'delivered' | 'rating' | 'completed' | 'disputed' | 'cancelled';
 
+export interface OrderSignature {
+  signed: boolean;
+  fullName: string;
+  phone: string;
+  signedAt: any;
+  ipAddress?: string;
+  otpUsed?: string;
+  nationalId?: string;
+}
+
 export interface Order {
   id: string;
   buyerId: string;
@@ -99,6 +109,10 @@ export interface Order {
   sellerRatingCompleted?: boolean;
   buyerRating?: number;
   sellerRating?: number;
+  buyerSignature?: OrderSignature;
+  sellerSignature?: OrderSignature;
+  isContractSigned?: boolean;
+  contractHash?: string;
   lastMessage?: string;
   lastMessageAt?: any;
   createdAt: any;
