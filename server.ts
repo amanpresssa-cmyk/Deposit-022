@@ -955,6 +955,67 @@ function startFirebaseListeners() {
       }, (err) => {
         console.error("❌ [WhatsApp messages collectionGroup Listener Error]:", err);
       });
+
+    // ── Real-time Financial Engine: Listens to Order changes to manage pendingBalance ──
+    db.collection('orders')
+      .onSnapshot((snapshot) => {
+        snapshot.docChanges().forEach(async (change) => {
+          if (change.type !== 'added' && change.type !== 'modified') return;
+          
+          const orderDoc = change.doc;
+          const orderData = orderDoc.data();
+          const orderId = orderDoc.id;
+          
+          const sellerId = orderData.sellerId;
+          const sellerNetShare = orderData.paymentFees?.sellerNetShare || orderData.amount || 0;
+          
+          if (!sellerId || sellerId === 'unknown' || sellerNetShare <= 0) return;
+          
+          try {
+            // Case 1: Order is paid and escrowed -> Increment seller's pendingBalance
+            if (orderData.status === 'escrowed' && orderData.isPendingBalanceCredited !== true) {
+              console.log(`🏦 [Financial Engine] Order #${orderId} paid. Crediting pendingBalance to seller ${sellerId} with ${sellerNetShare} SAR.`);
+              
+              // 1. Update seller's pendingBalance
+              await db.collection('users').doc(sellerId).update({
+                pendingBalance: admin.firestore.FieldValue.increment(sellerNetShare),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+              }).catch(() => {});
+              
+              // 2. Mark order as pending balance credited
+              await orderDoc.ref.update({
+                isPendingBalanceCredited: true,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+              }).catch(() => {});
+              
+              console.log(`✅ [Financial Engine] Credited pending balance for seller ${sellerId}.`);
+            }
+            
+            // Case 2: Order is cancelled -> Decrement seller's pendingBalance if it was previously credited
+            if (orderData.status === 'cancelled' && orderData.isPendingBalanceCredited === true && orderData.isPendingBalanceRefunded !== true) {
+              console.log(`🏦 [Financial Engine] Order #${orderId} cancelled. Refunding pendingBalance from seller ${sellerId} with ${sellerNetShare} SAR.`);
+              
+              // 1. Decrement seller's pendingBalance
+              await db.collection('users').doc(sellerId).update({
+                pendingBalance: admin.firestore.FieldValue.increment(-sellerNetShare),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+              }).catch(() => {});
+              
+              // 2. Mark order as pending balance refunded
+              await orderDoc.ref.update({
+                isPendingBalanceRefunded: true,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+              }).catch(() => {});
+              
+              console.log(`✅ [Financial Engine] Refunded pending balance from seller ${sellerId}.`);
+            }
+          } catch (err: any) {
+            console.error(`❌ [Financial Engine Error] Failed to process order #${orderId} changes:`, err.message || err);
+          }
+        });
+      }, (err) => {
+        console.error("❌ [Financial Engine Listener Setup Error]:", err);
+      });
   }
 
 async function startServer() {
@@ -1584,9 +1645,10 @@ async function startServer() {
             const sellerNetShare = orderData.paymentFees?.sellerNetShare || orderData.amount || amount;
             
             if (sellerId && sellerId !== 'unknown') {
-              console.log(`🏦 [Payment Capture] Securely incrementing balance for seller ${sellerId} by ${sellerNetShare} SAR`);
+              console.log(`🏦 [Payment Capture] Securely incrementing balance and decrementing pendingBalance for seller ${sellerId} by ${sellerNetShare} SAR`);
               await db.collection('users').doc(sellerId).update({
                 balance: admin.firestore.FieldValue.increment(sellerNetShare),
+                pendingBalance: admin.firestore.FieldValue.increment(-sellerNetShare),
                 updatedAt: admin.firestore.FieldValue.serverTimestamp()
               });
               
@@ -2318,10 +2380,11 @@ function startAutomatedBanker() {
             updatedAt: admin.firestore.FieldValue.serverTimestamp()
           });
 
-          // 2. Increment Seller Balance
+          // 2. Increment Seller Balance and decrement pendingBalance
           if (data.sellerId && data.sellerId !== 'unknown') {
             await db.collection('users').doc(data.sellerId).update({
               balance: admin.firestore.FieldValue.increment(sellerNetShare),
+              pendingBalance: admin.firestore.FieldValue.increment(-sellerNetShare),
               updatedAt: admin.firestore.FieldValue.serverTimestamp()
             });
           }
