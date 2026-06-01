@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../constants/colors.dart';
+import '../models/user.dart';
+import 'create_order_screen.dart';
 
 class ServiceDetailsScreen extends StatelessWidget {
   final Map<String, dynamic> service;
+  final UserProfile? currentUser;
 
-  const ServiceDetailsScreen({Key? key, required this.service}) : super(key: key);
+  const ServiceDetailsScreen({Key? key, required this.service, this.currentUser}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -13,8 +16,9 @@ class ServiceDetailsScreen extends StatelessWidget {
     final description = service['description'] ?? 'لا يوجد وصف متاح لهذه الخدمة حتى الآن.';
     final price = service['price']?.toString() ?? '0';
     final category = service['category'] ?? 'عام';
-    final deliveryTime = service['deliveryTime'] ?? '-';
+    final deliveryTime = service['deliveryDays']?.toString() ?? '-';
     final imageUrl = service['imageUrl'] as String?;
+    final sellerName = service['sellerName'] ?? 'بائع مستقل';
 
     return Scaffold(
       backgroundColor: AppColors.backgroundDark,
@@ -76,7 +80,25 @@ class ServiceDetailsScreen extends StatelessWidget {
                     children: [
                       _buildInfoTile(Icons.payments_outlined, 'السعر', '$price ر.س'),
                       const SizedBox(width: 16),
-                      _buildInfoTile(Icons.schedule_outlined, 'مدة التسليم', deliveryTime),
+                      _buildInfoTile(Icons.schedule_outlined, 'مدة التسليم', '$deliveryTime أيام'),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      const CircleAvatar(
+                        backgroundColor: AppColors.accentGold,
+                        radius: 20,
+                        child: Icon(Icons.person, color: AppColors.primaryDark),
+                      ),
+                      const SizedBox(width: 16),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('مقدم الخدمة', style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 10)),
+                          Text(sellerName, style: GoogleFonts.cairo(color: AppColors.textLight, fontSize: 14, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
                     ],
                   ),
                   const SizedBox(height: 32),
@@ -103,14 +125,26 @@ class ServiceDetailsScreen extends StatelessWidget {
                     height: 56,
                     child: ElevatedButton(
                       onPressed: () {
-                        // TODO: Implement order logic
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'سيتم ربط الطلب لاحقاً...',
-                              style: GoogleFonts.cairo(),
+                        if (currentUser == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              backgroundColor: AppColors.alert,
+                              content: Text(
+                                'عذراً، يجب تسجيل الدخول لتتمكن من طلب الخدمات',
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.cairo(fontWeight: FontWeight.bold),
+                              ),
                             ),
-                            backgroundColor: AppColors.accentGold,
+                          );
+                          return;
+                        }
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => CreateOrderScreen(
+                              currentUser: currentUser!,
+                              initialService: service,
+                            ),
                           ),
                         );
                       },

@@ -2,14 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/colors.dart';
 import '../models/user.dart';
 import '../services/firebase_service.dart';
 
 class CreateOrderScreen extends StatefulWidget {
   final UserProfile currentUser;
+  final Map<String, dynamic>? initialService;
 
-  const CreateOrderScreen({Key? key, required this.currentUser}) : super(key: key);
+  const CreateOrderScreen({Key? key, required this.currentUser, this.initialService}) : super(key: key);
 
   @override
   State<CreateOrderScreen> createState() => _CreateOrderScreenState();
@@ -31,6 +33,80 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
   double _platformFee = 0.0;
   double _sellerShare = 0.0;
   double _buyerTotal = 0.0;
+  bool _isSubmitted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialService != null) {
+      _titleController.text = widget.initialService!['title'] ?? '';
+      _descController.text = 'أرغب بطلب الخدمة: \${widget.initialService!["title"]}';
+      _amountController.text = widget.initialService!['price']?.toString() ?? '';
+      _daysController.text = widget.initialService!['deliveryDays']?.toString() ?? '';
+      _sellerController.text = widget.initialService!['sellerName'] ?? '';
+      _category = widget.initialService!['category'] ?? 'عام';
+      _calculateFees(_amountController.text);
+    } else {
+      _loadDraft();
+    }
+  }
+
+  @override
+  void dispose() {
+    if (!_isSubmitted) {
+      _saveDraft();
+    }
+    _titleController.dispose();
+    _descController.dispose();
+    _amountController.dispose();
+    _daysController.dispose();
+    _sellerController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadDraft() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.containsKey('draft_order_title')) {
+      setState(() {
+        _titleController.text = prefs.getString('draft_order_title') ?? '';
+        _descController.text = prefs.getString('draft_order_desc') ?? '';
+        _amountController.text = prefs.getString('draft_order_amount') ?? '';
+        _daysController.text = prefs.getString('draft_order_days') ?? '';
+        _sellerController.text = prefs.getString('draft_order_seller') ?? '';
+        _category = prefs.getString('draft_order_category') ?? 'عام';
+        if (_amountController.text.isNotEmpty) {
+          _calculateFees(_amountController.text);
+        }
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم استعادة مسودة طلبك السابق', style: TextStyle(fontFamily: 'Cairo'))),
+        );
+      }
+    }
+  }
+
+  Future<void> _saveDraft() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (_titleController.text.isNotEmpty || _amountController.text.isNotEmpty) {
+      await prefs.setString('draft_order_title', _titleController.text);
+      await prefs.setString('draft_order_desc', _descController.text);
+      await prefs.setString('draft_order_amount', _amountController.text);
+      await prefs.setString('draft_order_days', _daysController.text);
+      await prefs.setString('draft_order_seller', _sellerController.text);
+      await prefs.setString('draft_order_category', _category);
+    }
+  }
+
+  Future<void> _clearDraft() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('draft_order_title');
+    await prefs.remove('draft_order_desc');
+    await prefs.remove('draft_order_amount');
+    await prefs.remove('draft_order_days');
+    await prefs.remove('draft_order_seller');
+    await prefs.remove('draft_order_category');
+  }
 
   void _calculateFees(String val) {
     final amount = double.tryParse(val) ?? 0.0;
@@ -113,6 +189,9 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
       );
 
       // Clear fields
+      _clearDraft();
+      _isSubmitted = true;
+      Navigator.pop(context);
       _titleController.clear();
       _descController.clear();
       _amountController.clear();
@@ -135,15 +214,6 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
     }
   }
 
-  @override
-  void dispose() {
-    _titleController.dispose();
-    _descController.dispose();
-    _amountController.dispose();
-    _daysController.dispose();
-    _sellerController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {

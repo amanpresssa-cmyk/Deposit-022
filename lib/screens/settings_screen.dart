@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
+import 'dart:io';
 import '../constants/colors.dart';
 import '../models/user.dart';
 // order.dart import removed - unused
@@ -11,12 +15,16 @@ class SettingsScreen extends StatefulWidget {
   final UserProfile currentUser;
   final bool isDarkMode;
   final VoidCallback? onThemeToggle;
+  final String initialTab;
+  final VoidCallback? onLogout;
 
   const SettingsScreen({
     Key? key,
     required this.currentUser,
     this.isDarkMode = true,
     this.onThemeToggle,
+    this.initialTab = 'profile',
+    this.onLogout,
   }) : super(key: key);
 
   @override
@@ -24,6 +32,7 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+
   final _profileFormKey = GlobalKey<FormState>();
   final _financialFormKey = GlobalKey<FormState>();
 
@@ -54,15 +63,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _mandatoryVerification = true;
   String _primaryColor = '#3b82f6';
 
-  // Active visual section (Section type)
-  String _activeTab = 'profile'; // 'profile' | 'security' | 'notifications' | 'financial' | 'platform' | 'owner_dashboard'
+  late String _activeTab; // 'profile' | 'security' | 'notifications' | 'financial' | 'platform' | 'owner_dashboard'
 
   bool _loading = false;
   late final FirebaseFirestore _db;
+  bool _chatSoundsEnabled = true;
+
+  Future<void> _loadPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _chatSoundsEnabled = prefs.getBool('chat_sounds_enabled') ?? true;
+    });
+  }
 
   @override
   void initState() {
     super.initState();
+    _activeTab = widget.initialTab;
+    _loadPreferences();
     _db = FirebaseFirestore.instanceFor(
       app: Firebase.app(),
       databaseId: "ai-studio-ee0a8e94-5852-438b-93d7-9755da859ebc",
@@ -130,6 +148,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (val.isEmpty) return true;
     final clean = val.trim().toUpperCase();
     return clean.startsWith('SA') && clean.length == 24;
+  }
+
+  Future<void> _pickBannerImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 800,
+      imageQuality: 70,
+    );
+
+    if (pickedFile != null) {
+      final bytes = await File(pickedFile.path).readAsBytes();
+      final base64String = base64Encode(bytes);
+      setState(() {
+        _bannerUrlController.text = 'data:image/jpeg;base64,$base64String';
+      });
+      _showSnackBar('تم اختيار الصورة بنجاح');
+    }
   }
 
   // ── Save Section: Profile ──
@@ -326,7 +362,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'إعدادات الحساب',
+                        _activeTab == 'owner_dashboard' 
+                            ? 'لوحة تحكم المالك' 
+                            : _activeTab == 'platform' 
+                                ? 'إعدادات المنصة' 
+                                : 'إعدادات الحساب',
                         style: GoogleFonts.cairo(
                           color: textCol,
                           fontSize: 20,
@@ -342,6 +382,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accentGold),
                             ),
                           if (_loading) const SizedBox(width: 8),
+                          if (widget.onLogout != null)
+                            GestureDetector(
+                              onTap: widget.onLogout,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                margin: const EdgeInsets.only(left: 8),
+                                decoration: BoxDecoration(
+                                  color: AppColors.alert.withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: AppColors.alert.withOpacity(0.3)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.logout, size: 14, color: AppColors.alert),
+                                    const SizedBox(width: 5),
+                                    Text(
+                                      'خروج',
+                                      style: GoogleFonts.cairo(color: AppColors.alert, fontSize: 10, fontWeight: FontWeight.w900),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                           // زر تبديل وضع الليلي / النهاري
                           GestureDetector(
                             onTap: widget.onThemeToggle,
@@ -384,7 +448,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ],
                   ),
                   Text(
-                    'إدارة بياناتك الشخصية، الأمان، التنبيهات، والمعلومات المالية للمنصة',
+                    _activeTab == 'owner_dashboard'
+                        ? 'إدارة النزاعات والموافقات المالية'
+                        : _activeTab == 'platform'
+                            ? 'تحكم النظام وإدارة الألوان'
+                            : 'إدارة بياناتك الشخصية، الأمان، التنبيهات، والمعلومات المالية للمنصة',
                     style: GoogleFonts.cairo(
                       color: AppColors.textMuted,
                       fontSize: 10,
@@ -618,15 +686,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 10, fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 12),
-                
-                _buildTextField(
-                  controller: _bannerUrlController,
-                  label: 'رابط صورة الغلاف',
-                  hint: 'رابط URL لصورة الغلاف الخاصة بملفك الشخصي',
-                  icon: Icons.image_outlined,
-                  textCol: textCol,
+                if (_bannerUrlController.text.isNotEmpty)
+                  Container(
+                    width: double.infinity,
+                    height: 120,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      image: DecorationImage(
+                        image: _bannerUrlController.text.startsWith('data:image') 
+                          ? MemoryImage(base64Decode(_bannerUrlController.text.split(',').last)) as ImageProvider
+                          : NetworkImage(_bannerUrlController.text),
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                ElevatedButton.icon(
+                  onPressed: _pickBannerImage,
+                  icon: const Icon(Icons.add_photo_alternate_outlined),
+                  label: Text(_bannerUrlController.text.isEmpty ? 'رفع صورة غلاف' : 'تغيير الصورة'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.backgroundDark,
+                    foregroundColor: AppColors.textLight,
+                    elevation: 0,
+                    side: BorderSide(color: AppColors.textMuted.withOpacity(0.2)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    minimumSize: const Size(double.infinity, 50),
+                  ),
                 ),
-                _buildFieldHint('رابط غلاف لملفك الشخصي يعكس الطابع الاحترافي للعملاء بالمنصة'),
+                _buildFieldHint('صورة غلاف لملفك الشخصي تعكس الطابع الاحترافي للعملاء بالمنصة'),
               ],
             ),
           ),
@@ -683,6 +771,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   padding: const EdgeInsets.only(top: 4.0),
                   child: Text(
                     'يخفي ملفك الشخصي من نتائج البحث للزوار غير المسجلين بالمنصة',
+                    style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 9, height: 1.4),
+                  ),
+                ),
+              ),
+              const Divider(height: 24, thickness: 0.1),
+
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                activeColor: AppColors.accentGold,
+                value: _chatSoundsEnabled,
+                onChanged: (bool val) async {
+                  setState(() => _chatSoundsEnabled = val);
+                  final prefs = await SharedPreferences.getInstance();
+                  prefs.setBool('chat_sounds_enabled', val);
+                },
+                title: Row(
+                  children: [
+                    Icon(_chatSoundsEnabled ? Icons.volume_up_outlined : Icons.volume_off_outlined, color: _chatSoundsEnabled ? AppColors.accentGold : AppColors.textMuted, size: 18),
+                    const SizedBox(width: 8),
+                    Text(
+                      'أصوات المحادثات',
+                      style: GoogleFonts.cairo(color: textCol, fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                subtitle: Padding(
+                  padding: const EdgeInsets.only(top: 4.0),
+                  child: Text(
+                    'تفعيل الأصوات عند إرسال واستقبال الرسائل في شاشة الطلب والمستشار',
                     style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 9, height: 1.4),
                   ),
                 ),

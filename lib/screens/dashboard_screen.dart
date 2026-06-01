@@ -37,24 +37,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Generate screens dynamically to receive real-time Firestore stream updates
-    final List<Widget> pages = [
-      _buildHomeContent(),
-      const ServicesScreen(),
-      CreateOrderScreen(currentUser: widget.mockUser),
-      const SupportScreen(),
-      SettingsScreen(
-        currentUser: widget.mockUser,
-        isDarkMode: widget.isDarkMode,
-        onThemeToggle: widget.onThemeToggle,
-      ),
-    ];
+    final List<Widget> pages = widget.mockUser.isAdmin
+        ? [
+            SettingsScreen(
+              currentUser: widget.mockUser,
+              isDarkMode: widget.isDarkMode,
+              onThemeToggle: widget.onThemeToggle,
+              initialTab: 'owner_dashboard',
+              onLogout: widget.onLogout,
+            ),
+            SettingsScreen(
+              currentUser: widget.mockUser,
+              isDarkMode: widget.isDarkMode,
+              onThemeToggle: widget.onThemeToggle,
+              initialTab: 'platform',
+              onLogout: widget.onLogout,
+            ),
+          ]
+        : [
+            _buildHomeContent(),
+            ServicesScreen(currentUser: widget.mockUser),
+            CreateOrderScreen(currentUser: widget.mockUser),
+            const SupportScreen(),
+            SettingsScreen(
+              currentUser: widget.mockUser,
+              isDarkMode: widget.isDarkMode,
+              onThemeToggle: widget.onThemeToggle,
+              onLogout: widget.onLogout,
+            ),
+          ];
+          
+    final safeIndex = _currentIndex >= pages.length ? 0 : _currentIndex;
 
     return Scaffold(
       backgroundColor: AppColors.backgroundDark,
       body: SafeArea(
         child: IndexedStack(
-          index: _currentIndex,
+          index: safeIndex,
           children: pages,
         ),
       ),
@@ -79,7 +98,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             topRight: Radius.circular(28),
           ),
           child: BottomNavigationBar(
-            currentIndex: _currentIndex,
+            currentIndex: safeIndex,
             onTap: (index) => setState(() => _currentIndex = index),
             backgroundColor: AppColors.cardDark,
             selectedItemColor: AppColors.accentGold,
@@ -87,33 +106,46 @@ class _DashboardScreenState extends State<DashboardScreen> {
             type: BottomNavigationBarType.fixed,
             selectedLabelStyle: GoogleFonts.cairo(fontWeight: FontWeight.w900, fontSize: 10),
             unselectedLabelStyle: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 9),
-            items: const [
-              BottomNavigationBarItem(
-                icon: Icon(Icons.home_outlined),
-                activeIcon: Icon(Icons.home),
-                label: 'الرئيسية',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.business_center_outlined),
-                activeIcon: Icon(Icons.business_center),
-                label: 'الخدمات',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.add_moderator_outlined),
-                activeIcon: Icon(Icons.add_moderator),
-                label: 'تعميد جديد',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.psychology_outlined),
-                activeIcon: Icon(Icons.psychology),
-                label: 'المستشار',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.settings_outlined),
-                activeIcon: Icon(Icons.settings),
-                label: 'الإعدادات',
-              ),
-            ],
+            items: widget.mockUser.isAdmin
+                ? const [
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.admin_panel_settings_outlined),
+                      activeIcon: Icon(Icons.admin_panel_settings),
+                      label: 'لوحة التحكم',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.settings_outlined),
+                      activeIcon: Icon(Icons.settings),
+                      label: 'إعدادات المنصة',
+                    ),
+                  ]
+                : const [
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.home_outlined),
+                      activeIcon: Icon(Icons.home),
+                      label: 'الرئيسية',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.business_center_outlined),
+                      activeIcon: Icon(Icons.business_center),
+                      label: 'الخدمات',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.add_moderator_outlined),
+                      activeIcon: Icon(Icons.add_moderator),
+                      label: 'تعميد جديد',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.psychology_outlined),
+                      activeIcon: Icon(Icons.psychology),
+                      label: 'المستشار',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.settings_outlined),
+                      activeIcon: Icon(Icons.settings),
+                      label: 'الإعدادات',
+                    ),
+                  ],
           ),
         ),
       ),
@@ -128,6 +160,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
         children: [
           // 1. Header Section
           _buildHeader(),
+
+          if (widget.mockUser.isAdmin)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => SettingsScreen(
+                        currentUser: widget.mockUser,
+                        isDarkMode: widget.isDarkMode,
+                        onThemeToggle: widget.onThemeToggle,
+                        initialTab: 'owner_dashboard',
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.admin_panel_settings, color: Colors.white),
+                label: Text(
+                  'الدخول للوحة تحكم المالك',
+                  style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.teal,
+                  minimumSize: const Size(double.infinity, 56),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  elevation: 8,
+                  shadowColor: Colors.teal.withOpacity(0.5),
+                ),
+              ),
+            ),
 
           // 2. The Platinum Balance Card
           _buildPlatinumCard(),

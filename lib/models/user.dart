@@ -173,5 +173,53 @@ class UserProfile {
       'emailNotifications': emailNotifications,
     };
   }
+
+  factory UserProfile.fromJson(Map<String, dynamic> json) {
+    return UserProfile(
+      uid: json['uid'] ?? '',
+      userShortId: json['userShortId'] ?? '',
+      displayName: json['displayName'] ?? '',
+      email: json['email'] ?? '',
+      phoneNumber: json['phoneNumber'] ?? '',
+      photoURL: json['photoURL'] ?? '',
+      isSeller: json['isSeller'] == true,
+      isAdmin: json['isAdmin'] == true,
+      isVerified: json['isVerified'] == true,
+      verificationStatus: json['verificationStatus'] ?? 'none',
+      idNumber: json['idNumber'],
+      balance: (json['balance'] as num?)?.toDouble() ?? 0.0,
+      pendingBalance: (json['pendingBalance'] as num?)?.toDouble() ?? 0.0,
+      twoFactorEnabled: json['twoFactorEnabled'] == true,
+      whatsappEnabled: json['whatsappEnabled'] == true,
+      whatsappNumber: json['whatsappNumber'],
+      freeFeeTransactions: json['freeFeeTransactions'] as int? ?? 0,
+      isBlocked: json['isBlocked'] == true,
+      blockReason: json['blockReason'],
+      showSupportOnBlock: json['showSupportOnBlock'] != false,
+      isOnline: json['isOnline'] == true,
+      lastSeen: json['lastSeen'] != null ? DateTime.parse(json['lastSeen']) : null,
+      createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : DateTime.now(),
+      bio: json['bio'] ?? '',
+      bannerUrl: json['bannerUrl'] ?? '',
+      isPrivate: json['isPrivate'] == true,
+      payoutBank: json['payoutBank'] ?? '',
+      payoutIban: json['payoutIban'] ?? '',
+      payoutAccountName: json['payoutAccountName'] ?? '',
+      primaryColor: json['primaryColor'] ?? '#3b82f6',
+      notificationsEnabled: json['notificationsEnabled'] != false,
+      pushNotificationsEnabled: json['pushNotificationsEnabled'] != false,
+      orderNotificationsEnabled: json['orderNotificationsEnabled'] != false,
+      systemAlertsEnabled: json['systemAlertsEnabled'] != false,
+      emailNotifications: json['emailNotifications'] != false,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    final map = toMap();
+    map['uid'] = uid;
+    map['lastSeen'] = lastSeen?.toIso8601String();
+    map['createdAt'] = createdAt.toIso8601String();
+    return map;
+  }
 }
 

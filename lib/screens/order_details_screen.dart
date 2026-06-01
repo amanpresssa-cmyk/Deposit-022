@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/colors.dart';
 import '../models/order.dart';
 import '../services/firebase_service.dart';
@@ -22,25 +24,93 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   int _activeTab = 0; // 0 = التفاصيل والخط الزمني, 1 = المحادثة اللحظية, 2 = العقد الرقمي
   final TextEditingController _messageController = TextEditingController();
   bool _isLoadingAction = false;
+  final AudioPlayer _audioPlayer = AudioPlayer();
+
+  Future<void> _playSound(String assetPath) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final soundsEnabled = prefs.getBool('chat_sounds_enabled') ?? true;
+      if (soundsEnabled) {
+        await _audioPlayer.play(AssetSource(assetPath));
+      }
+    } catch (e) {
+      debugPrint('Error playing sound: $e');
+    }
+  }
 
   void _sendMessage() async {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
     _messageController.clear();
+    _playSound('sounds/sent.wav');
     await FirebaseService().sendChatMessage(widget.order.id, widget.currentUserId, text);
   }
 
   void _signContract(OrderModel order) async {
+    // 1. Show OTP Dialog to simulate sending and verifying an OTP
+    final otpController = TextEditingController();
+    final bool? isConfirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: AppColors.cardDark,
+          title: Text('توثيق التوقيع', style: GoogleFonts.cairo(color: AppColors.textLight, fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('تم إرسال رمز تحقق (OTP) إلى هاتفك المسجل، يرجى إدخاله لإتمام التوقيع القانوني.', style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 12)),
+              const SizedBox(height: 16),
+              TextField(
+                controller: otpController,
+                keyboardType: TextInputType.number,
+                style: GoogleFonts.outfit(color: AppColors.textLight, letterSpacing: 8, fontSize: 24, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+                maxLength: 4,
+                decoration: InputDecoration(
+                  hintText: '----',
+                  hintStyle: GoogleFonts.outfit(color: AppColors.textMuted.withOpacity(0.5)),
+                  counterText: '',
+                  filled: true,
+                  fillColor: AppColors.backgroundDark,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text('إلغاء', style: GoogleFonts.cairo(color: AppColors.textMuted, fontWeight: FontWeight.bold)),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.accentGold, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+              child: Text('تأكيد التوقيع', style: GoogleFonts.cairo(color: AppColors.primaryDark, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (isConfirmed != true || otpController.text.length < 4) return;
+
     setState(() => _isLoadingAction = true);
     try {
       final profile = await FirebaseService().fetchProfileByUid(widget.currentUserId);
       final isBuyer = order.buyerId == widget.currentUserId;
+      
+      // Simulate fetching real IP address
+      final String capturedIp = '10.0.2.\${DateTime.now().millisecond % 255}'; // Simulated dynamic IP
+      
       await FirebaseService().signContract(
         orderId: order.id,
         fullName: profile?.displayName ?? 'مستخدم',
         phone: profile?.phoneNumber ?? '',
         nationalId: profile?.idNumber ?? '',
         isBuyer: isBuyer,
+        ipAddress: capturedIp,
+        otpUsed: otpController.text,
       );
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -53,9 +123,9 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         ),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('حدث خطأ أثناء التوقيع')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('حدث خطأ أثناء التوقيع', style: GoogleFonts.cairo())));
     } finally {
-      setState(() => _isLoadingAction = false);
+      if (mounted) setState(() => _isLoadingAction = false);
     }
   }
 
@@ -356,23 +426,41 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                   }
 
                   final isMe = msg['senderId'] == widget.currentUserId;
+                  final isBuyer = msg['senderId'] == widget.order.buyerId;
+                  final roleText = isBuyer ? 'المشتري' : 'البائع';
+                  final meText = isMe ? ' (أنت)' : '';
+
                   return Align(
                     alignment: isMe ? Alignment.centerLeft : Alignment.centerRight,
                     child: Container(
                       margin: const EdgeInsets.symmetric(vertical: 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-                      decoration: BoxDecoration(
-                        color: isMe ? AppColors.accentGold : AppColors.cardDark,
-                        borderRadius: BorderRadius.only(
-                          topLeft: const Radius.circular(20), topRight: const Radius.circular(20),
-                          bottomLeft: isMe ? Radius.zero : const Radius.circular(20),
-                          bottomRight: isMe ? const Radius.circular(20) : Radius.zero,
-                        ),
-                      ),
-                      child: Text(
-                        msg['text'] as String,
-                        style: GoogleFonts.cairo(color: isMe ? AppColors.primaryDark : AppColors.textLight, fontWeight: FontWeight.bold, fontSize: 12, height: 1.5),
+                      child: Column(
+                        crossAxisAlignment: isMe ? CrossAxisAlignment.start : CrossAxisAlignment.end,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                            child: Text(
+                              '$roleText$meText',
+                              style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 10, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: isMe ? AppColors.accentGold : AppColors.cardDark,
+                              borderRadius: BorderRadius.only(
+                                topLeft: const Radius.circular(20), topRight: const Radius.circular(20),
+                                bottomLeft: isMe ? Radius.zero : const Radius.circular(20),
+                                bottomRight: isMe ? const Radius.circular(20) : Radius.zero,
+                              ),
+                            ),
+                            child: Text(
+                              msg['text'] as String,
+                              style: GoogleFonts.cairo(color: isMe ? AppColors.primaryDark : AppColors.textLight, fontWeight: FontWeight.bold, fontSize: 12, height: 1.5),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   );
@@ -382,29 +470,55 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
           ),
         ),
         Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           color: AppColors.cardDark,
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  decoration: BoxDecoration(color: AppColors.backgroundDark, borderRadius: BorderRadius.circular(16)),
-                  child: TextField(
-                    controller: _messageController,
-                    style: GoogleFonts.cairo(color: AppColors.textLight, fontSize: 13),
-                    decoration: InputDecoration(hintText: 'اكتب رسالتك لدردشة الضمان...', hintStyle: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 11), border: InputBorder.none),
-                  ),
+              SizedBox(
+                height: 32,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  children: ['السلام عليكم', 'العمل جاهز للتسليم', 'بانتظار تأكيدك', 'أحتاج توضيح', 'شكراً لك'].map((reply) {
+                    return Padding(
+                      padding: const EdgeInsets.only(left: 8.0),
+                      child: ActionChip(
+                        label: Text(reply, style: GoogleFonts.cairo(color: AppColors.textLight, fontSize: 10, fontWeight: FontWeight.bold)),
+                        backgroundColor: AppColors.backgroundDark,
+                        side: const BorderSide(color: AppColors.accentGold, width: 0.5),
+                        onPressed: () {
+                          _messageController.text = reply;
+                        },
+                      ),
+                    );
+                  }).toList(),
                 ),
               ),
-              const SizedBox(width: 12),
-              InkWell(
-                onTap: _sendMessage,
-                child: Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: const BoxDecoration(color: AppColors.accentGold, shape: BoxShape.circle),
-                  child: const Icon(Icons.send_rounded, color: AppColors.primaryDark, size: 20),
-                ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      decoration: BoxDecoration(color: AppColors.backgroundDark, borderRadius: BorderRadius.circular(16)),
+                      child: TextField(
+                        controller: _messageController,
+                        style: GoogleFonts.cairo(color: AppColors.textLight, fontSize: 13),
+                        decoration: InputDecoration(hintText: 'اكتب رسالتك لدردشة الضمان...', hintStyle: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 11), border: InputBorder.none),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  InkWell(
+                    onTap: _sendMessage,
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: const BoxDecoration(color: AppColors.accentGold, shape: BoxShape.circle),
+                      child: const Icon(Icons.send_rounded, color: AppColors.primaryDark, size: 20),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -420,16 +534,25 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(color: AppColors.cardDark, borderRadius: BorderRadius.circular(28), border: Border.all(color: AppColors.textMuted.withOpacity(0.05))),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.history_edu, color: AppColors.accentGold, size: 48),
+            Center(child: const Icon(Icons.history_edu, color: AppColors.accentGold, size: 48)),
             const SizedBox(height: 16),
-            Text('عقد الوساطة والضمان المالي المشترك', style: GoogleFonts.cairo(color: AppColors.textLight, fontWeight: FontWeight.w900, fontSize: 14)),
-            Text('المسجل برقم مرجعي: ARB-\${order.id.toUpperCase().substring(0,6)}', style: GoogleFonts.outfit(color: AppColors.accentGold, fontSize: 10, fontWeight: FontWeight.bold)),
+            Center(child: Text('عقد الوساطة والضمان المالي المشترك', style: GoogleFonts.cairo(color: AppColors.textLight, fontWeight: FontWeight.w900, fontSize: 14))),
+            Center(child: Text('المسجل برقم مرجعي: ARB-\${order.id.toUpperCase().substring(0,6)}', style: GoogleFonts.outfit(color: AppColors.accentGold, fontSize: 10, fontWeight: FontWeight.bold))),
             const Divider(color: AppColors.textMuted, height: 32, thickness: 0.1),
-            Text('يقر ووافق المشتري على توقيع وتأمين قيمة الصفقة بالضمان لصالح البائع...', textAlign: TextAlign.center, style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 11, fontWeight: FontWeight.bold, height: 1.8)),
+            
+            Text('تفاصيل الاتفاقية:', style: GoogleFonts.cairo(color: AppColors.textLight, fontWeight: FontWeight.bold, fontSize: 12)),
+            const SizedBox(height: 8),
+            _buildContractRow('وصف الخدمة:', order.title),
+            _buildContractRow('قيمة الضمان:', '\${order.amount} ر.س'),
+            _buildContractRow('مدة التنفيذ:', '\${order.deliveryDays} يوم/أيام'),
+            const SizedBox(height: 16),
+            Text('البنود والشروط:', style: GoogleFonts.cairo(color: AppColors.textLight, fontWeight: FontWeight.bold, fontSize: 12)),
+            const SizedBox(height: 4),
+            Text('1. يقر ووافق المشتري على توقيع وتأمين قيمة الصفقة بالضمان لصالح البائع.\n2. يلتزم البائع بتسليم العمل بالوقت المحدد وبحسب الوصف المتفق عليه.\n3. يحق للمشتري استرجاع المبلغ في حال عدم التزام البائع بالمتفق عليه.\n4. تعتبر منصة عربون وسيطاً مالياً لضمان حقوق الطرفين.', style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 11, fontWeight: FontWeight.bold, height: 1.8)),
             const SizedBox(height: 24),
-            if (order.isContractSigned)
+            if (order.isContractSigned) ...[
               Container(
                 padding: const EdgeInsets.all(16), width: double.infinity,
                 decoration: BoxDecoration(color: AppColors.success.withOpacity(0.06), borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.success.withOpacity(0.15))),
@@ -440,8 +563,21 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                     Text('تم توقيع العقد قانونياً', style: GoogleFonts.cairo(color: AppColors.success, fontSize: 11, fontWeight: FontWeight.w900)),
                   ],
                 ),
-              )
-            else
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('جاري تجهيز ملف PDF للطباعة...', style: GoogleFonts.cairo())));
+                },
+                icon: const Icon(Icons.picture_as_pdf, color: AppColors.accentGold),
+                label: Text('طباعة العقد (PDF)', style: GoogleFonts.cairo(color: AppColors.accentGold, fontWeight: FontWeight.bold)),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 50),
+                  side: const BorderSide(color: AppColors.accentGold),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+              ),
+            ] else ...[
               ElevatedButton(
                 onPressed: _isLoadingAction ? null : () => _signContract(order),
                 style: ElevatedButton.styleFrom(backgroundColor: AppColors.accentGold, foregroundColor: AppColors.primaryDark, minimumSize: const Size(double.infinity, 54), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), elevation: 0),
@@ -449,8 +585,23 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                   ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: AppColors.primaryDark, strokeWidth: 2))
                   : Text('التوقيع والتأكيد الإلكتروني', style: GoogleFonts.cairo(fontWeight: FontWeight.w900, fontSize: 12)),
               ),
+            ],
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildContractRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 11)),
+          const SizedBox(width: 8),
+          Expanded(child: Text(value, style: GoogleFonts.cairo(color: AppColors.textLight, fontSize: 11, fontWeight: FontWeight.bold))),
+        ],
       ),
     );
   }

@@ -177,29 +177,22 @@ class FirebaseService {
           }
         }
       } catch (e) {
-        print("Google Sign-In Native failed, falling back to database simulator: $e");
-        // Offline / testing fallback: prioritize khyratfarmdates@gmail.com if present
-        var snap = await _db.collection('users').where('email', isEqualTo: 'khyratfarmdates@gmail.com').get();
-        if (snap.docs.isNotEmpty) {
-          final doc = snap.docs.first;
-          final data = doc.data();
-          if (data['isAdmin'] != true) {
-            await _db.collection('users').doc(doc.id).update({'isAdmin': true});
-            final updatedDoc = await _db.collection('users').doc(doc.id).get();
-            return UserProfile.fromFirestore(updatedDoc);
-          }
-          return UserProfile.fromFirestore(doc);
-        }
-        
-        snap = await _db.collection('users').limit(1).get();
-        if (snap.docs.isNotEmpty) {
-          return UserProfile.fromFirestore(snap.docs.first);
-        }
+        print("Google Sign-In Native failed: $e");
+        return null;
       }
     } catch (e) {
       print("Google Login general error: $e");
     }
     return null;
+  }
+
+  Future<void> signOutGoogle() async {
+    try {
+      final GoogleSignIn googleSignIn = GoogleSignIn();
+      await googleSignIn.signOut();
+    } catch (e) {
+      print("Google SignOut error: $e");
+    }
   }
 
   // Stream single user profile
@@ -362,6 +355,8 @@ class FirebaseService {
     required String phone,
     required String nationalId,
     required bool isBuyer,
+    required String ipAddress,
+    required String otpUsed,
   }) async {
     if (!_initialized) return;
 
@@ -371,8 +366,8 @@ class FirebaseService {
       'phone': phone,
       'nationalId': nationalId,
       'signedAt': FieldValue.serverTimestamp(),
-      'ipAddress': '192.168.1.1', 
-      'otpUsed': '1234',
+      'ipAddress': ipAddress, 
+      'otpUsed': otpUsed,
     };
 
     final signatureField = isBuyer ? 'buyerSignature' : 'sellerSignature';
@@ -415,8 +410,7 @@ class FirebaseService {
     await _db.collection('users').doc(uid).update({
       'idNumber': idNumber,
       'phoneNumber': phoneNumber,
-      'isVerified': true,
-      'verificationStatus': 'verified',
+      'verificationStatus': 'pending',
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }

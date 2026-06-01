@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import 'constants/colors.dart';
 import 'models/user.dart';
 import 'models/order.dart';
 import 'services/firebase_service.dart';
 import 'screens/login_screen.dart';
 import 'screens/dashboard_screen.dart';
+import 'screens/landing_screen.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 void main() async {
@@ -50,23 +52,28 @@ class _ArboonMobileAppState extends State<ArboonMobileApp> {
   Future<void> _restoreSession() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final savedUid = prefs.getString('saved_uid');
       final savedDark = prefs.getBool('is_dark_mode') ?? true;
-      
       setState(() => _isDarkMode = savedDark);
 
-      if (savedUid != null && savedUid.isNotEmpty) {
-        // المستخدم سبق له تسجيل الدخول - نسترجع بياناته من Firestore
-        final profile = await FirebaseService().fetchProfileByUid(savedUid);
-        if (profile != null) {
+      final savedProfileStr = prefs.getString('saved_profile');
+      if (savedProfileStr != null) {
+        // Load from cache instantly
+        setState(() {
+          _currentUserProfile = UserProfile.fromJson(jsonDecode(savedProfileStr));
+          _isLoadingSession = false;
+        });
+
+        // Background update from Firestore
+        final profile = await FirebaseService().fetchProfileByUid(_currentUserProfile!.uid);
+        if (profile != null && mounted) {
           setState(() => _currentUserProfile = profile);
-          FirebaseService().saveDeviceToken(profile.uid);
+          _onLoginSuccess(profile); // Update cache
         }
+      } else {
+        setState(() => _isLoadingSession = false);
       }
     } catch (e) {
-      // في حال أي خطأ، نبدأ من شاشة الدخول بشكل طبيعي
       debugPrint('Session restore error: $e');
-    } finally {
       setState(() => _isLoadingSession = false);
     }
   }
@@ -75,6 +82,7 @@ class _ArboonMobileAppState extends State<ArboonMobileApp> {
   Future<void> _onLoginSuccess(UserProfile profile) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('saved_uid', profile.uid);
+    await prefs.setString('saved_profile', jsonEncode(profile.toJson()));
     setState(() => _currentUserProfile = profile);
     FirebaseService().saveDeviceToken(profile.uid);
   }
@@ -83,6 +91,7 @@ class _ArboonMobileAppState extends State<ArboonMobileApp> {
   Future<void> _onLogout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('saved_uid');
+    await prefs.remove('saved_profile');
     setState(() => _currentUserProfile = null);
   }
 
@@ -135,9 +144,9 @@ class _ArboonMobileAppState extends State<ArboonMobileApp> {
             : AnimatedSwitcher(
                 duration: const Duration(milliseconds: 400),
                 child: _currentUserProfile == null
-                    ? LoginScreen(
-                        key: const ValueKey('login'),
-                        onLoginSuccess: _onLoginSuccess,
+                    ? LandingScreen(
+                        key: const ValueKey('landing'),
+                        loginCallback: _onLoginSuccess,
                       )
                     : StreamBuilder<UserProfile?>(
                         key: ValueKey(_currentUserProfile!.uid),

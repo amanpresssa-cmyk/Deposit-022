@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../constants/colors.dart';
 import '../services/firebase_service.dart';
+import '../models/user.dart';
 import 'service_details_screen.dart';
+import 'add_service_screen.dart';
 
 class ServicesScreen extends StatefulWidget {
-  const ServicesScreen({Key? key}) : super(key: key);
+  final UserProfile? currentUser;
+  const ServicesScreen({Key? key, this.currentUser}) : super(key: key);
 
   @override
   State<ServicesScreen> createState() => _ServicesScreenState();
@@ -25,6 +28,18 @@ class _ServicesScreenState extends State<ServicesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.backgroundDark,
+      floatingActionButton: (widget.currentUser != null && widget.currentUser!.isAdmin)
+          ? FloatingActionButton(
+              backgroundColor: AppColors.accentGold,
+              child: const Icon(Icons.add, color: AppColors.backgroundDark),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => AddServiceScreen(currentUser: widget.currentUser!)),
+                );
+              },
+            )
+          : null,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -150,7 +165,10 @@ class _ServicesScreenState extends State<ServicesScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => ServiceDetailsScreen(service: service),
+            builder: (context) => ServiceDetailsScreen(
+              service: service,
+              currentUser: widget.currentUser, // This will now be UserProfile?
+            ),
           ),
         );
       },

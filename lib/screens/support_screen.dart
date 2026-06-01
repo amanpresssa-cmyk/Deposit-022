@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../constants/colors.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SupportScreen extends StatefulWidget {
   const SupportScreen({Key? key}) : super(key: key);
@@ -12,37 +14,63 @@ class SupportScreen extends StatefulWidget {
 class _SupportScreenState extends State<SupportScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  bool _chatSoundsEnabled = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPreferences();
+  }
+
+  Future<void> _loadPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _chatSoundsEnabled = prefs.getBool('chat_sounds_enabled') ?? true;
+    });
+  }
+
+  Future<void> _playSound(String assetPath) async {
+    if (_chatSoundsEnabled) {
+      try {
+        await _audioPlayer.play(AssetSource(assetPath));
+      } catch (e) {
+        debugPrint('Error playing sound: $e');
+      }
+    }
+  }
+
   final List<Map<String, dynamic>> _messages = [
     {
       'isUser': false,
-      'text': 'أهلاً بك في الدعم الذكي لمنصة عربون المكتوبة بأحدث تقنيات الأمان المالي. أنا "أنيس" مستشارك ومحكمك الذكي. كيف يمكنني مساعدتك اليوم في إدارة ضماناتك وتعميداتك؟',
+      'text': 'يا هلا والله ومسهلا بك في منصة عربون! أنا "أنيس"، مستشارك الذكي اللي يخدمك بعيونه. كيف أقدر أساعدك اليوم في تأمين صفقاتك وتعميداتك؟ تفضل طال عمرك.',
       'time': 'الآن',
     }
   ];
 
   final List<Map<String, String>> _suggestedQuestions = [
     {
-      'q': 'كيف أقوم بطلب تعميد وضمان جديد؟',
-      'a': 'لطلب تعميد جديد، انتقل إلى علامة التبويب "تعميد جديد" من الشريط السفلي، وأدخل تفاصيل الصفقة، المبلغ، ومدة التسليم، بالإضافة إلى وسيلة الاتصال بالطرف الآخر (بريد أو جوال). سيتم حجز الأموال في ضمان عربون الآمن بمجرد سدادك للمبلغ عبر بوابة الدفع.'
+      'q': 'كيف أسوي طلب تعميد جديد؟',
+      'a': 'أبشر ولا يهمك! كل اللي عليك تروح لقائمة "تعميد جديد" من تحت، وتحط تفاصيل صفقتك وقيمتها والمدة. فلوسك بتنحفظ في مكان آمن عندنا بمجرد ما تدفع، وما توصل للطرف الثاني لين تتأكد إن شغلك تمام وتستلمه.'
     },
     {
-      'q': 'كيف أضمن استلام أرباحي كبائع؟',
-      'a': 'تضمن منصة عربون حقك كبائع من خلال تجميد المبلغ بالكامل من المشتري قبل بدء العمل. بعد تسليم الخدمة أو البضاعة وتأكيد المشتري للاستلام (أو انتهاء مدة الفحص دون اعتراض)، يتم تحرير الرصيد فوراً إلى أرباحك المتاحة للتسوية لتتمكن من سحبها لحسابك البنكي.'
+      'q': 'أنا بائع، كيف أضمن حقي؟',
+      'a': 'حقك محفوظ في الحفظ والصون! المنصة تجمد فلوس المشتري عندنا قبل لا تبدأ شغل. وبمجرد ما تسلم شغلك والمشتري يعتمد، أو تخلص مدة الفحص بدون اعتراض، الرصيد ينزل لك فوراً في حسابك وتقدر تسحبه لأي بنك.'
     },
     {
-      'q': 'ماذا يحدث في حال حدوث خلاف بين الطرفين؟',
-      'a': 'في حال حدوث خلاف، يمكنك رفع نزاع رسمي من صفحة تفاصيل الصفقة. ستقوم المنصة بتجميد التعميد بالكامل وتعيين مستشار بشري لمراجعة المستندات والاتفاقية الرقمية الموقعة بين الطرفين لإصدار القرار العادل والنهائي وحفظ حقوق الجميع.'
+      'q': 'وش يصير لو اختلفنا؟',
+      'a': 'لا سمح الله لو صار خلاف، تقدر ترفع نزاع رسمي من شاشة الطلب. المنصة وقتها بتوقف الطلب وتكلف مستشار بشري من عندنا يراجع العقد والمستندات عشان يحكم بالعدل ويرجع لكل ذي حق حقه.'
     },
     {
-      'q': 'هل توثيق نفاذ الوطني إلزامي؟',
-      'a': 'نعم، توثيق الحساب عبر نظام نفاذ الوطني الموحد (أبشر) إلزامي لجميع الأطراف لضمان أمان وموثوقية الصفقات وتجنب الحسابات الوهمية، وهو ما يضمن الحماية القانونية الكاملة لتعاملاتك المالية.'
+      'q': 'هل التوثيق بنفاذ ضروري؟',
+      'a': 'إي نعم طال عمرك، التوثيق عبر النفاذ الوطني (أبشر) إلزامي للكل، وهذا عشان نحمي الكل من الحسابات الوهمية ونضمن لك بيئة تجارية آمنة وقانونية 100%.'
     }
   ];
 
   void _sendMessage(String text, {String? simulatedReply}) {
     if (text.trim().isEmpty) return;
     
+    _playSound('sounds/sent.wav');
     setState(() {
       _messages.add({
         'isUser': true,
@@ -58,7 +86,7 @@ class _SupportScreenState extends State<SupportScreen> {
     Future.delayed(const Duration(milliseconds: 800), () {
       if (!mounted) return;
       
-      String reply = 'شكراً لطرحك هذا الاستفسار. بصفتي المستشار الذكي، يسعدني إفادتك بأن منصة عربون تطبق أعلى معايير الحماية والتشفير البنكي المالي المعتمد، ويمكنك دائماً الاعتماد على أنظمتنا لضمان صفقاتك بكل موثوقية.';
+      String reply = 'حياك الله أخوي، استفسارك في محله. كوني المستشار الذكي لعربون، أطمنك إننا نطبق أعلى معايير الحماية البنكية في السعودية، وكل تعميداتك هنا في أمان تام وموثوقية عالية.';
       
       if (simulatedReply != null) {
         reply = simulatedReply;
@@ -66,14 +94,15 @@ class _SupportScreenState extends State<SupportScreen> {
         // Fallback checks for custom queries
         final query = text.toLowerCase();
         if (query.contains('سحب') || query.contains('رصيد') || query.contains('أرباح')) {
-          reply = 'لسحب أرباحك، توجه إلى تبويب الإعدادات من الشريط السفلي، وأدخل اسم البنك والآيبان الخاص بك ثم حدد المبلغ المطلوب واضغط إرسال. تتم معالجة التسويات والتحويل المالي المباشر إلى حسابك خلال ساعات عمل قصيرة بنجاح.';
+          reply = 'عشان تسحب أرباحك طال عمرك، روح لتبويب الإعدادات من تحت، وسجل اسم بنكك والآيبان. بعدها حدد المبلغ واضغط إرسال. بنعالج طلبك ونحول لك دايركت خلال ساعات عمل بسيطة.';
         } else if (query.contains('توثيق') || query.contains('نفاذ') || query.contains('أبشر')) {
-          reply = 'التوثيق عبر نفاذ يحمي حسابك من الاحتيال ويمنحك شارة التوثيق الخضراء. انتقل إلى الإعدادات واضغط على "توثيق الآن" لإتمام التوثيق في ثوانٍ معدودة عبر إدخال رمز التحقق الحكومي.';
+          reply = 'التوثيق عن طريق نفاذ (أبشر) يحمي حسابك من أي تلاعب ويعطيك شارة التوثيق. تقدر توثق حسابك بثواني من الإعدادات، بس حط رقم هويتك واقبل الطلب في تطبيق نفاذ وتصير أمورك طيبة.';
         } else if (query.contains('عمولة') || query.contains('رسوم') || query.contains('كم')) {
-          reply = 'تتقاضى منصة عربون عمولة حماية وضمان ثابتة تبلغ 3% فقط من إجمالي قيمة الصفقة، ويتحملها المشتري تلقائياً عند الدفع لضمان حفظ وتجميد الأموال بشكل آمن طوال فترة التعاقد.';
+          reply = 'منصة عربون تاخذ عمولة بسيطة وثابتة 3% بس من قيمة الصفقة كرسوم حماية وضمان. المشتري يتحملها تلقائياً وقت الدفع، عشان نضمن تجميد وحفظ الفلوس بأمان إلين يخلص الشغل.';
         }
       }
 
+      _playSound('sounds/received.wav');
       setState(() {
         _messages.add({
           'isUser': false,
