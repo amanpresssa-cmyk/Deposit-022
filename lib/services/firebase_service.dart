@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../models/user.dart';
 import '../models/order.dart';
@@ -383,6 +384,27 @@ class FirebaseService {
     });
   }
 
+  // Stream Active Services (Brokers -> Services)
+  Stream<List<Map<String, dynamic>>> streamServices() {
+    if (!_initialized) return const Stream.empty();
+    return _db.collection('services').where('isActive', isEqualTo: true).snapshots().map((snapshot) {
+      return snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
+    });
+  }
+
+  // Stream User Notifications
+  Stream<List<Map<String, dynamic>>> streamNotifications(String uid) {
+    if (!_initialized) return const Stream.empty();
+    return _db
+        .collection('notifications')
+        .where('userId', isEqualTo: uid)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
+    });
+  }
+
   // Submit Absher Verification (Nafaad Simulator) in live DB
   Future<void> submitNafaadVerification({
     required String uid,
@@ -397,6 +419,21 @@ class FirebaseService {
       'verificationStatus': 'verified',
       'updatedAt': FieldValue.serverTimestamp(),
     });
+  }
+
+  // Save FCM Device Token for Push Notifications
+  Future<void> saveDeviceToken(String uid) async {
+    if (!_initialized) return;
+    try {
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token != null) {
+        await _db.collection('users').doc(uid).update({
+          'fcmToken': token,
+        });
+      }
+    } catch (e) {
+      print('Failed to save FCM token: $e');
+    }
   }
 }
 

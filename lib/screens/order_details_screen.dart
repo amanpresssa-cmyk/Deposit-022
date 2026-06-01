@@ -169,14 +169,17 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, color: isActive ? AppColors.primaryDark : AppColors.textMuted, size: 16),
-              const SizedBox(width: 6),
-              Text(
-                title,
-                style: GoogleFonts.cairo(
-                  color: isActive ? AppColors.primaryDark : AppColors.textMuted,
-                  fontSize: 9,
-                  fontWeight: FontWeight.w900,
+              Icon(icon, color: isActive ? AppColors.primaryDark : AppColors.textMuted, size: 14),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  title,
+                  style: GoogleFonts.cairo(
+                    color: isActive ? AppColors.primaryDark : AppColors.textMuted,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
@@ -242,19 +245,24 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('قيمة الصفقة الإجمالية', style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 9, fontWeight: FontWeight.bold)),
-                        Text('\${order.amount} ر.س', style: GoogleFonts.outfit(color: AppColors.accentGold, fontSize: 20, fontWeight: FontWeight.w900)),
-                      ],
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('قيمة الصفقة الإجمالية', style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 9, fontWeight: FontWeight.bold)),
+                          FittedBox(fit: BoxFit.scaleDown, child: Text('\${order.amount} ر.س', style: GoogleFonts.outfit(color: AppColors.accentGold, fontSize: 20, fontWeight: FontWeight.w900))),
+                        ],
+                      ),
                     ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text('مدة التوريد', style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 9, fontWeight: FontWeight.bold)),
-                        Text('\${order.deliveryDays} أيام', style: GoogleFonts.cairo(color: AppColors.textLight, fontSize: 14, fontWeight: FontWeight.w900)),
-                      ],
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text('مدة التوريد', style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 9, fontWeight: FontWeight.bold)),
+                          FittedBox(fit: BoxFit.scaleDown, child: Text('\${order.deliveryDays} أيام', style: GoogleFonts.cairo(color: AppColors.textLight, fontSize: 14, fontWeight: FontWeight.w900))),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -456,15 +464,15 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     if (order.status == 'pending' && isBuyer) {
       actionButton = ElevatedButton.icon(
         icon: const Icon(Icons.credit_card, size: 20),
-        label: const Text('سداد وتعميد مبلغ الضمان'),
+        label: const FittedBox(fit: BoxFit.scaleDown, child: Text('سداد وتعميد مبلغ الضمان')),
         style: _actionBtnStyle(AppColors.success),
-        onPressed: () => _updateStatus('escrowed'),
+        onPressed: () => _showPaymentSimulation(order),
       );
     } 
     else if (order.status == 'escrowed' && isSeller) {
       actionButton = ElevatedButton.icon(
         icon: const Icon(Icons.check_circle_outline, size: 20),
-        label: const Text('تسليم العمل النهائي'),
+        label: const FittedBox(fit: BoxFit.scaleDown, child: Text('تسليم العمل النهائي')),
         style: _actionBtnStyle(AppColors.accentGold, textColor: AppColors.primaryDark),
         onPressed: () => _updateStatus('delivered', comment: 'تم تسليم العمل بنجاح بواسطة البائع من خلال التطبيق.'),
       );
@@ -472,7 +480,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     else if (order.status == 'delivered' && isBuyer) {
       actionButton = ElevatedButton.icon(
         icon: const Icon(Icons.thumb_up_alt_outlined, size: 20),
-        label: const Text('قبول العمل وتحرير المبلغ'),
+        label: const FittedBox(fit: BoxFit.scaleDown, child: Text('قبول العمل وتحرير المبلغ')),
         style: _actionBtnStyle(AppColors.success),
         onPressed: () => _updateStatus('completed'),
       );
@@ -493,6 +501,160 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
             ? const Center(child: CircularProgressIndicator(color: AppColors.accentGold))
             : actionButton,
       ),
+    );
+  }
+
+  void _showPaymentSimulation(OrderModel order) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        bool isProcessing = false;
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+                top: 32,
+                left: 24,
+                right: 24,
+              ),
+              decoration: const BoxDecoration(
+                color: AppColors.cardDark,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 48,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.textMuted.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'سداد ضمان التعميد',
+                    style: GoogleFonts.cairo(
+                      color: AppColors.textLight,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'المبلغ المطلوب: ${order.amount} ر.س',
+                    style: GoogleFonts.outfit(
+                      color: AppColors.accentGold,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  // Mock Card Input
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: AppColors.backgroundDark,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.textMuted.withOpacity(0.2)),
+                    ),
+                    child: TextField(
+                      keyboardType: TextInputType.number,
+                      style: GoogleFonts.outfit(color: AppColors.textLight, letterSpacing: 2),
+                      decoration: InputDecoration(
+                        border: InputBorder.none,
+                        hintText: '0000 0000 0000 0000',
+                        hintStyle: GoogleFonts.outfit(color: AppColors.textMuted),
+                        prefixIcon: const Icon(Icons.credit_card, color: AppColors.textMuted),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          decoration: BoxDecoration(
+                            color: AppColors.backgroundDark,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppColors.textMuted.withOpacity(0.2)),
+                          ),
+                          child: TextField(
+                            keyboardType: TextInputType.number,
+                            style: GoogleFonts.outfit(color: AppColors.textLight, letterSpacing: 2),
+                            decoration: InputDecoration(
+                              border: InputBorder.none,
+                              hintText: 'MM/YY',
+                              hintStyle: GoogleFonts.outfit(color: AppColors.textMuted),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          decoration: BoxDecoration(
+                            color: AppColors.backgroundDark,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppColors.textMuted.withOpacity(0.2)),
+                          ),
+                          child: TextField(
+                            keyboardType: TextInputType.number,
+                            style: GoogleFonts.outfit(color: AppColors.textLight, letterSpacing: 2),
+                            decoration: InputDecoration(
+                              border: InputBorder.none,
+                              hintText: 'CVC',
+                              hintStyle: GoogleFonts.outfit(color: AppColors.textMuted),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: ElevatedButton(
+                      onPressed: isProcessing ? null : () async {
+                        setModalState(() => isProcessing = true);
+                        // Simulate network delay
+                        await Future.delayed(const Duration(seconds: 2));
+                        if (context.mounted) {
+                          Navigator.pop(context); // Close bottom sheet
+                          _updateStatus('escrowed'); // Call real update
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.success,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: isProcessing
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : Text(
+                              'تأكيد الدفع',
+                              style: GoogleFonts.cairo(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 

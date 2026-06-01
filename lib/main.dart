@@ -7,6 +7,7 @@ import 'models/order.dart';
 import 'services/firebase_service.dart';
 import 'screens/login_screen.dart';
 import 'screens/dashboard_screen.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -33,7 +34,16 @@ class _ArboonMobileAppState extends State<ArboonMobileApp> {
   @override
   void initState() {
     super.initState();
+    _requestPermissions();
     _restoreSession(); // Try to restore saved login session on startup
+  }
+
+  Future<void> _requestPermissions() async {
+    try {
+      await Permission.notification.request();
+    } catch (e) {
+      debugPrint('Permission request error: $e');
+    }
   }
 
   /// استرجاع الجلسة المحفوظة محلياً عبر SharedPreferences
@@ -50,6 +60,7 @@ class _ArboonMobileAppState extends State<ArboonMobileApp> {
         final profile = await FirebaseService().fetchProfileByUid(savedUid);
         if (profile != null) {
           setState(() => _currentUserProfile = profile);
+          FirebaseService().saveDeviceToken(profile.uid);
         }
       }
     } catch (e) {
@@ -65,6 +76,7 @@ class _ArboonMobileAppState extends State<ArboonMobileApp> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('saved_uid', profile.uid);
     setState(() => _currentUserProfile = profile);
+    FirebaseService().saveDeviceToken(profile.uid);
   }
 
   /// مسح الجلسة المحفوظة عند تسجيل الخروج

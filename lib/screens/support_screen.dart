@@ -171,12 +171,16 @@ class _SupportScreenState extends State<SupportScreen> {
               children: [
                 Row(
                   children: [
-                    Text(
-                      'أنيس - المستشار المالي والتحكيمي الذكي',
-                      style: GoogleFonts.cairo(
-                        color: AppColors.textLight,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w900,
+                    Flexible(
+                      child: Text(
+                        'أنيس المستشار المالي والتحكيمي الذكي',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.cairo(
+                          color: AppColors.textLight,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),

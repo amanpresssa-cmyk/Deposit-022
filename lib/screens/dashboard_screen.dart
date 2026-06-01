@@ -9,6 +9,7 @@ import 'services_screen.dart';
 import 'create_order_screen.dart';
 import 'support_screen.dart';
 import 'settings_screen.dart';
+import 'notifications_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   final UserProfile mockUser;
@@ -93,9 +94,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 label: 'الرئيسية',
               ),
               BottomNavigationBarItem(
-                icon: Icon(Icons.handshake_outlined),
-                activeIcon: Icon(Icons.handshake),
-                label: 'الوسطاء',
+                icon: Icon(Icons.business_center_outlined),
+                activeIcon: Icon(Icons.business_center),
+                label: 'الخدمات',
               ),
               BottomNavigationBarItem(
                 icon: Icon(Icons.add_moderator_outlined),
@@ -233,17 +234,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
               const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: widget.isDarkMode ? AppColors.cardDark : Colors.grey.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.textMuted.withOpacity(0.1)),
-                ),
-                child: Icon(
-                  Icons.notifications_none,
-                  color: widget.isDarkMode ? AppColors.textLight : AppColors.textDark,
-                  size: 24,
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => NotificationsScreen(currentUser: widget.mockUser),
+                    ),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: widget.isDarkMode ? AppColors.cardDark : Colors.grey.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.textMuted.withOpacity(0.1)),
+                  ),
+                  child: Icon(
+                    Icons.notifications_none,
+                    color: widget.isDarkMode ? AppColors.textLight : AppColors.textDark,
+                    size: 24,
+                  ),
                 ),
               ),
               if (widget.onLogout != null) ...[
@@ -502,44 +513,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           );
         },
       },
-      {
-        'title': 'بوابة الدفع',
-        'icon': Icons.credit_card_outlined,
-        'color': AppColors.success,
-        'action': () {
-          showDialog(
-            context: context,
-            builder: (context) => AlertDialog(
-              backgroundColor: AppColors.cardDark,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-              title: Text(
-                'بوابة الدفع المباشر',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.cairo(color: AppColors.accentGold, fontWeight: FontWeight.w900, fontSize: 16),
-              ),
-              content: Text(
-                'تطبيق عربون يعمل كوسيط مالي رقمي متكامل يربط تعاملاتك ببوابة دفع إلكترونية مباشرة (مدى، فيزا، Apple Pay). لا تحتاج إلى أي شحن مسبق أو محافظ أرصدة؛ بل يتم حجز وسداد قيمة الضمان لكل تعميد بشكل مستقل ومؤمن بالكامل فور السداد لحين اكتمال التسليم.',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.cairo(color: AppColors.textLight, fontSize: 12, height: 1.6),
-              ),
-              actions: [
-                Center(
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.accentGold,
-                      foregroundColor: AppColors.primaryDark,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      minimumSize: const Size(120, 44),
-                    ),
-                    child: Text('فهمت ذلك', style: GoogleFonts.cairo(fontWeight: FontWeight.w900)),
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      },
+
       {
         'title': 'سجل الحساب',
         'icon': Icons.receipt_long_outlined,
