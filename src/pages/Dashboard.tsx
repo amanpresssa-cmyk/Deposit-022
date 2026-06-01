@@ -504,6 +504,44 @@ export const Dashboard: React.FC = () => {
             {/* Invoice Link Generator (Order Link Builder) */}
             <InvoiceLinkGenerator />
 
+            {/* Direct Android App Download Card */}
+            <div className="flex flex-col gap-4 md:gap-8 max-w-2xl mt-4">
+              <motion.div className="bg-gradient-to-r from-slate-900 via-slate-950 to-slate-900 rounded-xl md:rounded-[2.5rem] p-4 md:p-8 text-white relative overflow-hidden shadow-lg shadow-blue-900/10 border border-white/5">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/10 rounded-full blur-2xl pointer-events-none" />
+                <div className="absolute bottom-0 left-0 w-24 h-24 bg-green-500/5 rounded-full blur-xl pointer-events-none" />
+                
+                <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-3 md:gap-8 text-right">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-white/10 p-2 md:p-3 rounded-lg md:rounded-xl backdrop-blur-md border border-white/10 shrink-0">
+                      <svg className="w-5 h-5 md:w-7 md:h-7 text-green-500 animate-pulse" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M17.5 1h-11C5.12 1 4 2.12 4 3.5v17C4 21.88 5.12 23 6.5 23h11c1.38 0 2.5-1.12 2.5-2.5v-17C20 2.12 18.88 1 17.5 1zm-5.5 21c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm6-5H6V4h12v13z" />
+                      </svg>
+                    </div>
+                    <div className="space-y-0.5">
+                      <h2 className="text-xs md:text-lg font-black flex items-center gap-2">
+                        <span>حمّل تطبيق عربون للأندرويد</span>
+                        <span className="bg-green-500/20 text-green-400 px-2.5 py-0.5 rounded-full text-[8px] md:text-[10px] font-black">جديد</span>
+                      </h2>
+                      <p className="text-gray-400 text-[9px] md:text-xs font-medium leading-relaxed max-w-[200px] md:max-w-xs">
+                        تابع صفقاتك وعمد العقود المالية والضمانات مباشرة من جوالك وبسرعة فائقة.
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <a 
+                    href="/arboon.apk"
+                    download="arboon.apk"
+                    className="w-full md:w-auto bg-green-600 text-white px-5 py-2.5 md:py-3.5 rounded-lg md:rounded-2xl font-black text-[10px] md:text-sm hover:bg-green-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-green-950/20 shrink-0 hover:scale-[1.02]"
+                  >
+                    <span>تحميل التطبيق المباشر (APK)</span>
+                    <svg className="w-3.5 h-3.5 md:w-5 md:h-5 opacity-80" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                  </a>
+                </div>
+              </motion.div>
+            </div>
+
             {/* Mobile Stats Grid - 2x2 system */}
             <div className="grid grid-cols-2 lg:grid-cols-4 md:hidden gap-2 md:gap-3 mb-2">
                <StatCard title="المعاملات" value={activeOrdersCount} icon={Clock} color="blue" />

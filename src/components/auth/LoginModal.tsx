@@ -81,6 +81,23 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
                       <span>تسجيل الدخول عبر الجوال</span>
                     </button>
 
+                    <div className="pt-4 border-t border-gray-100 flex flex-col items-center gap-2 mt-2">
+                      <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">أو تصفح عبر الجوال مباشرة</span>
+                      <a
+                        href="/arboon.apk"
+                        download="arboon.apk"
+                        className="w-full bg-slate-950 text-white py-3.5 rounded-2xl font-bold text-sm hover:bg-slate-900 transition-all flex items-center justify-center gap-2 shadow-md border border-slate-900"
+                      >
+                        <svg className="w-4 h-4 text-green-500 animate-pulse" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M17.5 1h-11C5.12 1 4 2.12 4 3.5v17C4 21.88 5.12 23 6.5 23h11c1.38 0 2.5-1.12 2.5-2.5v-17C20 2.12 18.88 1 17.5 1zm-5.5 21c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm6-5H6V4h12v13z" />
+                        </svg>
+                        <span>تحميل تطبيق الأندرويد مباشرة (APK)</span>
+                        <svg className="w-4 h-4 opacity-75" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                      </a>
+                    </div>
+
                     <div className="pt-4 text-center">
                       <p className="text-xs text-gray-400 font-medium px-4">
                         بتسجيلك في المنصة، أنت توافق على <a href="#" className="text-blue-600 hover:underline">شروط الاستخدام</a> و <a href="#" className="text-blue-600 hover:underline">سياسة الخصوصية</a>.
