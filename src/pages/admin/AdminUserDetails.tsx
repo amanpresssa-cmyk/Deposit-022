@@ -1097,7 +1097,7 @@ export const AdminUserDetails: React.FC = () => {
                      {transactions.length === 0 ? (
                         <div className="bg-white dark:bg-gray-950 p-12 rounded-3xl border border-gray-100 dark:border-gray-900 text-center text-gray-450 font-bold text-xs">
                            <Wallet className="w-12 h-12 mx-auto mb-3 opacity-30 text-gray-350" />
-                           <p>لا يوجد أي تعاملات مالية مسجلة في محفظة المستخدم حتى الآن</p>
+                           <p>لا يوجد أي تعاملات مالية مسجلة في السجل المالي للمستخدم حتى الآن</p>
                         </div>
                      ) : (
                         transactions.map(tx => {

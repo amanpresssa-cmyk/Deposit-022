@@ -170,16 +170,16 @@ export const AdminFinance: React.FC = () => {
       if (w.userId) {
         await sendNotification(
           w.userId,
-          '✅ تم إيداع سحب رصيدك بالبنك',
-          `لقد تمت الموافقة على طلب السحب الخاص بك بقيمة ${w.netAmount} ر.س وتم تحويلها بنجاح إلى حسابك البنكي.`,
+          '✅ تم تحويل مستحقاتك إلى البنك',
+          `لقد تمت الموافقة على طلب تحويل المستحقات بقيمة ${w.netAmount} ر.س وتم تحويلها بنجاح إلى حسابك البنكي.`,
           'payment',
           'urgent'
         );
       }
-      toast.success('تمت الموافقة على السحب وتحويل الرصيد للبائع!');
+      toast.success('تمت الموافقة على التحويل وإرسال المستحقات للمستخدم!');
     } catch (err) {
       console.error(err);
-      toast.error('حدث خطأ أثناء تأكيد السحب المالي.');
+      toast.error('حدث خطأ أثناء تأكيد التحويل المالي.');
     } finally {
       setWithdrawalActionLoading(false);
     }
@@ -208,19 +208,19 @@ export const AdminFinance: React.FC = () => {
         // 3. Send Push Notification
         await sendNotification(
           w.userId,
-          '❌ رفض طلب السحب المالي',
-          `تم رفض طلب سحب الرصيد بقيمة ${w.amount} ر.س لسبب: ${reason}. تم إعادة الرصيد لمحفظتك.`,
+          '❌ رفض طلب التحويل المالي',
+          `تم رفض طلب تحويل المستحقات بقيمة ${w.amount} ر.س لسبب: ${reason}. تم إعادة المبلغ إلى سجل مستحقاتك.`,
           'payment',
           'urgent'
         );
       }
 
-      toast.success('تم رفض طلب السحب وإعادة المبلغ لمحفظة البائع بنجاح.');
+      toast.success('تم رفض طلب التحويل وإعادة المبلغ لسجل مستحقات البائع بنجاح.');
       setRejectingWithdrawal(null);
       setWithdrawalRejectionReason('');
     } catch (err) {
       console.error(err);
-      toast.error('حدث خطأ أثناء رفض السحب.');
+      toast.error('حدث خطأ أثناء رفض التحويل.');
     } finally {
       setWithdrawalActionLoading(false);
     }
@@ -481,7 +481,7 @@ export const AdminFinance: React.FC = () => {
                </thead>
                <tbody className="divide-y divide-gray-50">
                   {withdrawals.length === 0 ? (
-                    <tr><td colSpan={7} className="px-8 py-14 text-center text-gray-300 italic font-bold">لا توجد طلبات سحب مسجلة حالياً بالمنصة</td></tr>
+                    <tr><td colSpan={7} className="px-8 py-14 text-center text-gray-300 italic font-bold">لا توجد طلبات تحويل مسجلة حالياً بالمنصة</td></tr>
                   ) : (
                     withdrawals.map(w => {
                       const isPending = w.status === 'pending';

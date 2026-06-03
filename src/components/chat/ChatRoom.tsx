@@ -389,6 +389,16 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ orderId }) => {
                       <img src={msg.imageUrl} alt="مرفق" className="max-w-[200px] sm:max-w-[250px] object-cover" />
                     </a>
                   )}
+                  {((msg.fileUrls && msg.fileUrls.length > 0) || msg.fileUrl) && (
+                    <div className="flex flex-col gap-2 mt-2">
+                      {(msg.fileUrls || (msg.fileUrl ? [msg.fileUrl] : [])).map((url: string, i: number) => (
+                        <a key={i} href={url} target="_blank" rel="noreferrer" className="flex items-center gap-2 bg-white/20 hover:bg-white/30 text-current p-2 rounded-xl border border-current/10 transition-colors text-xs font-bold w-fit">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+                          تحميل المرفق {i + 1}
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 {showTime && !isSystem && (
                   <p className={`text-[9px] font-bold text-gray-400 px-2 ${isOwn ? 'text-right' : 'text-left'}`}>

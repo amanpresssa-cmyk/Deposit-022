@@ -289,7 +289,7 @@ export const Home: React.FC = () => {
 
   const activeHeroTitleTop = heroBanner?.titleTop || 'ضمانك الموثوق';
   const activeHeroTitleBottom = heroBanner?.titleBottom || 'في العالم الرقمي';
-  const activeHeroSubtitle = heroBanner?.subtitle || 'عربون هو وسيطك الذكي لضمان فحص وسلامة التعاملات المالية والخدمية في المملكة العربية السعودية.';
+  const activeHeroSubtitle = heroBanner?.subtitle || 'نضمن حقوق البائع والمشتري بكل أمان وشفافية عبر نظام التعميد الذكي.';
   const activeTrustMessages = heroBanner?.trustMessages?.map((m: string) => ({ 
     text: m, 
     icon: <ShieldCheck className="w-4 h-4" /> 
@@ -551,7 +551,7 @@ export const Home: React.FC = () => {
                          className="mr-2 inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-[6px] md:text-[8px] font-black hover:bg-emerald-200 transition-colors"
                        >
                          <Wallet className="w-2 h-2 md:w-2.5 md:h-2.5" />
-                         سحب الأرباح
+                         تحويل المستحقات
                        </button>
                     </div>
                 </div>

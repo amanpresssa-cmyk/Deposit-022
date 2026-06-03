@@ -784,7 +784,7 @@ export const AdminUsers: React.FC = () => {
                        {inspectedTransactions.length === 0 ? (
                           <div className="bg-white dark:bg-gray-950 p-10 rounded-3xl border border-gray-100 dark:border-gray-900 text-center text-gray-400 font-bold text-xs">
                              <Wallet className="w-12 h-12 mx-auto mb-3 opacity-30 text-gray-300" />
-                             <p>لا يوجد أي حركات مالية مسجلة في محفظة المستخدم</p>
+                             <p>لا يوجد أي حركات مالية مسجلة في السجل المالي للمستخدم</p>
                           </div>
                        ) : (
                           inspectedTransactions.map(tx => {
@@ -829,7 +829,7 @@ export const AdminUsers: React.FC = () => {
                              </div>
                              <div className="text-right">
                                 <h4 className="font-black text-sm text-gray-900 dark:text-white">تعديل رصيد المحفظة</h4>
-                                <p className="text-[10px] text-gray-400 font-bold">شحن أو خصم مالي من محفظة العميل الحالية والتوثيق فورياً في السجلات المالية</p>
+                                <p className="text-[10px] text-gray-400 font-bold">تسجيل أو خصم مستحقات في السجل المالي للعميل والتوثيق فورياً</p>
                              </div>
                           </div>
 

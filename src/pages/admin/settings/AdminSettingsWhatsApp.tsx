@@ -89,6 +89,82 @@ const PlatformWhatsAppInput: React.FC = () => {
   );
 };
 
+const OperationsWhatsAppInput: React.FC = () => {
+  const [phone, setPhone] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    const fetchPhone = async () => {
+      try {
+        const res = await fetch('/api/admin/whatsapp/operations-phone');
+        if (res.ok) {
+          const data = await res.json();
+          setPhone(data.phone || '');
+        }
+      } catch {}
+      setLoaded(true);
+    };
+    fetchPhone();
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch('/api/admin/whatsapp/operations-phone', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone })
+      });
+      if (res.ok) {
+        hotToast.success('تم حفظ رقم غرفة العمليات بنجاح 🚨');
+      } else {
+        hotToast.error('فشل حفظ الرقم');
+      }
+    } catch {
+      hotToast.error('تعذّر الاتصال بالخادم');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!loaded) return null;
+
+  return (
+    <div className="p-6 rounded-3xl border border-red-100 dark:border-red-900/30 bg-red-50/50 dark:bg-red-950/20 space-y-4 mt-4">
+      <div className="flex items-center gap-3 mb-1">
+        <div className="w-9 h-9 rounded-xl bg-red-100 dark:bg-red-900/50 border border-red-200 dark:border-red-800/30 flex items-center justify-center shrink-0">
+          <ShieldCheck className="w-4 h-4 text-red-600 dark:text-red-400" />
+        </div>
+        <div>
+          <p className="text-xs font-black text-gray-900 dark:text-white">رقم غرفة العمليات (الإدارة)</p>
+          <p className="text-[9px] font-bold text-gray-500 dark:text-gray-400 leading-relaxed">
+            الرقم المخصص لاستقبال تنبيهات النظام، وإشعارات الاحتيال، والنزاعات.
+          </p>
+        </div>
+      </div>
+      <div className="flex gap-3 items-center">
+        <input
+          type="tel"
+          value={phone}
+          onChange={e => setPhone(e.target.value)}
+          placeholder="مثال: 966501234567"
+          dir="ltr"
+          className="flex-1 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white rounded-xl px-4 py-2.5 text-sm font-mono focus:outline-none focus:border-red-400 transition-colors"
+        />
+        <button
+          onClick={handleSave}
+          disabled={saving || !phone.trim()}
+          className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-5 py-2.5 rounded-xl font-bold text-xs transition-all hover:scale-[1.02] flex items-center gap-1.5 shrink-0"
+        >
+          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+          حفظ
+        </button>
+      </div>
+    </div>
+  );
+};
+
 export const AdminSettingsWhatsApp: React.FC = () => {
   const [statusData, setStatusData] = useState<any>({ status: 'disconnected', qrCode: '', error: '' });
   const [checking, setChecking] = useState(true);
@@ -362,6 +438,7 @@ export const AdminSettingsWhatsApp: React.FC = () => {
         </div>
 
         <PlatformWhatsAppInput />
+        <OperationsWhatsAppInput />
       </div>
     </div>
   );

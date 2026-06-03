@@ -29,7 +29,7 @@ export const WithdrawalModal: React.FC<Props> = ({ isOpen, onClose, profile }) =
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (withdrawalAmount <= 0) {
-      toast.error('يرجى إدخال مبلغ صحيح للسحب');
+      toast.error('يرجى إدخال مبلغ صحيح للتحويل');
       return;
     }
     if (withdrawalAmount > availableBalance) {
@@ -64,7 +64,7 @@ export const WithdrawalModal: React.FC<Props> = ({ isOpen, onClose, profile }) =
         balance: increment(-withdrawalAmount)
       });
 
-      toast.success(withdrawalType === 'fast_track' ? 'تم طلب السحب الفوري بنجاح! جاري معالجة التحويل' : 'تم استلام طلب السحب بنجاح. قيد المعالجة (24-48 ساعة)');
+      toast.success(withdrawalType === 'fast_track' ? 'تم طلب التحويل الفوري بنجاح! جاري معالجة التحويل' : 'تم استلام طلب التحويل بنجاح. قيد المعالجة (24-48 ساعة)');
       onClose();
     } catch (error) {
       console.error('Withdrawal Error:', error);
@@ -90,7 +90,7 @@ export const WithdrawalModal: React.FC<Props> = ({ isOpen, onClose, profile }) =
             <div className="bg-emerald-100 dark:bg-emerald-900/30 p-2 rounded-xl text-emerald-600 dark:text-emerald-400">
               <Wallet className="w-5 h-5" />
             </div>
-            <h2 className="text-xl font-black text-gray-900 dark:text-white">سحب الأرباح</h2>
+            <h2 className="text-xl font-black text-gray-900 dark:text-white">تحويل المستحقات</h2>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors">
             <X className="w-5 h-5 text-gray-500" />
@@ -100,14 +100,14 @@ export const WithdrawalModal: React.FC<Props> = ({ isOpen, onClose, profile }) =
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           {/* Available Balance */}
           <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-2xl flex justify-between items-center border border-gray-100 dark:border-gray-700">
-            <span className="text-sm font-bold text-gray-500 dark:text-gray-400">الرصيد القابل للسحب</span>
+            <span className="text-sm font-bold text-gray-500 dark:text-gray-400">المستحقات القابلة للتحويل</span>
             <span className="text-xl font-black text-emerald-600 dark:text-emerald-400">
               {availableBalance.toLocaleString()} <span className="text-xs">ر.س</span>
             </span>
           </div>
 
           <div className="space-y-3">
-            <label className="text-xs font-black text-gray-700 dark:text-gray-300">المبلغ المراد سحبه</label>
+            <label className="text-xs font-black text-gray-700 dark:text-gray-300">المبلغ المراد تحويله</label>
             <input 
               type="number"
               required
@@ -121,7 +121,7 @@ export const WithdrawalModal: React.FC<Props> = ({ isOpen, onClose, profile }) =
 
           {/* Withdrawal Type Selection */}
           <div className="space-y-3">
-            <label className="text-xs font-black text-gray-700 dark:text-gray-300">طريقة السحب</label>
+            <label className="text-xs font-black text-gray-700 dark:text-gray-300">طريقة التحويل</label>
             <div className="grid grid-cols-1 gap-3">
               <label 
                 className={`relative flex items-start gap-4 p-4 rounded-2xl cursor-pointer border-2 transition-all ${withdrawalType === 'standard' ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/10' : 'border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800'}`}
@@ -132,7 +132,7 @@ export const WithdrawalModal: React.FC<Props> = ({ isOpen, onClose, profile }) =
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="font-black text-gray-900 dark:text-white">سحب مجاني (عادي)</h3>
+                    <h3 className="font-black text-gray-900 dark:text-white">تحويل مجاني (عادي)</h3>
                     {withdrawalType === 'standard' && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
                   </div>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">يتم معالجة تحويل المبلغ لحسابك بناءً على سياسة وأوقات بوابة الدفع المعتمدة.</p>
@@ -148,7 +148,7 @@ export const WithdrawalModal: React.FC<Props> = ({ isOpen, onClose, profile }) =
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="font-black text-gray-900 dark:text-white">السحب الفوري (Fast-Track)</h3>
+                    <h3 className="font-black text-gray-900 dark:text-white">التحويل الفوري (Fast-Track)</h3>
                     {withdrawalType === 'fast_track' && <CheckCircle2 className="w-4 h-4 text-blue-500" />}
                   </div>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -194,11 +194,11 @@ export const WithdrawalModal: React.FC<Props> = ({ isOpen, onClose, profile }) =
           {withdrawalType === 'fast_track' && withdrawalAmount > 0 && (
             <div className="bg-blue-100/50 dark:bg-blue-900/30 p-4 rounded-xl border border-blue-200 dark:border-blue-800 text-sm font-medium">
               <div className="flex justify-between items-center text-blue-800 dark:text-blue-200 mb-1">
-                <span>المبلغ المسحوب:</span>
+                <span>المبلغ المحول:</span>
                 <span className="font-bold">{withdrawalAmount.toLocaleString()} ر.س</span>
               </div>
               <div className="flex justify-between items-center text-red-600 dark:text-red-400 mb-2">
-                <span>رسوم السحب الفوري (1%):</span>
+                <span>رسوم التحويل الفوري (1%):</span>
                 <span className="font-bold">- {fastTrackFee.toLocaleString()} ر.س</span>
               </div>
               <div className="flex justify-between items-center text-gray-900 dark:text-white pt-2 border-t border-blue-200 dark:border-blue-800 font-black">
@@ -213,7 +213,7 @@ export const WithdrawalModal: React.FC<Props> = ({ isOpen, onClose, profile }) =
             disabled={loading || availableBalance <= 0 || withdrawalAmount <= 0}
             className="w-full bg-emerald-600 text-white py-4 rounded-xl font-black hover:bg-emerald-700 shadow-xl shadow-emerald-200/50 dark:shadow-emerald-900/20 disabled:opacity-50 transition-all flex justify-center items-center"
           >
-            {loading ? <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" /> : 'تأكيد طلب السحب'}
+            {loading ? <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" /> : 'تأكيد طلب التحويل'}
           </button>
 
         </form>

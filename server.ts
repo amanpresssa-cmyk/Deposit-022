@@ -103,7 +103,7 @@ async function backupWhatsAppSession() {
     console.warn("⚠️ [WhatsApp Backup] Firebase Admin not initialized. Skipping backup.");
     return;
   }
-  if ((global as any).usingADC) {
+  if ((global as any).usingADC && process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'prod') {
     console.warn("⚠️ [WhatsApp Backup] Skipping on local dev (ADC prevents storage writes without service account).");
     return;
   }
@@ -155,7 +155,7 @@ async function restoreWhatsAppSession() {
     console.warn("⚠️ [WhatsApp Restore] Firebase Admin not initialized. Skipping restore.");
     return;
   }
-  if ((global as any).usingADC) {
+  if ((global as any).usingADC && process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'prod') {
     console.warn("⚠️ [WhatsApp Restore] Skipping on local dev (ADC prevents storage reads without service account).");
     return;
   }
@@ -193,6 +193,9 @@ let whatsappStatus = "disconnected";
 let qrCodeStr = "";
 let whatsappClient: any;
 let whatsappInitError = "";
+
+let adminOperationsNumber = "";
+let whatsappNumber = "";
 
 // --- In-Memory Cache for WhatsApp Users ---
 let cachedWhatsappUsers: any[] = [];
@@ -344,8 +347,8 @@ async function handleWhatsAppMessage(msg: any) {
   const selectedButtonId = msg.selectedButtonId;
 
   // Normalize approvals from buttons or quick replies
-  const isApprove = selectedButtonId === 'APPROVE_ORDER' || body === 'موافقة' || body === 'نعم';
-  const isReject = selectedButtonId === 'REJECT_ORDER' || body === 'رفض' || body === 'لا';
+  const isApprove = selectedButtonId === 'btn_accept' || selectedButtonId === 'APPROVE_ORDER' || body === 'موافقة' || body === 'نعم' || body === '1' || body === '١';
+  const isReject = selectedButtonId === 'btn_reject' || selectedButtonId === 'REJECT_ORDER' || body === 'رفض' || body === 'لا' || body === '2' || body === '٢';
 
   try {
     // 1. Find user by whatsappNumber
@@ -430,16 +433,20 @@ async function handleWhatsAppMessage(msg: any) {
     // 3. Command Menu Trigger
     const isMenu = ['قائمة', 'مساعدة', 'منيو', 'menu', 'help', 'مرحبا', 'السلام عليكم', 'سلام'].includes(bodyLower);
     if (isMenu) {
-      const menuMessage = `مرحباً بك يا ${userName} في منصة عربون! 🤝
+      const menuMessage = `🛡️ *منصة عربون | نظام التحكم الذكي* 🛡️
 
-لقد التعرف على رقمك المربوط بالحساب تلقائياً. إليك قائمة التحكم السريعة:
+أهلاً بك أستاذ/ة *${userName}*،
+تم توثيق رقمك بنجاح في قاعدة بياناتنا. نحن هنا لضمان حقوقك المالية وتسهيل صفقاتك بأقصى درجات الموثوقية.
 
-1️⃣ أرسل *1* أو *رصيدي* 💰: لمعرفة رصيدك المالي الحالي والودائع المحجوزة.
-2️⃣ أرسل *2* أو *طلباتي* 📋: لعرض صفقاتك النشطة الجارية حالياً.
-3️⃣ أرسل *تعميد [رمز الطلب]* ✅ (مثال: تعميد a1b2): لقبول وحجز مبلغ الصفقة.
-4️⃣ أرسل *استلام [رمز الطلب]* 🎉 (مثال: استلام a1b2): لتأكيد الاستلام وتحرير المبلغ للبائع.
+📌 *قائمة الخدمات التفاعلية:*
+قم بإرسال الرقم أو الكلمة المطلوبة لتنفيذ الخدمة فوراً:
 
-يرجى كتابة رقم الخيار أو الكلمة لتنفيذها فوراً.`;
+🏦 *1* أو *رصيدي*: استعراض المحفظة المالية (المتاح والمحجوز).
+📋 *2* أو *طلباتي*: متابعة حالة صفقاتك الجارية.
+✅ *تعميد [رمز الطلب]* (مثال: تعميد a1b2): للموافقة على عرض وحجز مبلغ الصفقة.
+🎉 *استلام [رمز الطلب]* (مثال: استلام a1b2): لتأكيد استلامك للعمل وتحرير مستحقات الطرف الآخر.
+
+_عربون.. ثقة، أمان، وإنجاز._`;
       await whatsappClient.sendMessage(sender, menuMessage);
       return;
     }
@@ -450,13 +457,15 @@ async function handleWhatsAppMessage(msg: any) {
       const pendingBalance = userData.pendingBalance || 0;
       const freeFee = userData.freeFeeTransactions || 0;
 
-      const balanceMessage = `💰 تفاصيل محفظتك المالية لدى منصة عربون:
+      const balanceMessage = `🏦 *منصة عربون | الكشف المالي* 🏦
 
-* 🟢 الرصيد المتاح للسحب: *${balance.toLocaleString()} ر.س*
-* 🔵 الرصيد المحجوز كضمان: *${pendingBalance.toLocaleString()} ر.س*
-* 🎁 صفقات مجانية من الرسوم: *${freeFee} صفقة*
+أهلاً بك، إليك ملخص حسابك المالي والموثق لدينا:
 
-بإمكانك طلب سحب الرصيد المتاح مباشرة من إعدادات حسابك على المنصة.`;
+🟢 *الرصيد المتاح للسحب:* ${balance.toLocaleString()} ر.س
+🔵 *الرصيد المحجوز كضمان:* ${pendingBalance.toLocaleString()} ر.س
+🎁 *رصيد الصفقات المجانية:* ${freeFee} صفقة
+
+💡 _يمكنك طلب سحب الأرصدة المتاحة إلى حسابك البنكي مباشرة وبكل أمان عبر لوحة التحكم الخاصة بك في الموقع._`;
       await whatsappClient.sendMessage(sender, balanceMessage);
       return;
     }
@@ -473,11 +482,11 @@ async function handleWhatsAppMessage(msg: any) {
       const activeOrders = allOrders.filter(o => !['completed', 'cancelled'].includes(o.status));
 
       if (activeOrders.length === 0) {
-        await whatsappClient.sendMessage(sender, `📋 ليس لديك صفقات نشطة أو جارية حالياً على منصة عربون.`);
+        await whatsappClient.sendMessage(sender, `🛡️ *منصة عربون* 🛡️\n\nليس لديك أي صفقات نشطة أو جارية حالياً.\nنحن في انتظارك لحماية صفقتك القادمة!`);
         return;
       }
 
-      let orderListMessage = `📋 صفقاتك النشطة الجارية (${activeOrders.length}):\n\n`;
+      let orderListMessage = `📋 *منصة عربون | سجل الصفقات النشطة* 📋\n\nإليك قائمة بصفقاتك المحمية الجارية حالياً (${activeOrders.length} صفقات):\n\n`;
       activeOrders.slice(0, 5).forEach((order, index) => {
         const shortId = order.id.slice(0, 4).toUpperCase();
         let statusText = '';
@@ -542,7 +551,7 @@ async function handleWhatsAppMessage(msg: any) {
         await whatsappClient.sendMessage(sender, `✅ تمت الموافقة على الطلب (#ARB-${shortId.toUpperCase()}) بنجاح! بانتظار المشتري لإتمام الدفع وتعميد الطلب.`);
         
         await db.collection('notifications').add({
-          userId: orderData.creatorId, title: '🟢 تمت الموافقة على طلبك', message: `وافق الطرف الآخر ${userName} على طلبك (${orderData.title}). يمكنك الآن الدفع لبدء العمل.`, type: 'order_update', priority: 'normal', whatsappProcessed: false, isRead: false, createdAt: admin.firestore.FieldValue.serverTimestamp()
+          userId: orderData.creatorId, orderId: matchedOrder.id, title: '🟢 تمت الموافقة على طلبك', message: `وافق الطرف الآخر ${userName} على طلبك (${orderData.title}). يمكنك الآن الدفع لبدء العمل.`, type: 'order_update', priority: 'normal', whatsappProcessed: false, isRead: false, createdAt: admin.firestore.FieldValue.serverTimestamp()
         });
       } else {
         await matchedOrder.ref.update({
@@ -557,7 +566,7 @@ async function handleWhatsAppMessage(msg: any) {
         await whatsappClient.sendMessage(sender, `❌ تم رفض وإلغاء الطلب (#ARB-${shortId.toUpperCase()}) بنجاح.`);
         
         await db.collection('notifications').add({
-          userId: orderData.creatorId, title: '🔴 تم رفض الطلب', message: `اعتذر الطرف الآخر ${userName} عن قبول طلبك (${orderData.title}). تم الإلغاء.`, type: 'order_update', priority: 'normal', whatsappProcessed: false, isRead: false, createdAt: admin.firestore.FieldValue.serverTimestamp()
+          userId: orderData.creatorId, orderId: matchedOrder.id, title: '🔴 تم رفض الطلب', message: `اعتذر الطرف الآخر ${userName} عن قبول طلبك (${orderData.title}). تم الإلغاء.`, type: 'order_update', priority: 'normal', whatsappProcessed: false, isRead: false, createdAt: admin.firestore.FieldValue.serverTimestamp()
         });
       }
       return;
@@ -633,8 +642,8 @@ async function handleWhatsAppMessage(msg: any) {
         if (orderData.buyerId) {
           await db.collection('notifications').add({
             userId: orderData.buyerId,
-            title: '🔴 تم اعتذار البائع عن الطلب',
-            message: `اعتذر البائع ${userName} عن تلبية طلبك (${orderData.title}). تم إلغاء المعاملة وإرجاع العربون لمحفظتك.`,
+            orderId: matchedOrder.id,
+            title: '🔴 تم اعتذار البائع عن الطلب', message: `اعتذر البائع ${userName} عن تلبية طلبك (${orderData.title}). تم إلغاء المعاملة وإرجاع العربون لمحفظتك.`,
             type: 'order_update',
             priority: 'high',
             isRead: false,
@@ -759,7 +768,15 @@ function startFirebaseListeners() {
   }
   
   // ── IN-MEMORY CACHE FOR USERS ──
-  db.collection('users').where('whatsappEnabled', '==', true).onSnapshot(snap => {
+  
+    db.collection('settings').doc('whatsappAdmin').onSnapshot((doc) => {
+      if (doc.exists) {
+        adminOperationsNumber = doc.data().operationsNumber || '';
+        console.log(`✅ [WhatsApp Admin] Operations number updated: ${adminOperationsNumber}`);
+      }
+    });
+
+    db.collection('users').where('whatsappEnabled', '==', true).onSnapshot(snap => {
     cachedWhatsappUsers = snap.docs.map(doc => ({ id: doc.id, data: doc.data(), ref: doc.ref }));
     isUsersCached = true;
     console.log(`🧠 [WhatsApp Cache] Loaded ${cachedWhatsappUsers.length} users into memory.`);
@@ -835,8 +852,8 @@ function startFirebaseListeners() {
                 const formattedNum = formatWhatsAppNumber(whatsappNumber);
                 const isOrder = notifData.type === 'order' || notifData.type === 'order_update' || (notifData.title || '').includes('طلب');
                 const plainText = isOrder
-                  ? `🔔 *${notifData.title}*\n\n${notifData.message}\n\n💡 *للرد السريع:*\n- أرسل "موافقة" أو "1" للقبول\n- أرسل "رفض" أو "2" للاعتظار\n\n_منصة عربون للمشاريع_`
-                  : `🔔 *${notifData.title}*\n\n${notifData.message}\n\n_منصة عربون للمشاريع_`;
+                  ? `🛡️ *منصة عربون | الإشعارات الرسمية* 🛡️\n\n*إشعار جديد:* ${notifData.title}\n━━━━━━━━━━━━━━━━━━━━\n${notifData.message}\n━━━━━━━━━━━━━━━━━━━━\n\n⚡ *لاتخاذ إجراء سريع عبر الواتساب:*\n✅ للموافقة: أرسل *1* أو كلمة *موافقة*\n❌ للرفض: أرسل *2* أو كلمة *رفض*\n\n_نضمن لك حفظ حقوقك بأعلى معايير الأمان المالي._`
+                  : `🛡️ *منصة عربون | الإشعارات الرسمية* 🛡️\n\n*إشعار جديد:* ${notifData.title}\n━━━━━━━━━━━━━━━━━━━━\n${notifData.message}\n━━━━━━━━━━━━━━━━━━━━\n\n_نضمن لك حفظ حقوقك بأعلى معايير الأمان المالي._`;
                 
                 try {
                   if (isOrder) {
@@ -895,8 +912,8 @@ function startFirebaseListeners() {
             const fmtNum = formatWhatsAppNumber(u.whatsappNumber);
             const isOrder = d.type === 'order' || d.type === 'order_update' || (d.title || '').includes('طلب');
             const plainText = isOrder
-              ? `🔔 *${d.title}*\n\n${d.message}\n\n💡 *للرد السريع:*\n- أرسل "موافقة" أو "1" للقبول\n- أرسل "رفض" أو "2" للاعتظار\n\n_منصة عربون للمشاريع_`
-              : `🔔 *${d.title}*\n\n${d.message}\n\n_منصة عربون للمشاريع_`;
+              ? `🛡️ *منصة عربون | الإشعارات الرسمية* 🛡️\n\n*إشعار جديد:* ${d.title}\n━━━━━━━━━━━━━━━━━━━━\n${d.message}\n━━━━━━━━━━━━━━━━━━━━\n\n⚡ *لاتخاذ إجراء سريع عبر الواتساب:*\n✅ للموافقة: أرسل *1* أو كلمة *موافقة*\n❌ للرفض: أرسل *2* أو كلمة *رفض*\n\n_نضمن لك حفظ حقوقك بأعلى معايير الأمان المالي._`
+              : `🛡️ *منصة عربون | الإشعارات الرسمية* 🛡️\n\n*إشعار جديد:* ${d.title}\n━━━━━━━━━━━━━━━━━━━━\n${d.message}\n━━━━━━━━━━━━━━━━━━━━\n\n_نضمن لك حفظ حقوقك بأعلى معايير الأمان المالي._`;
             
             try {
               if (isOrder) {
@@ -969,7 +986,7 @@ function startFirebaseListeners() {
                 const formattedNum = formatWhatsAppNumber(recipientData.whatsappNumber);
                 const shortId = orderId.slice(0, 4).toUpperCase();
                 
-                const alertMsg = `💬 *رسالة جديدة من [${senderName}] بخصوص الصفقة (#ARB-${shortId}):*\n"${text}"\n\n💡 *للرد السريع مباشرة من الواتساب، أرسل:*\n(رد ${shortId}: اكتب ردك هنا)`;
+                const alertMsg = `🛡️ *منصة عربون | نظام المراسلة الآمن* 🛡️\n\n💬 *رسالة جديدة من:* [${senderName}]\n📌 *بخصوص الصفقة:* #ARB-${shortId}\n\n"${text}"\n\n━━━━━━━━━━━━━━━━━━━━\n⚡ *للرد السريع مباشرة، أرسل:*\nرد ${shortId}: (اكتب رسالتك هنا)`;
                 
                 if (whatsappStatus === "connected") {
                   await whatsappClient.sendMessage(formattedNum, alertMsg);
@@ -1104,8 +1121,8 @@ async function startServer() {
       const formattedNum = formatWhatsAppNumber(whatsappNumber);
       const isOrderNotif = type === 'order' || type === 'order_update' || (title || '').includes('طلب');
       const msgText = isOrderNotif
-        ? `🔔 *${title}*\n\n${message}\n\n💡 *للرد السريع:*\n- أرسل "موافقة" أو "1" للقبول\n- أرسل "رفض" أو "2" للاعتظار\n\n_منصة عربون للمشاريع_`
-        : `🔔 *${title}*\n\n${message}\n\n_منصة عربون للمشاريع_`;
+        ? `🛡️ *منصة عربون | الإشعارات الرسمية* 🛡️\n\n*إشعار جديد:* ${title}\n━━━━━━━━━━━━━━━━━━━━\n${message}\n━━━━━━━━━━━━━━━━━━━━\n\n⚡ *لاتخاذ إجراء سريع عبر الواتساب:*\n✅ للموافقة: أرسل *1* أو كلمة *موافقة*\n❌ للرفض: أرسل *2* أو كلمة *رفض*\n\n_نضمن لك حفظ حقوقك بأعلى معايير الأمان المالي._`
+        : `🛡️ *منصة عربون | الإشعارات الرسمية* 🛡️\n\n*إشعار جديد:* ${title}\n━━━━━━━━━━━━━━━━━━━━\n${message}\n━━━━━━━━━━━━━━━━━━━━\n\n_نضمن لك حفظ حقوقك بأعلى معايير الأمان المالي._`;
 
       await whatsappClient.sendMessage(formattedNum, msgText);
       console.log(`✅ [WhatsApp Direct] Sent to ${formattedNum}`);

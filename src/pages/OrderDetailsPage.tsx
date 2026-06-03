@@ -36,7 +36,7 @@ export const OrderDetailsPage: React.FC = () => {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('credit_card');
   const [specificProvider, setSpecificProvider] = useState<'mada' | 'visa' | 'mastercard' | 'apple_pay' | 'tabby' | 'tamara'>('mada');
-  const [deliveryFile, setDeliveryFile] = useState<File | null>(null);
+  const [deliveryFiles, setDeliveryFiles] = useState<File[]>([]);
   const [completionComment, setCompletionComment] = useState('');
   const [orderLogs, setOrderLogs] = useState<any[]>([]);
   const [copied, setCopied] = useState(false);
@@ -347,28 +347,31 @@ export const OrderDetailsPage: React.FC = () => {
       }
 
       if (newStatus === 'delivered') {
-        let fileUrl = '';
-        if (deliveryFile) {
+        const fileUrls: string[] = [];
+        if (deliveryFiles.length > 0) {
           try {
-            const fileRef = ref(storage, `deliveries/${order.id}/${deliveryFile.name}`);
-            
-            // Add a timeout because Firebase SDK can hang indefinitely if storage rules block
-            const uploadPromise = uploadBytes(fileRef, deliveryFile);
-            let timeoutHandle: any;
-            const timeoutPromise = new Promise((_, reject) => {
-              timeoutHandle = setTimeout(() => reject(new Error('Storage timeout')), 10000);
+            // Upload all files in parallel
+            const uploadPromises = deliveryFiles.map(async (file) => {
+              const fileRef = ref(storage, `deliveries/${order.id}/${Date.now()}_${file.name}`);
+              const uploadPromise = uploadBytes(fileRef, file);
+              let timeoutHandle: any;
+              const timeoutPromise = new Promise((_, reject) => {
+                timeoutHandle = setTimeout(() => reject(new Error('Storage timeout')), 15000);
+              });
+              await Promise.race([uploadPromise, timeoutPromise]);
+              clearTimeout(timeoutHandle);
+              return await getDownloadURL(fileRef);
             });
-            
-            await Promise.race([uploadPromise, timeoutPromise]);
-            clearTimeout(timeoutHandle);
-            fileUrl = await getDownloadURL(fileRef);
+            const results = await Promise.all(uploadPromises);
+            fileUrls.push(...results);
           } catch (err) {
-            console.error("Failed to upload delivery file", err);
-            alert("فشل رفع الملف المرفق، سيتم تسليم العمل بدون الملف. يمكنك إرساله في رسالة لاحقاً.");
+            console.error("Failed to upload delivery files", err);
+            toast.error("فشل رفع بعض المرفقات لثقل حجمها، تم تسليم الطلب. يرجى إرسال المرفقات في المحادثة مباشرة إن أمكن.", { duration: 10000 });
           }
         }
         if (comment) updateData.deliveryNote = comment;
-        if (fileUrl) updateData.deliveryAttachmentUrl = fileUrl;
+        if (fileUrls.length > 0) updateData.deliveryAttachmentUrls = fileUrls;
+        if (fileUrls.length > 0) updateData.deliveryAttachmentUrl = fileUrls[0];
       }
 
       console.log("Updating order with data:", updateData);
@@ -407,8 +410,9 @@ export const OrderDetailsPage: React.FC = () => {
           createdAt: serverTimestamp(),
         };
 
-        if (newStatus === 'delivered' && updateData.deliveryAttachmentUrl) {
-          msgData.imageUrl = updateData.deliveryAttachmentUrl;
+        if (newStatus === 'delivered' && updateData.deliveryAttachmentUrls && updateData.deliveryAttachmentUrls.length > 0) {
+          msgData.fileUrls = updateData.deliveryAttachmentUrls;
+          msgData.fileUrl = updateData.deliveryAttachmentUrls[0];
         }
 
         await addDoc(collection(db, `orders/${order.id}/messages`), msgData);
@@ -478,7 +482,7 @@ export const OrderDetailsPage: React.FC = () => {
             await sendNotification(
               order.sellerId,
               `⏳ المشتري في مرحلة التقييم ${orderRef}`,
-              `وافق المشتري على الاستلام، وبانتظار تقييمه للخدمة ليتم تحرير المبلغ إلى رصيدك لضمان جودة العمل.`,
+              `وافق المشتري على الاستلام، وبانتظار تقييمه للخدمة ليتم تحرير المبلغ إلى سجل مستحقاتك لضمان جودة العمل.`,
               'order_update', 'normal', order.id, user.uid
             );
           }
@@ -503,7 +507,7 @@ export const OrderDetailsPage: React.FC = () => {
             await sendNotification(
               order.sellerId,
               `🎉 تم تحرير مبلغك ${orderRef}`,
-              `أنهى المشتري التقييم واكتملت الصفقة. تم إضافة ${sellerNet.toLocaleString()} ر.س إلى رصيدك. شكراً لاحترافيتك!`,
+              `أنهى المشتري التقييم واكتملت الصفقة. تم إضافة ${sellerNet.toLocaleString()} ر.س إلى سجل مستحقاتك. شكراً لاحترافيتك!`,
               'payment', 'urgent', order.id, user.uid
             );
           }
@@ -822,7 +826,7 @@ export const OrderDetailsPage: React.FC = () => {
               pending:   { bg:'bg-blue-50',   border:'border-blue-200',   icon:'⏳', title: 'بانتظار الموافقة والدفع', buyerMsg:'لتفعيل الطلب وبدء العمل، يرجى إتمام عملية الدفع. سيتم حفظ المبلغ بأمان في المنصة ولن يُسلّم للبائع إلا بعد رضاك عن العمل.',          sellerMsg:'الطلب قيد الانتظار. سيصلك إشعار فور قيام المشتري بدفع وتعميد المبلغ في المنصة لتبدأ العمل.' },
               escrowed:  { bg:'bg-amber-50',  border:'border-amber-200',  icon:'🔒', title: 'تم الإيداع بأمان', buyerMsg:'المبلغ محجوز بأمان في منصة عربون. البائع يعمل الآن على إنجاز طلبك. يمكنك التواصل معه عبر المحادثة.',     sellerMsg:'تم تأمين المبلغ من قبل المشتري! يمكنك الآن البدء في تنفيذ العمل بأمان. عند الانتهاء، قم بتسليم العمل من خلال النموذج أدناه.' },
               delivered: { bg:'bg-purple-50', border:'border-purple-200', icon:'📦', title: 'بانتظار تأكيد المشتري', buyerMsg:'البائع قام بتسليم العمل. يرجى مراجعة المرفقات أدناه واختبار العمل. إذا كان مطابقاً للاتفاق، اضغط على "أوافق وأقيم التجربة".', sellerMsg:'تم تسليم العمل للمشتري. يرجى الانتظار لحين قيامه بمراجعة العمل والموافقة عليه ليتم تحرير المبلغ لك.' },
-              completed: { bg:'bg-green-50',  border:'border-green-200',  icon:'✅', title: 'اكتملت الصفقة بنجاح', buyerMsg:'تم إكمال الطلب وتحرير المبلغ للبائع. شكراً لاستخدامك منصة عربون!',              sellerMsg:'تم قبول العمل وتحرير المبلغ إلى رصيدك. شكراً لجهودك!' },
+              completed: { bg:'bg-green-50',  border:'border-green-200',  icon:'✅', title: 'اكتملت الصفقة بنجاح', buyerMsg:'تم إكمال الطلب وتحرير المبلغ للبائع. شكراً لاستخدامك منصة عربون!',              sellerMsg:'تم قبول العمل وتحرير المبلغ إلى سجل مستحقاتك. شكراً لجهودك!' },
               disputed:  { bg:'bg-red-50',    border:'border-red-200',    icon:'🚨', title: 'نزاع نشط', buyerMsg:'تم رفع نزاع على هذا الطلب. سيتواصل معك فريق الدعم قريباً عبر المحادثة أو الهاتف لحل المشكلة.',       sellerMsg:'تم رفع نزاع على هذا الطلب. سيتواصل معك فريق الدعم قريباً لحل المشكلة والحفاظ على حقوق جميع الأطراف.' },
               cancelled: { bg:'bg-gray-100',  border:'border-gray-300',   icon:'❌', title: 'طلب ملغي', buyerMsg:'تم إلغاء الصفقة بناءً على طلب أحد الأطراف.',                               sellerMsg:'تم إلغاء الصفقة بناءً على طلب أحد الأطراف.' },
             };
@@ -1018,16 +1022,20 @@ export const OrderDetailsPage: React.FC = () => {
                       if (file && file.size > 25 * 1024 * 1024) {
                         alert("عذراً، حجم الملف كبير جداً. يرجى ضغطه أو استخدام رابط خارجي.");
                         e.target.value = '';
-                        setDeliveryFile(null);
+                        setDeliveryFiles([]);
                       } else {
-                        setDeliveryFile(file || null);
+                        if (file) {
+                          setDeliveryFiles([file]);
+                        } else {
+                          setDeliveryFiles([]);
+                        }
                       }
                     }} 
                     className="w-full text-xs file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer text-gray-500 mb-2" 
                   />
                   <button 
                     onClick={() => updateStatus('delivered', completionComment)} 
-                    disabled={actionLoading || (!completionComment.trim() && !deliveryFile)} 
+                    disabled={actionLoading || (!completionComment.trim() && deliveryFiles.length === 0)} 
                     title="تسليم العمل النهائي لكي يقوم المشتري بمراجعته وتحرير المبلغ"
                     className="w-full bg-blue-600 text-white px-4 py-3 rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 mt-2 flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-200"
                   >
@@ -1080,7 +1088,7 @@ export const OrderDetailsPage: React.FC = () => {
           </div>
 
           {/* Delivery Note & Attachment Section */}
-          {(order.status === 'delivered' || order.status === 'rating' || order.status === 'completed') && (order.deliveryNote || order.deliveryAttachmentUrl) && (
+          {(order.status === 'delivered' || order.status === 'rating' || order.status === 'completed') && (order.deliveryNote || order.deliveryAttachmentUrl || (order.deliveryAttachmentUrls && order.deliveryAttachmentUrls.length > 0)) && (
              <div className="border-t border-gray-100 pt-6 space-y-4">
                <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
                  <CheckCircle2 className="w-4 h-4 text-green-500" />
@@ -1090,15 +1098,15 @@ export const OrderDetailsPage: React.FC = () => {
                  {order.deliveryNote && (
                    <p className="text-sm font-bold text-gray-800 leading-relaxed whitespace-pre-wrap">{order.deliveryNote}</p>
                  )}
-                 {order.deliveryAttachmentUrl && (
-                   <a 
-                     href={order.deliveryAttachmentUrl} 
-                     target="_blank" 
-                     rel="noreferrer"
-                     className="block rounded-xl overflow-hidden border border-green-200/50 hover:opacity-90 transition-opacity max-w-[200px]"
-                   >
-                     <img src={order.deliveryAttachmentUrl} alt="مرفق التسليم" className="w-full h-auto object-cover" />
-                   </a>
+                 {((order.deliveryAttachmentUrls && order.deliveryAttachmentUrls.length > 0) || order.deliveryAttachmentUrl) && (
+                   <div className="flex flex-wrap gap-2 mt-2">
+                     {(order.deliveryAttachmentUrls || (order.deliveryAttachmentUrl ? [order.deliveryAttachmentUrl] : [])).map((url: string, i: number) => (
+                       <a key={i} href={url} target="_blank" rel="noreferrer" className="flex items-center gap-2 bg-white text-green-700 border border-green-200 hover:bg-green-100 px-3 py-2 rounded-xl text-xs font-bold transition-colors">
+                         <FileText className="w-4 h-4" />
+                         تحميل المرفق {i + 1}
+                       </a>
+                     ))}
+                   </div>
                  )}
                </div>
              </div>
