@@ -194,6 +194,10 @@ let qrCodeStr = "";
 let whatsappClient: any;
 let whatsappInitError = "";
 
+// --- In-Memory Cache for WhatsApp Users ---
+let cachedWhatsappUsers: any[] = [];
+let isUsersCached = false;
+
 // BaileysClientWrapper: A pure Node.js WebSocket WhatsApp Client (zero browser dependency, zero missing libraries!)
 class BaileysClientWrapper {
   public sock: any = null;
@@ -346,14 +350,19 @@ async function handleWhatsAppMessage(msg: any) {
   try {
     // 1. Find user by whatsappNumber
     const usersRef = db.collection('users');
-    const userQuery = await usersRef.where('whatsappEnabled', '==', true).get();
     let userDoc = null;
     
-    for (const doc of userQuery.docs) {
-      const data = doc.data();
-      const num = (data.whatsappNumber || '').replace(/\D/g, '');
+    if (!isUsersCached) {
+      console.warn("⚠️ [WhatsApp Handler] Cache not ready, performing fallback database query...");
+      const userQuery = await usersRef.where('whatsappEnabled', '==', true).get();
+      cachedWhatsappUsers = userQuery.docs.map(doc => ({ id: doc.id, data: doc.data(), ref: doc.ref }));
+      isUsersCached = true;
+    }
+
+    for (const user of cachedWhatsappUsers) {
+      const num = (user.data.whatsappNumber || '').replace(/\D/g, '');
       if (num && (cleanSender.endsWith(num) || num.endsWith(cleanSender))) {
-        userDoc = doc;
+        userDoc = { id: user.id, data: () => user.data, ref: user.ref };
         break;
       }
     }
@@ -374,10 +383,16 @@ async function handleWhatsAppMessage(msg: any) {
       const replyText = chatReplyMatch[3].trim();
       
       const ordersRef = db.collection('orders');
-      const orderQuery = await ordersRef.get();
-      let matchedOrder = null;
       
-      for (const doc of orderQuery.docs) {
+      const buyerSnap = await ordersRef.where('buyerId', '==', userId).get();
+      const sellerSnap = await ordersRef.where('sellerId', '==', userId).get();
+      const sellerEmailSnap = userData.email ? await ordersRef.where('sellerEmail', '==', userData.email).get() : { docs: [] };
+      
+      const allDocs = [...buyerSnap.docs, ...sellerSnap.docs, ...sellerEmailSnap.docs];
+      const uniqueDocs = Array.from(new Map(allDocs.map(doc => [doc.id, doc])).values());
+
+      let matchedOrder = null;
+      for (const doc of uniqueDocs) {
         if (doc.id.toLowerCase().endsWith(shortOrderId.toLowerCase()) || doc.id.toLowerCase() === shortOrderId.toLowerCase()) {
           const data = doc.data();
           if (data.buyerId === userId || data.sellerId === userId || data.sellerEmail === userData.email) {
@@ -556,8 +571,14 @@ async function handleWhatsAppMessage(msg: any) {
       
       let matchedOrder = null;
       if (shortId) {
-        const orderQuery = await ordersRef.get();
-        for (const doc of orderQuery.docs) {
+        const buyerSnap = await ordersRef.where('buyerId', '==', userId).get();
+        const sellerSnap = await ordersRef.where('sellerId', '==', userId).get();
+        const sellerEmailSnap = userData.email ? await ordersRef.where('sellerEmail', '==', userData.email).get() : { docs: [] };
+        
+        const allDocs = [...buyerSnap.docs, ...sellerSnap.docs, ...sellerEmailSnap.docs];
+        const uniqueDocs = Array.from(new Map(allDocs.map(doc => [doc.id, doc])).values());
+
+        for (const doc of uniqueDocs) {
           if (doc.id.toLowerCase().endsWith(shortId.toLowerCase()) || doc.id.toLowerCase() === shortId.toLowerCase()) {
             matchedOrder = doc;
             break;
@@ -736,6 +757,14 @@ function startFirebaseListeners() {
     console.warn("⚠️ [Firebase Listeners] Skipping: Database not initialized.");
     return;
   }
+  
+  // ── IN-MEMORY CACHE FOR USERS ──
+  db.collection('users').where('whatsappEnabled', '==', true).onSnapshot(snap => {
+    cachedWhatsappUsers = snap.docs.map(doc => ({ id: doc.id, data: doc.data(), ref: doc.ref }));
+    isUsersCached = true;
+    console.log(`🧠 [WhatsApp Cache] Loaded ${cachedWhatsappUsers.length} users into memory.`);
+  }, err => console.error("❌ [WhatsApp Cache Error]:", err));
+
   const startupTime = new Date(); // needed for messages listener
     // On startup: bulk-mark OLD unprocessed notifications (older than 5 min) to avoid spam
     const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
