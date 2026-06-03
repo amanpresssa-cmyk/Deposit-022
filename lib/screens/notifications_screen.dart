@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../constants/colors.dart';
 import '../services/firebase_service.dart';
 import '../models/user.dart';
+import 'order_details_screen.dart';
 
 class NotificationsScreen extends StatelessWidget {
   final UserProfile currentUser;
@@ -69,7 +70,7 @@ class NotificationsScreen extends StatelessWidget {
             itemCount: notifications.length,
             itemBuilder: (context, index) {
               final notif = notifications[index];
-              return _buildNotificationCard(notif);
+              return _buildNotificationCard(context, notif);
             },
           );
         },
@@ -77,11 +78,13 @@ class NotificationsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildNotificationCard(Map<String, dynamic> notif) {
+  Widget _buildNotificationCard(BuildContext context, Map<String, dynamic> notif) {
     final title = notif['title'] ?? 'إشعار جديد';
     final message = notif['message'] ?? '';
     final isRead = notif['isRead'] == true;
     final type = notif['type'] ?? 'system';
+    final String? orderId = notif['orderId'];
+    final String? notifId = notif['id'];
 
     IconData iconData = Icons.notifications;
     Color iconColor = AppColors.accentGold;
@@ -97,63 +100,100 @@ class NotificationsScreen extends StatelessWidget {
       iconColor = AppColors.alert;
     }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isRead ? AppColors.cardDark : AppColors.cardDark.withOpacity(0.7),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isRead ? AppColors.textMuted.withOpacity(0.1) : AppColors.accentGold.withOpacity(0.3),
+    return GestureDetector(
+      onTap: () async {
+        if (!isRead && notifId != null) {
+          await FirebaseService().markNotificationAsRead(notifId);
+        }
+        if (orderId != null) {
+          // Show loading
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('جاري تحميل بيانات الطلب...', style: GoogleFonts.cairo()),
+              backgroundColor: AppColors.info,
+              duration: const Duration(seconds: 1),
+            )
+          );
+          
+          final order = await FirebaseService().fetchOrderById(orderId);
+          if (order != null && context.mounted) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => OrderDetailsScreen(
+                  order: order,
+                  currentUserId: currentUser.uid,
+                ),
+              ),
+            );
+          } else if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('عذراً، لم يتم العثور على الطلب.', style: GoogleFonts.cairo()),
+                backgroundColor: AppColors.alert,
+              )
+            );
+          }
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isRead ? AppColors.cardDark : AppColors.cardDark.withOpacity(0.7),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isRead ? AppColors.textMuted.withOpacity(0.1) : AppColors.accentGold.withOpacity(0.3),
+          ),
         ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: iconColor.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(iconData, color: iconColor, size: 20),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: GoogleFonts.cairo(
-                    color: AppColors.textLight,
-                    fontSize: 14,
-                    fontWeight: isRead ? FontWeight.bold : FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  message,
-                  style: GoogleFonts.cairo(
-                    color: AppColors.textMuted,
-                    fontSize: 12,
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (!isRead)
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             Container(
-              margin: const EdgeInsets.only(top: 8),
-              width: 8,
-              height: 8,
-              decoration: const BoxDecoration(
-                color: AppColors.accentGold,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: iconColor.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
+              child: Icon(iconData, color: iconColor, size: 20),
             ),
-        ],
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.cairo(
+                      color: AppColors.textLight,
+                      fontSize: 14,
+                      fontWeight: isRead ? FontWeight.bold : FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    message,
+                    style: GoogleFonts.cairo(
+                      color: AppColors.textMuted,
+                      fontSize: 12,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (!isRead)
+              Container(
+                margin: const EdgeInsets.only(top: 8),
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  color: AppColors.accentGold,
+                  shape: BoxShape.circle,
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

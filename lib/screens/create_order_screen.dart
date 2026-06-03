@@ -191,7 +191,9 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
       // Clear fields
       _clearDraft();
       _isSubmitted = true;
-      Navigator.pop(context);
+      if (widget.initialService != null && Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
       _titleController.clear();
       _descController.clear();
       _amountController.clear();

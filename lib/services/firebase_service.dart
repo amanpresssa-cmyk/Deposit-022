@@ -235,6 +235,19 @@ class FirebaseService {
     });
   }
 
+  // Fetch a single order by ID once
+  Future<OrderModel?> fetchOrderById(String orderId) async {
+    if (!_initialized) return null;
+    try {
+      final doc = await _db.collection('orders').doc(orderId).get();
+      if (!doc.exists) return null;
+      return OrderModel.fromFirestore(doc);
+    } catch (e) {
+      print('Error fetching order: $e');
+      return null;
+    }
+  }
+
   // Update order status
   Future<void> updateOrderStatus(String orderId, String newStatus, {String? comment, String? paymentRef}) async {
     if (!_initialized) return;
@@ -385,6 +398,18 @@ class FirebaseService {
     return _db.collection('services').where('isActive', isEqualTo: true).snapshots().map((snapshot) {
       return snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
     });
+  }
+
+  // Mark a single notification as read
+  Future<void> markNotificationAsRead(String notifId) async {
+    if (!_initialized) return;
+    try {
+      await _db.collection('notifications').doc(notifId).update({
+        'isRead': true,
+      });
+    } catch (e) {
+      print('Error marking notification as read: $e');
+    }
   }
 
   // Stream User Notifications

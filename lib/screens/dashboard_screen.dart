@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../constants/colors.dart';
 import '../models/user.dart';
 import '../models/order.dart';
+import '../services/firebase_service.dart';
 import 'order_details_screen.dart';
 import 'verification_screen.dart';
 import 'services_screen.dart';
@@ -314,10 +315,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(color: AppColors.textMuted.withOpacity(0.1)),
                   ),
-                  child: Icon(
-                    Icons.notifications_none,
-                    color: widget.isDarkMode ? AppColors.textLight : AppColors.textDark,
-                    size: 24,
+                  child: StreamBuilder<List<Map<String, dynamic>>>(
+                    stream: FirebaseService().streamNotifications(widget.mockUser.uid),
+                    builder: (context, snapshot) {
+                      final hasUnread = snapshot.hasData && snapshot.data!.any((n) => n['isRead'] != true);
+                      return Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Icon(
+                            Icons.notifications_none,
+                            color: widget.isDarkMode ? AppColors.textLight : AppColors.textDark,
+                            size: 24,
+                          ),
+                          if (hasUnread)
+                            Positioned(
+                              right: 2,
+                              top: 2,
+                              child: Container(
+                                width: 8,
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  color: AppColors.alert,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: widget.isDarkMode ? AppColors.cardDark : Colors.white, width: 1.5),
+                                ),
+                              ),
+                            ),
+                        ],
+                      );
+                    },
                   ),
                 ),
               ),
