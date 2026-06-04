@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../models/user.dart';
 import '../models/order.dart';
@@ -212,7 +214,7 @@ class FirebaseService {
       final doc = await _db.collection('users').doc(uid).get();
       if (!doc.exists) return null;
       // Auto-provision admin for owner email
-      final data = doc.data() as Map<String, dynamic>? ?? {};
+      final data = doc.data() ?? {};
       final email = data['email']?.toString() ?? '';
       if (email.toLowerCase() == 'khyratfarmdates@gmail.com' && data['isAdmin'] != true) {
         await _db.collection('users').doc(uid).update({'isAdmin': true});
@@ -249,7 +251,14 @@ class FirebaseService {
   }
 
   // Update order status
-  Future<void> updateOrderStatus(String orderId, String newStatus, {String? comment, String? paymentRef}) async {
+  Future<void> updateOrderStatus(
+    String orderId,
+    String newStatus, {
+    String? comment,
+    String? paymentRef,
+    List<String>? attachmentUrls,
+    String? currentUserId,
+  }) async {
     if (!_initialized) return;
     
     final updateData = <String, dynamic>{
@@ -259,23 +268,71 @@ class FirebaseService {
     
     if (paymentRef != null) updateData['paymentRef'] = paymentRef;
     if (comment != null) updateData['deliveryNote'] = comment;
+    if (attachmentUrls != null && attachmentUrls.isNotEmpty) {
+      updateData['deliveryAttachmentUrls'] = attachmentUrls;
+      updateData['deliveryAttachmentUrl'] = attachmentUrls.first;
+    }
     
     await _db.collection('orders').doc(orderId).update(updateData);
     
     // Add system message for status change
     String sysMsg = 'تم تحديث حالة الطلب إلى: $newStatus';
     if (newStatus == 'escrowed') sysMsg = 'قام المشتري بإيداع المبلغ. يمكنك البدء بالعمل الآن.';
-    if (newStatus == 'delivered') sysMsg = 'قام البائع بتسليم العمل النهائي للمراجعة.';
+    if (newStatus == 'delivered') {
+      sysMsg = 'قام البائع بتسليم العمل النهائي للمراجعة.';
+      if (comment != null) sysMsg += '\n\nملاحظات البائع:\n$comment';
+    }
     if (newStatus == 'rating') sysMsg = 'قام المشتري باستلام العمل والموافقة عليه.';
-    if (newStatus == 'disputed') sysMsg = 'تم رفع نزاع للتدخل الإداري.';
+    if (newStatus == 'completed') sysMsg = 'تم إنهاء الطلب وتحويل المبلغ للبائع بنجاح.';
+    if (newStatus == 'disputed') {
+      String role = 'أحد الأطراف';
+      if (currentUserId != null) {
+        try {
+          final orderDoc = await _db.collection('orders').doc(orderId).get();
+          if (orderDoc.exists) {
+            final buyerId = orderDoc.data()?['buyerId'];
+            role = (currentUserId == buyerId) ? 'المشتري' : 'البائع';
+          }
+        } catch (_) {}
+      }
+      sysMsg = 'تم فتح نزاع من قبل $role. يرجى انتظار تدخل الإدارة.';
+    }
     if (newStatus == 'cancelled') sysMsg = 'تم إلغاء الصفقة.';
     
-    await _db.collection('orders').doc(orderId).collection('messages').add({
-      'senderId': 'SYSTEM',
+    final msgData = <String, dynamic>{
+      'senderId': currentUserId ?? 'SYSTEM',
       'text': sysMsg,
       'isSystem': true,
       'createdAt': FieldValue.serverTimestamp(),
-    });
+    };
+
+    if (newStatus == 'delivered' && attachmentUrls != null && attachmentUrls.isNotEmpty) {
+      msgData['fileUrls'] = attachmentUrls;
+      msgData['fileUrl'] = attachmentUrls.first;
+    }
+
+    await _db.collection('orders').doc(orderId).collection('messages').add(msgData);
+  }
+
+  // Upload file to Firebase Storage
+  Future<String?> uploadDeliveryAttachment({
+    required String orderId,
+    required String fileName,
+    required Uint8List fileBytes,
+  }) async {
+    await initialize();
+    if (!_initialized) return null;
+    try {
+      final ref = FirebaseStorage.instance
+          .ref()
+          .child('deliveries/$orderId/${DateTime.now().millisecondsSinceEpoch}_$fileName');
+      final uploadTask = ref.putData(fileBytes);
+      final snapshot = await uploadTask;
+      return await snapshot.ref.getDownloadURL();
+    } catch (e) {
+      print('Error uploading file to Firebase Storage: $e');
+      return null;
+    }
   }
 
   // Stream active orders where user is buyer or seller from live custom DB

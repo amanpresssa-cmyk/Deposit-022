@@ -1,9 +1,13 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:image_picker/image_picker.dart';
 import '../constants/colors.dart';
 import '../models/order.dart';
+import '../models/user.dart';
 import '../services/firebase_service.dart';
 
 class OrderDetailsScreen extends StatefulWidget {
@@ -25,6 +29,35 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   final TextEditingController _messageController = TextEditingController();
   bool _isLoadingAction = false;
   final AudioPlayer _audioPlayer = AudioPlayer();
+
+  UserProfile? _buyerProfile;
+  UserProfile? _sellerProfile;
+  String? _fetchedBuyerId;
+  String? _fetchedSellerId;
+
+  void _fetchProfilesIfNeeded(String buyerId, String sellerId) {
+    if (_fetchedBuyerId == buyerId && _fetchedSellerId == sellerId) return;
+    
+    _fetchedBuyerId = buyerId;
+    _fetchedSellerId = sellerId;
+    
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        final buyer = await FirebaseService().fetchProfileByUid(buyerId);
+        if (mounted && buyer != null) {
+          setState(() => _buyerProfile = buyer);
+        }
+        if (sellerId != 'unknown' && sellerId.isNotEmpty) {
+          final seller = await FirebaseService().fetchProfileByUid(sellerId);
+          if (mounted && seller != null) {
+            setState(() => _sellerProfile = seller);
+          }
+        }
+      } catch (e) {
+        debugPrint('Error fetching profiles: $e');
+      }
+    });
+  }
 
   Future<void> _playSound(String assetPath) async {
     try {
@@ -101,7 +134,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       final isBuyer = order.buyerId == widget.currentUserId;
       
       // Simulate fetching real IP address
-      final String capturedIp = '10.0.2.\${DateTime.now().millisecond % 255}'; // Simulated dynamic IP
+      final String capturedIp = '10.0.2.${DateTime.now().millisecond % 255}'; // Simulated dynamic IP
       
       await FirebaseService().signContract(
         orderId: order.id,
@@ -129,14 +162,21 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     }
   }
 
-  Future<void> _updateStatus(String newStatus, {String? comment}) async {
+  Future<void> _updateStatus(String newStatus, {String? comment, List<String>? attachmentUrls}) async {
     setState(() => _isLoadingAction = true);
     try {
       // Simulate fake payment ref if escrowed
       String? paymentRef;
-      if (newStatus == 'escrowed') paymentRef = 'SIM-\${DateTime.now().millisecondsSinceEpoch}';
+      if (newStatus == 'escrowed') paymentRef = 'SIM-${DateTime.now().millisecondsSinceEpoch}';
       
-      await FirebaseService().updateOrderStatus(widget.order.id, newStatus, comment: comment, paymentRef: paymentRef);
+      await FirebaseService().updateOrderStatus(
+        widget.order.id,
+        newStatus,
+        comment: comment,
+        paymentRef: paymentRef,
+        attachmentUrls: attachmentUrls,
+        currentUserId: widget.currentUserId,
+      );
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(backgroundColor: AppColors.success, content: Text('تم تحديث حالة الطلب بنجاح!')),
       );
@@ -184,6 +224,8 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
           final liveOrder = snapshot.data!;
           final isBuyer = liveOrder.buyerId == widget.currentUserId;
           final isSeller = liveOrder.sellerId == widget.currentUserId;
+
+          _fetchProfilesIfNeeded(liveOrder.buyerId, liveOrder.sellerId);
 
           return Column(
             children: [
@@ -320,7 +362,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text('قيمة الصفقة الإجمالية', style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 9, fontWeight: FontWeight.bold)),
-                          FittedBox(fit: BoxFit.scaleDown, child: Text('\${order.amount} ر.س', style: GoogleFonts.outfit(color: AppColors.accentGold, fontSize: 20, fontWeight: FontWeight.w900))),
+                          FittedBox(fit: BoxFit.scaleDown, child: Text('${order.amount} ر.س', style: GoogleFonts.outfit(color: AppColors.accentGold, fontSize: 20, fontWeight: FontWeight.w900))),
                         ],
                       ),
                     ),
@@ -330,7 +372,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Text('مدة التوريد', style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 9, fontWeight: FontWeight.bold)),
-                          FittedBox(fit: BoxFit.scaleDown, child: Text('\${order.deliveryDays} أيام', style: GoogleFonts.cairo(color: AppColors.textLight, fontSize: 14, fontWeight: FontWeight.w900))),
+                          FittedBox(fit: BoxFit.scaleDown, child: Text('${order.deliveryDays} أيام', style: GoogleFonts.cairo(color: AppColors.textLight, fontSize: 14, fontWeight: FontWeight.w900))),
                         ],
                       ),
                     ),
@@ -386,8 +428,527 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
               );
             },
           ),
+          if (['delivered', 'rating', 'completed'].contains(order.status) &&
+              (order.deliveryNote != null || (order.deliveryAttachmentUrls != null && order.deliveryAttachmentUrls!.isNotEmpty) || order.deliveryAttachmentUrl != null))
+            _buildDeliveryDetailsCard(order),
+          const SizedBox(height: 24),
+          _buildPartiesSection(order),
         ],
       ),
+    );
+  }
+
+  Widget _buildDeliveryDetailsCard(OrderModel order) {
+    final urls = order.deliveryAttachmentUrls ?? (order.deliveryAttachmentUrl != null ? [order.deliveryAttachmentUrl!] : []);
+    
+    return Container(
+      margin: const EdgeInsets.only(top: 24),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.cardDark,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: AppColors.success.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.verified, color: AppColors.success, size: 24),
+              const SizedBox(width: 8),
+              Text(
+                'تفاصيل تسليم العمل',
+                style: GoogleFonts.cairo(
+                  color: AppColors.textLight,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+          const Divider(color: AppColors.textMuted, height: 24, thickness: 0.1),
+          if (order.deliveryNote != null && order.deliveryNote!.isNotEmpty) ...[
+            Text(
+              'ملاحظة البائع:',
+              style: GoogleFonts.cairo(
+                color: AppColors.textMuted,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              order.deliveryNote!,
+              style: GoogleFonts.cairo(
+                color: AppColors.textLight,
+                fontSize: 12,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+          if (urls.isNotEmpty) ...[
+            Text(
+              'مرفقات التسليم:',
+              style: GoogleFonts.cairo(
+                color: AppColors.textMuted,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: List.generate(urls.length, (index) {
+                final url = urls[index];
+                return InkWell(
+                  onTap: () async {
+                    final uri = Uri.parse(url);
+                    if (await canLaunchUrl(uri)) {
+                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                    } else {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('تعذر فتح الرابط.')),
+                        );
+                      }
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.backgroundDark,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.textMuted.withOpacity(0.2)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.file_present_outlined, color: AppColors.success, size: 16),
+                        const SizedBox(width: 6),
+                        Text(
+                          'تحميل مرفق ${index + 1}',
+                          style: GoogleFonts.cairo(
+                            color: AppColors.textLight,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPartiesSection(OrderModel order) {
+    final buyerName = _buyerProfile?.displayName ?? 'جاري التحميل...';
+    String sellerName = 'غير معروف';
+    if (_sellerProfile != null) {
+      sellerName = _sellerProfile!.displayName;
+    } else if (order.sellerId == 'unknown') {
+      if (order.sellerEmail != null && order.sellerEmail!.isNotEmpty) {
+        sellerName = order.sellerEmail!;
+      } else if (order.sellerPhone != null && order.sellerPhone!.isNotEmpty) {
+        sellerName = order.sellerPhone!;
+      } else {
+        sellerName = 'غير معروف (بانتظار الربط)';
+      }
+    } else {
+      sellerName = 'جاري التحميل...';
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.cardDark,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: AppColors.textMuted.withOpacity(0.05)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.people_outline, color: AppColors.accentGold, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'أطراف الصفقة',
+                style: GoogleFonts.cairo(
+                  color: AppColors.textLight,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+          const Divider(color: AppColors.textMuted, height: 24, thickness: 0.1),
+          
+          // Buyer row
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppColors.info.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.person, color: AppColors.info, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'الطرف الأول (المشتري)',
+                      style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 10, fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      buyerName,
+                      style: GoogleFonts.cairo(color: AppColors.textLight, fontSize: 13, fontWeight: FontWeight.w900),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          
+          // Seller row
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppColors.success.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.person, color: AppColors.success, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'الطرف الثاني (البائع/المنفذ)',
+                      style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 10, fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      sellerName,
+                      style: GoogleFonts.cairo(color: AppColors.textLight, fontSize: 13, fontWeight: FontWeight.w900),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDigitalSeals(OrderModel order) {
+    final buyerSig = order.buyerSignature;
+    final sellerSig = order.sellerSignature;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 24),
+        Text(
+          'التوثيق والتوقيعات الرقمية المعتمدة',
+          style: GoogleFonts.cairo(
+            color: AppColors.textLight,
+            fontWeight: FontWeight.bold,
+            fontSize: 12,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            // Buyer signature box
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                height: 160,
+                decoration: BoxDecoration(
+                  color: buyerSig?.signed == true
+                      ? AppColors.success.withOpacity(0.05)
+                      : AppColors.backgroundDark,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: buyerSig?.signed == true
+                        ? AppColors.success.withOpacity(0.2)
+                        : AppColors.textMuted.withOpacity(0.1),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'توقيع المشتري الرقمي',
+                      style: GoogleFonts.cairo(
+                        color: AppColors.textMuted,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    if (buyerSig?.signed == true) ...[
+                      Expanded(
+                        child: SingleChildScrollView(
+                          physics: const NeverScrollableScrollPhysics(),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: 4),
+                              Text(
+                                'الموقع: ${buyerSig!.fullName}',
+                                style: GoogleFonts.cairo(color: AppColors.textLight, fontSize: 9, fontWeight: FontWeight.bold),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                'الجوال: ${buyerSig.phone}',
+                                style: GoogleFonts.outfit(color: AppColors.textLight, fontSize: 9),
+                              ),
+                              Text(
+                                'الهوية: ${buyerSig.nationalId ?? ''}',
+                                style: GoogleFonts.outfit(color: AppColors.textLight, fontSize: 9),
+                              ),
+                              if (buyerSig.signedAt != null)
+                                Text(
+                                  'التاريخ: ${buyerSig.signedAt!.toLocal().toString().substring(0, 16)}',
+                                  style: GoogleFonts.outfit(color: AppColors.textLight, fontSize: 8),
+                                ),
+                              Text(
+                                'الـ IP: ${buyerSig.ipAddress ?? ''}',
+                                style: GoogleFonts.outfit(color: AppColors.textMuted, fontSize: 8),
+                              ),
+                              if (buyerSig.otpUsed != null)
+                                Container(
+                                  margin: const EdgeInsets.only(top: 2),
+                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.success.withOpacity(0.15),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    'OTP: #${buyerSig.otpUsed}',
+                                    style: GoogleFonts.outfit(color: AppColors.success, fontSize: 8, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Align(
+                        alignment: Alignment.bottomLeft,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: AppColors.success, width: 1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.verified_user, color: AppColors.success, size: 8),
+                              const SizedBox(width: 2),
+                              Text(
+                                'مُوثق عَرَبون',
+                                style: GoogleFonts.cairo(color: AppColors.success, fontSize: 7, fontWeight: FontWeight.w900),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ] else ...[
+                      Expanded(
+                        child: Center(
+                          child: Text(
+                            'بانتظار توقيع الطرف الأول',
+                            style: GoogleFonts.cairo(
+                              color: AppColors.textMuted.withOpacity(0.6),
+                              fontSize: 9,
+                              fontStyle: FontStyle.italic,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Seller signature box
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                height: 160,
+                decoration: BoxDecoration(
+                  color: sellerSig?.signed == true
+                      ? AppColors.success.withOpacity(0.05)
+                      : AppColors.backgroundDark,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: sellerSig?.signed == true
+                        ? AppColors.success.withOpacity(0.2)
+                        : AppColors.textMuted.withOpacity(0.1),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'توقيع البائع الرقمي',
+                      style: GoogleFonts.cairo(
+                        color: AppColors.textMuted,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    if (sellerSig?.signed == true) ...[
+                      Expanded(
+                        child: SingleChildScrollView(
+                          physics: const NeverScrollableScrollPhysics(),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: 4),
+                              Text(
+                                'الموقع: ${sellerSig!.fullName}',
+                                style: GoogleFonts.cairo(color: AppColors.textLight, fontSize: 9, fontWeight: FontWeight.bold),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                'الجوال: ${sellerSig.phone}',
+                                style: GoogleFonts.outfit(color: AppColors.textLight, fontSize: 9),
+                              ),
+                              Text(
+                                'الهوية: ${sellerSig.nationalId ?? ''}',
+                                style: GoogleFonts.outfit(color: AppColors.textLight, fontSize: 9),
+                              ),
+                              if (sellerSig.signedAt != null)
+                                Text(
+                                  'التاريخ: ${sellerSig.signedAt!.toLocal().toString().substring(0, 16)}',
+                                  style: GoogleFonts.outfit(color: AppColors.textLight, fontSize: 8),
+                                ),
+                              Text(
+                                'الـ IP: ${sellerSig.ipAddress ?? ''}',
+                                style: GoogleFonts.outfit(color: AppColors.textMuted, fontSize: 8),
+                              ),
+                              if (sellerSig.otpUsed != null)
+                                Container(
+                                  margin: const EdgeInsets.only(top: 2),
+                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.success.withOpacity(0.15),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    'OTP: #${sellerSig.otpUsed}',
+                                    style: GoogleFonts.outfit(color: AppColors.success, fontSize: 8, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Align(
+                        alignment: Alignment.bottomLeft,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: AppColors.success, width: 1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.verified_user, color: AppColors.success, size: 8),
+                              const SizedBox(width: 2),
+                              Text(
+                                'مُوثق عَرَبون',
+                                style: GoogleFonts.cairo(color: AppColors.success, fontSize: 7, fontWeight: FontWeight.w900),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ] else ...[
+                      Expanded(
+                        child: Center(
+                          child: Text(
+                            'بانتظار توقيع الطرف الثاني',
+                            style: GoogleFonts.cairo(
+                              color: AppColors.textMuted.withOpacity(0.6),
+                              fontSize: 9,
+                              fontStyle: FontStyle.italic,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (order.isContractSigned && order.contractHash != null) ...[
+          const SizedBox(height: 16),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.info.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.info.withOpacity(0.15)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.verified, color: AppColors.info, size: 16),
+                    const SizedBox(width: 6),
+                    Text(
+                      'وثيقة معتمدة ومسجلة رسمياً',
+                      style: GoogleFonts.cairo(color: AppColors.textLight, fontSize: 11, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'يقر الأطراف بصحة التوقيعات أعلاه وسلامتها القانونية كوثيقة سارية وبموجب أنظمة السندات الرقمية.',
+                  style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 9, height: 1.4),
+                ),
+                const SizedBox(height: 6),
+                SelectableText(
+                  'REF: ${order.contractHash}',
+                  style: GoogleFonts.outfit(color: AppColors.info, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 1),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
     );
   }
 
@@ -539,18 +1100,139 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
             Center(child: const Icon(Icons.history_edu, color: AppColors.accentGold, size: 48)),
             const SizedBox(height: 16),
             Center(child: Text('عقد الوساطة والضمان المالي المشترك', style: GoogleFonts.cairo(color: AppColors.textLight, fontWeight: FontWeight.w900, fontSize: 14))),
-            Center(child: Text('المسجل برقم مرجعي: ARB-\${order.id.toUpperCase().substring(0,6)}', style: GoogleFonts.outfit(color: AppColors.accentGold, fontSize: 10, fontWeight: FontWeight.bold))),
+            Center(child: Text('المسجل برقم مرجعي: ARB-${order.id.toUpperCase().substring(0,6)}', style: GoogleFonts.outfit(color: AppColors.accentGold, fontSize: 10, fontWeight: FontWeight.bold))),
             const Divider(color: AppColors.textMuted, height: 32, thickness: 0.1),
             
             Text('تفاصيل الاتفاقية:', style: GoogleFonts.cairo(color: AppColors.textLight, fontWeight: FontWeight.bold, fontSize: 12)),
             const SizedBox(height: 8),
             _buildContractRow('وصف الخدمة:', order.title),
-            _buildContractRow('قيمة الضمان:', '\${order.amount} ر.س'),
-            _buildContractRow('مدة التنفيذ:', '\${order.deliveryDays} يوم/أيام'),
-            const SizedBox(height: 16),
+            _buildContractRow('قيمة الضمان:', '${order.amount} ر.س'),
+            _buildContractRow('مدة التنفيذ:', '${order.deliveryDays} يوم/أيام'),
+            
+            const SizedBox(height: 24),
+            Text('أطراف الاتفاقية:', style: GoogleFonts.cairo(color: AppColors.textLight, fontWeight: FontWeight.bold, fontSize: 12)),
+            const SizedBox(height: 8),
+            
+            // Buyer details card
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.backgroundDark,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.textMuted.withOpacity(0.1)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'الطرف الأول (المشتري):',
+                    style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 10, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _buyerProfile?.displayName ?? 'غير معروف',
+                    style: GoogleFonts.cairo(color: AppColors.textLight, fontSize: 13, fontWeight: FontWeight.bold),
+                  ),
+                  if (order.buyerSignature?.nationalId != null && order.buyerSignature!.nationalId!.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Text('رقم الهوية الوطنية/الإقامة: ', style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 11)),
+                        Text(order.buyerSignature!.nationalId!, style: GoogleFonts.outfit(color: AppColors.textLight, fontSize: 11, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ] else if (_buyerProfile?.idNumber != null && _buyerProfile!.idNumber!.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Text('رقم الهوية الوطنية/الإقامة: ', style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 11)),
+                        Text(_buyerProfile!.idNumber!, style: GoogleFonts.outfit(color: AppColors.textLight, fontSize: 11, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Text('رقم الجوال: ', style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 11)),
+                      Text(
+                        order.buyerSignature?.phone.isNotEmpty == true 
+                            ? order.buyerSignature!.phone 
+                            : (_buyerProfile?.phoneNumber ?? 'غير متوفر'), 
+                        style: GoogleFonts.outfit(color: AppColors.textLight, fontSize: 11, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            
+            // Seller details card
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.backgroundDark,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.textMuted.withOpacity(0.1)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'الطرف الثاني (البائع/المنفذ):',
+                    style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 10, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _sellerProfile?.displayName ?? 
+                      (order.sellerEmail != null && order.sellerEmail!.isNotEmpty 
+                          ? order.sellerEmail! 
+                          : (order.sellerPhone != null && order.sellerPhone!.isNotEmpty 
+                              ? order.sellerPhone! 
+                              : 'غير معروف')),
+                    style: GoogleFonts.cairo(color: AppColors.textLight, fontSize: 13, fontWeight: FontWeight.bold),
+                  ),
+                  if (order.sellerSignature?.nationalId != null && order.sellerSignature!.nationalId!.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Text('رقم الهوية الوطنية/الإقامة: ', style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 11)),
+                        Text(order.sellerSignature!.nationalId!, style: GoogleFonts.outfit(color: AppColors.textLight, fontSize: 11, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ] else if (_sellerProfile?.idNumber != null && _sellerProfile!.idNumber!.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Text('رقم الهوية الوطنية/الإقامة: ', style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 11)),
+                        Text(_sellerProfile!.idNumber!, style: GoogleFonts.outfit(color: AppColors.textLight, fontSize: 11, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Text('رقم الجوال: ', style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 11)),
+                      Text(
+                        order.sellerSignature?.phone.isNotEmpty == true 
+                            ? order.sellerSignature!.phone 
+                            : (_sellerProfile?.phoneNumber ?? 'غير متوفر'), 
+                        style: GoogleFonts.outfit(color: AppColors.textLight, fontSize: 11, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            
+            const SizedBox(height: 24),
             Text('البنود والشروط:', style: GoogleFonts.cairo(color: AppColors.textLight, fontWeight: FontWeight.bold, fontSize: 12)),
             const SizedBox(height: 4),
             Text('1. يقر ووافق المشتري على توقيع وتأمين قيمة الصفقة بالضمان لصالح البائع.\n2. يلتزم البائع بتسليم العمل بالوقت المحدد وبحسب الوصف المتفق عليه.\n3. يحق للمشتري استرجاع المبلغ في حال عدم التزام البائع بالمتفق عليه.\n4. تعتبر منصة عربون وسيطاً مالياً لضمان حقوق الطرفين.', style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 11, fontWeight: FontWeight.bold, height: 1.8)),
+            
+            _buildDigitalSeals(order),
             const SizedBox(height: 24),
             if (order.isContractSigned) ...[
               Container(
@@ -625,7 +1307,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         icon: const Icon(Icons.check_circle_outline, size: 20),
         label: const FittedBox(fit: BoxFit.scaleDown, child: Text('تسليم العمل النهائي')),
         style: _actionBtnStyle(AppColors.accentGold, textColor: AppColors.primaryDark),
-        onPressed: () => _updateStatus('delivered', comment: 'تم تسليم العمل بنجاح بواسطة البائع من خلال التطبيق.'),
+        onPressed: () => _showDeliverySheet(order),
       );
     }
     else if (order.status == 'delivered' && isBuyer) {
@@ -801,6 +1483,287 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                     ),
                   ),
                 ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showDeliverySheet(OrderModel order) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        final commentController = TextEditingController();
+        List<XFile> selectedFiles = [];
+        bool isProcessing = false;
+        double uploadProgress = 0.0;
+
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+                top: 32,
+                left: 24,
+                right: 24,
+              ),
+              decoration: const BoxDecoration(
+                color: AppColors.cardDark,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 48,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: AppColors.textMuted.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Center(
+                      child: Text(
+                        'تسليم العمل النهائي للمشتري',
+                        style: GoogleFonts.cairo(
+                          color: AppColors.textLight,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      'ملاحظات وبنود التسليم',
+                      style: GoogleFonts.cairo(
+                        color: AppColors.textLight,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: AppColors.backgroundDark,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppColors.textMuted.withOpacity(0.2)),
+                      ),
+                      child: TextField(
+                        controller: commentController,
+                        maxLines: 4,
+                        style: GoogleFonts.cairo(color: AppColors.textLight, fontSize: 13),
+                        decoration: InputDecoration(
+                          border: InputBorder.none,
+                          hintText: 'اكتب مواصفات وشروط تسليم العمل والروابط الخارجية إن وجدت...',
+                          hintStyle: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 11),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'المرفقات وإثبات التوريد',
+                          style: GoogleFonts.cairo(
+                            color: AppColors.textLight,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: isProcessing ? null : () async {
+                            final picker = ImagePicker();
+                            final images = await picker.pickMultiImage();
+                            if (images.isNotEmpty) {
+                              setModalState(() {
+                                selectedFiles.addAll(images);
+                              });
+                            }
+                          },
+                          icon: const Icon(Icons.add_photo_alternate_outlined, color: AppColors.accentGold, size: 18),
+                          label: Text(
+                            'إرفاق صور',
+                            style: GoogleFonts.cairo(color: AppColors.accentGold, fontSize: 12, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    if (selectedFiles.isEmpty)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 24),
+                        decoration: BoxDecoration(
+                          color: AppColors.backgroundDark,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.textMuted.withOpacity(0.1)),
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(Icons.cloud_upload_outlined, color: AppColors.textMuted.withOpacity(0.4), size: 36),
+                            const SizedBox(height: 8),
+                            Text(
+                              'لا توجد ملفات مرفقة للتسليم بعد',
+                              style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 10, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      Container(
+                        height: 80,
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: selectedFiles.length,
+                          itemBuilder: (context, idx) {
+                            final file = selectedFiles[idx];
+                            return Stack(
+                              children: [
+                                Container(
+                                  width: 80,
+                                  height: 80,
+                                  margin: const EdgeInsets.only(left: 8),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.backgroundDark,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: AppColors.textMuted.withOpacity(0.2)),
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Image.file(
+                                      File(file.path),
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, error, stackTrace) {
+                                        return const Center(
+                                          child: Icon(Icons.image_outlined, color: AppColors.accentGold),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ),
+                                if (!isProcessing)
+                                  Positioned(
+                                    right: 2,
+                                    top: 2,
+                                    child: GestureDetector(
+                                      onTap: () {
+                                        setModalState(() {
+                                          selectedFiles.removeAt(idx);
+                                        });
+                                      },
+                                      child: Container(
+                                        padding: const EdgeInsets.all(2),
+                                        decoration: const BoxDecoration(color: AppColors.alert, shape: BoxShape.circle),
+                                        child: const Icon(Icons.close, color: Colors.white, size: 12),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            );
+                          },
+                        ),
+                      ),
+                    const SizedBox(height: 32),
+                    if (isProcessing) ...[
+                      Center(
+                        child: Text(
+                          'جاري رفع الملفات وإرسال التسليم...',
+                          style: GoogleFonts.cairo(color: AppColors.accentGold, fontSize: 11, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      LinearProgressIndicator(
+                        value: uploadProgress == 0.0 ? null : uploadProgress,
+                        backgroundColor: AppColors.backgroundDark,
+                        color: AppColors.success,
+                        minHeight: 6,
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+                    SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: ElevatedButton(
+                        onPressed: isProcessing || (commentController.text.trim().isEmpty && selectedFiles.isEmpty)
+                            ? null
+                            : () async {
+                                setModalState(() {
+                                  isProcessing = true;
+                                });
+                                
+                                List<String> uploadedUrls = [];
+                                try {
+                                  for (int i = 0; i < selectedFiles.length; i++) {
+                                    setModalState(() {
+                                      uploadProgress = (i + 1) / selectedFiles.length;
+                                    });
+                                    final img = selectedFiles[i];
+                                    final bytes = await img.readAsBytes();
+                                    final url = await FirebaseService().uploadDeliveryAttachment(
+                                      orderId: order.id,
+                                      fileName: img.name,
+                                      fileBytes: bytes,
+                                    );
+                                    if (url != null) {
+                                      uploadedUrls.add(url);
+                                    }
+                                  }
+                                  
+                                  // Update order status with attachment URLs
+                                  await _updateStatus(
+                                    'delivered',
+                                    comment: commentController.text.trim().isEmpty
+                                        ? 'تم تسليم العمل بنجاح بواسطة البائع من خلال التطبيق.'
+                                        : commentController.text.trim(),
+                                    attachmentUrls: uploadedUrls,
+                                  );
+                                  
+                                  if (context.mounted) {
+                                    Navigator.pop(context); // Close bottom sheet
+                                  }
+                                } catch (err) {
+                                  print('Error delivering work: $err');
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('حدث خطأ أثناء رفع المرفقات: $err')),
+                                    );
+                                  }
+                                } finally {
+                                  setModalState(() {
+                                    isProcessing = false;
+                                  });
+                                }
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.success,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: Text(
+                          'تأكيد إرسال التسليم',
+                          style: GoogleFonts.cairo(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             );
           },

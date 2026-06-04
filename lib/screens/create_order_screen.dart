@@ -40,7 +40,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
     super.initState();
     if (widget.initialService != null) {
       _titleController.text = widget.initialService!['title'] ?? '';
-      _descController.text = 'أرغب بطلب الخدمة: \${widget.initialService!["title"]}';
+      _descController.text = 'أرغب بطلب الخدمة: ${widget.initialService!["title"]}';
       _amountController.text = widget.initialService!['price']?.toString() ?? '';
       _daysController.text = widget.initialService!['deliveryDays']?.toString() ?? '';
       _sellerController.text = widget.initialService!['sellerName'] ?? '';

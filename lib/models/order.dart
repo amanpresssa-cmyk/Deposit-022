@@ -114,6 +114,7 @@ class OrderModel {
   final int deliveryDays;
   final String? deliveryNote;
   final String? deliveryAttachmentUrl;
+  final List<String>? deliveryAttachmentUrls;
   final String paymentMethod;
   final OrderFees paymentFees;
   final String? paymentRef;
@@ -146,6 +147,7 @@ class OrderModel {
     required this.deliveryDays,
     this.deliveryNote,
     this.deliveryAttachmentUrl,
+    this.deliveryAttachmentUrls,
     required this.paymentMethod,
     required this.paymentFees,
     this.paymentRef,
@@ -196,6 +198,9 @@ class OrderModel {
       deliveryDays: toInt(data['deliveryDays']),
       deliveryNote: data['deliveryNote']?.toString(),
       deliveryAttachmentUrl: data['deliveryAttachmentUrl']?.toString(),
+      deliveryAttachmentUrls: data['deliveryAttachmentUrls'] != null
+          ? List<String>.from(data['deliveryAttachmentUrls'])
+          : null,
       paymentMethod: data['paymentMethod']?.toString() ?? 'standard',
       paymentFees: OrderFees.fromMap(data['paymentFees'] as Map<String, dynamic>?, amt),
       paymentRef: data['paymentRef']?.toString(),
@@ -230,6 +235,7 @@ class OrderModel {
       'deliveryDays': deliveryDays,
       'deliveryNote': deliveryNote,
       'deliveryAttachmentUrl': deliveryAttachmentUrl,
+      'deliveryAttachmentUrls': deliveryAttachmentUrls,
       'paymentMethod': paymentMethod,
       'paymentFees': paymentFees.toMap(),
       'paymentRef': paymentRef,
