@@ -126,6 +126,18 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
       final amount = double.parse(_amountController.text.trim());
       final deliveryDays = int.parse(_daysController.text.trim());
       final sellerInput = _sellerController.text.trim();
+      
+      final isEmail = sellerInput.contains('@');
+      final isPhone = !isEmail;
+
+      String? formattedPhone;
+      if (isPhone) {
+        String phone = sellerInput;
+        if (!phone.startsWith('+')) {
+          phone = '+966${phone.replaceFirst(RegExp(r'^0'), '')}';
+        }
+        formattedPhone = phone;
+      }
 
       // Write real escrow transaction to custom Firestore database
       final FirebaseFirestore db = FirebaseFirestore.instanceFor(
@@ -133,14 +145,41 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
         databaseId: "ai-studio-ee0a8e94-5852-438b-93d7-9755da859ebc",
       );
 
+      // Perform user lookup to link sellerId automatically if user exists
+      String targetUserId = 'unknown';
+      try {
+        if (isEmail) {
+          final snap = await db
+              .collection('users')
+              .where('email', isEqualTo: sellerInput.toLowerCase())
+              .limit(1)
+              .get();
+          if (snap.docs.isNotEmpty) {
+            targetUserId = snap.docs.first.id;
+          }
+        } else if (formattedPhone != null) {
+          final snap = await db
+              .collection('users')
+              .where('phoneNumber', isEqualTo: formattedPhone)
+              .limit(1)
+              .get();
+          if (snap.docs.isNotEmpty) {
+            targetUserId = snap.docs.first.id;
+          }
+        }
+      } catch (e) {
+        debugPrint('Error looking up target user: $e');
+      }
+
       final newOrderRef = db.collection('orders').doc();
       final orderId = newOrderRef.id;
 
       final Map<String, dynamic> orderData = {
         'buyerId': widget.currentUser.uid,
-        'sellerId': 'unknown', // Linked when seller accepts
-        'sellerEmail': sellerInput.contains('@') ? sellerInput : null,
-        'sellerPhone': !sellerInput.contains('@') ? sellerInput : null,
+        'sellerId': targetUserId,
+        'creatorId': widget.currentUser.uid,
+        'sellerEmail': isEmail ? sellerInput.toLowerCase() : null,
+        'sellerPhone': formattedPhone,
         'title': _titleController.text.trim(),
         'description': _descController.text.trim(),
         'amount': amount,

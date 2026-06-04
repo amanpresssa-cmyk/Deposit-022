@@ -9,6 +9,7 @@ import '../constants/colors.dart';
 import '../models/order.dart';
 import '../models/user.dart';
 import '../services/firebase_service.dart';
+import 'verification_screen.dart';
 
 class OrderDetailsScreen extends StatefulWidget {
   final OrderModel order;
@@ -80,6 +81,20 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   }
 
   void _signContract(OrderModel order) async {
+    setState(() => _isLoadingAction = true);
+    UserProfile? currentUserProfile;
+    try {
+      currentUserProfile = await FirebaseService().fetchProfileByUid(widget.currentUserId);
+    } catch (e) {
+      debugPrint('Error fetching profile: $e');
+    }
+    setState(() => _isLoadingAction = false);
+
+    if (currentUserProfile == null || currentUserProfile.isVerified != true) {
+      _showVerificationRequiredDialog();
+      return;
+    }
+
     // 1. Show OTP Dialog to simulate sending and verifying an OTP
     final otpController = TextEditingController();
     final bool? isConfirmed = await showDialog<bool>(
@@ -1337,7 +1352,21 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     );
   }
 
-  void _showPaymentSimulation(OrderModel order) {
+  void _showPaymentSimulation(OrderModel order) async {
+    setState(() => _isLoadingAction = true);
+    UserProfile? currentUserProfile;
+    try {
+      currentUserProfile = await FirebaseService().fetchProfileByUid(widget.currentUserId);
+    } catch (e) {
+      debugPrint('Error fetching profile: $e');
+    }
+    setState(() => _isLoadingAction = false);
+
+    if (currentUserProfile == null || currentUserProfile.isVerified != true) {
+      _showVerificationRequiredDialog();
+      return;
+    }
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1491,7 +1520,21 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     );
   }
 
-  void _showDeliverySheet(OrderModel order) {
+  void _showDeliverySheet(OrderModel order) async {
+    setState(() => _isLoadingAction = true);
+    UserProfile? currentUserProfile;
+    try {
+      currentUserProfile = await FirebaseService().fetchProfileByUid(widget.currentUserId);
+    } catch (e) {
+      debugPrint('Error fetching profile: $e');
+    }
+    setState(() => _isLoadingAction = false);
+
+    if (currentUserProfile == null || currentUserProfile.isVerified != true) {
+      _showVerificationRequiredDialog();
+      return;
+    }
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1779,6 +1822,60 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       elevation: 0,
       textStyle: GoogleFonts.cairo(fontWeight: FontWeight.w900, fontSize: 14),
+    );
+  }
+
+  void _showVerificationRequiredDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.cardDark,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Row(
+          children: [
+            const Icon(Icons.shield_outlined, color: Colors.orange, size: 28),
+            const SizedBox(width: 10),
+            Text(
+              'التوثيق المالي مطلوب',
+              style: GoogleFonts.cairo(color: AppColors.textLight, fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+          ],
+        ),
+        content: Text(
+          'لحماية حقوقك المالية وإتمام هذه العملية بأمان، يجب توثيق هويتك الوطنية عبر بوابة نفاذ الوطنية أولاً.',
+          style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 12, height: 1.6),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('إلغاء', style: GoogleFonts.cairo(color: AppColors.textMuted, fontWeight: FontWeight.bold)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final profile = await FirebaseService().fetchProfileByUid(widget.currentUserId);
+              if (profile != null && mounted) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => VerificationScreen(mockUser: profile),
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.accentGold,
+              foregroundColor: AppColors.primaryDark,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            ),
+            child: Text(
+              'توثيق الآن',
+              style: GoogleFonts.cairo(color: AppColors.primaryDark, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

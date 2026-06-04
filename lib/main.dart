@@ -85,6 +85,8 @@ class _ArboonMobileAppState extends State<ArboonMobileApp> {
     await prefs.setString('saved_profile', jsonEncode(profile.toJson()));
     setState(() => _currentUserProfile = profile);
     FirebaseService().saveDeviceToken(profile.uid);
+    // Auto-claim any orders that were created for this user's email or phone number
+    FirebaseService().autoClaimOrders(profile.uid, profile.email, profile.phoneNumber);
   }
 
   /// مسح الجلسة المحفوظة عند تسجيل الخروج

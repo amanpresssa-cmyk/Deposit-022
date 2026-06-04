@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../constants/colors.dart';
 import '../models/user.dart';
 
@@ -76,13 +78,39 @@ class _VerificationScreenState extends State<VerificationScreen> {
 
     setState(() => _loading = true);
     
-    // Simulate verification checking
-    await Future.delayed(const Duration(milliseconds: 1500));
-    
-    setState(() {
-      _loading = false;
-      _step = 3;
-    });
+    try {
+      // Simulate verification checking latency
+      await Future.delayed(const Duration(milliseconds: 1500));
+      
+      final FirebaseFirestore db = FirebaseFirestore.instanceFor(
+        app: Firebase.app(),
+        databaseId: "ai-studio-ee0a8e94-5852-438b-93d7-9755da859ebc",
+      );
+
+      await db.collection('users').doc(widget.mockUser.uid).update({
+        'isVerified': true,
+        'verificationStatus': 'verified',
+        'idNumber': _idController.text.trim(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      setState(() {
+        _loading = false;
+        _step = 3;
+      });
+    } catch (e) {
+      setState(() => _loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.alert,
+          content: Text(
+            'حدث خطأ أثناء حفظ التوثيق، يرجى المحاولة لاحقاً',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.cairo(fontWeight: FontWeight.bold),
+          ),
+        ),
+      );
+    }
   }
 
   @override

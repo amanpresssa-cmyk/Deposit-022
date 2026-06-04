@@ -511,6 +511,87 @@ class FirebaseService {
       print('Failed to save FCM token: $e');
     }
   }
+
+  // Auto-claim orders where sellerId is 'unknown' and matches user's email/phoneNumber
+  Future<void> autoClaimOrders(String uid, String? email, String? phone) async {
+    await initialize();
+    if (!_initialized) return;
+
+    try {
+      final batch = _db.batch();
+      bool hasUpdates = false;
+
+      // 1. Claim by Email
+      if (email != null && email.trim().isNotEmpty) {
+        final emailQuery = await _db
+            .collection('orders')
+            .where('sellerId', isEqualTo: 'unknown')
+            .where('sellerEmail', isEqualTo: email.trim().toLowerCase())
+            .get();
+
+        for (final doc in emailQuery.docs) {
+          batch.update(doc.reference, {
+            'sellerId': uid,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+
+          // Record order log
+          final orderData = doc.data();
+          await _db.collection('orderLogs').add({
+            'orderId': doc.id,
+            'userId': uid,
+            'action': 'ربط الحساب تلقائياً',
+            'previousStatus': orderData['status'] ?? '',
+            'currentStatus': orderData['status'] ?? '',
+            'message': 'تم ربط حساب البائع بالصفقة تلقائياً عند تسجيل الدخول (عبر البريد)',
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+          hasUpdates = true;
+        }
+      }
+
+      // 2. Claim by Phone
+      if (phone != null && phone.trim().isNotEmpty) {
+        String cleanPhone = phone.trim();
+        if (!cleanPhone.startsWith('+')) {
+          cleanPhone = '+966${cleanPhone.replaceFirst(RegExp(r'^0'), '')}';
+        }
+
+        final phoneQuery = await _db
+            .collection('orders')
+            .where('sellerId', isEqualTo: 'unknown')
+            .where('sellerPhone', isEqualTo: cleanPhone)
+            .get();
+
+        for (final doc in phoneQuery.docs) {
+          batch.update(doc.reference, {
+            'sellerId': uid,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+
+          // Record order log
+          final orderData = doc.data();
+          await _db.collection('orderLogs').add({
+            'orderId': doc.id,
+            'userId': uid,
+            'action': 'ربط الحساب تلقائياً',
+            'previousStatus': orderData['status'] ?? '',
+            'currentStatus': orderData['status'] ?? '',
+            'message': 'تم ربط حساب البائع بالصفقة تلقائياً عند تسجيل الدخول (عبر الجوال)',
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+          hasUpdates = true;
+        }
+      }
+
+      if (hasUpdates) {
+        await batch.commit();
+        print('✅ [FirebaseService] Auto-claimed orders for user $uid');
+      }
+    } catch (e) {
+      print('❌ [FirebaseService] Error auto-claiming orders: $e');
+    }
+  }
 }
 
 // Stream Zip helper class

@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:io';
@@ -148,6 +150,408 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (val.isEmpty) return true;
     final clean = val.trim().toUpperCase();
     return clean.startsWith('SA') && clean.length == 24;
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // BANK CARD SCANNER — Auto-fill IBAN + Name + Bank from image
+  // ══════════════════════════════════════════════════════════════
+  bool _isScanning = false;
+
+  /// Maps IBAN bank code (chars 4-7) to dropdown bank ID
+  String _detectBankFromIban(String iban) {
+    if (iban.length < 8) return '';
+    final code = iban.substring(4, 8).toUpperCase();
+    const Map<String, String> bankCodes = {
+      '1060': 'snbe',       // البنك الأهلي السعودي (SNB)
+      '1000': 'snbe',       // البنك الأهلي (variant)
+      '2060': 'alrajhi',    // مصرف الراجحي
+      '2000': 'alrajhi',
+      '3060': 'riyad',      // بنك الرياض
+      '3000': 'riyad',
+      '4060': 'sab',        // البنك العربي الوطني
+      '4000': 'sab',
+      '5060': 'bsf',        // البنك السعودي الفرنسي
+      '5000': 'bsf',
+      '6060': 'jazira',     // بنك الجزيرة
+      '6000': 'jazira',
+      '7060': 'alinma',     // بنك الإنماء (variant)
+      '8060': 'alinma',     // بنك الإنماء
+      '8000': 'alinma',
+      '0511': 'stc_pay',    // STC Bank
+      '0553': 'stc_pay',
+      '0512': 'stc_pay',
+    };
+    // Try first 4 chars after SA+2 check digits
+    return bankCodes[code] ?? '';
+  }
+
+  /// Extract Saudi IBAN (SA + 22 digits) from OCR text
+  String _extractIbanFromText(String text) {
+    // Remove spaces for detection then reformat
+    final clean = text.replaceAll(RegExp(r'\s+'), '').toUpperCase();
+    final ibanRegex = RegExp(r'SA[0-9]{22}');
+    final match = ibanRegex.firstMatch(clean);
+    if (match != null) return match.group(0)!;
+    
+    // Try with spaces (some banks print it with spaces every 4 chars)
+    final ibanWithSpaces = RegExp(r'SA[\s\-]?[0-9]{2}[\s\-]?(?:[0-9]{4}[\s\-]?){4}[0-9]{2}');
+    final match2 = ibanWithSpaces.firstMatch(text.toUpperCase());
+    if (match2 != null) {
+      return match2.group(0)!.replaceAll(RegExp(r'[\s\-]'), '');
+    }
+    return '';
+  }
+
+  /// Extract account holder name from OCR text
+  String _extractNameFromText(String text, String iban) {
+    final lines = text.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
+    
+    // Arabic name: line with 2+ Arabic words, not containing digits/IBAN
+    final arabicWordPattern = RegExp(r'^[\u0600-\u06FF\s]{4,50}\$');
+    
+    String bestCandidate = '';
+    for (final line in lines) {
+      // Skip lines with numbers (likely IBAN, account number, dates)
+      if (line.contains(RegExp(r'[0-9]'))) continue;
+      // Skip very short lines
+      if (line.length < 4) continue;
+      // Skip common labels
+      if (line.contains('IBAN') || line.contains('آيبان') || line.contains('حساب') ||
+          line.contains('بنك') || line.contains('Bank') || line.contains('Account')) continue;
+      
+      if (arabicWordPattern.hasMatch(line) && line.split(' ').length >= 2) {
+        if (line.length > bestCandidate.length) {
+          bestCandidate = line;
+        }
+      }
+    }
+    return bestCandidate;
+  }
+
+  /// Main scanner function — opens camera or gallery, runs OCR
+  Future<void> _scanBankCard() async {
+    // Show bottom sheet to choose source
+    final ImageSource? source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final bg = isDark ? const Color(0xFF1A2035) : Colors.white;
+        final textCol = isDark ? Colors.white : const Color(0xFF1A2035);
+        return Container(
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40, height: 4,
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Text(
+                'مسح بيانات الحساب البنكي',
+                style: GoogleFonts.cairo(
+                  color: textCol,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'التقط صورة لوثيقة حسابك أو اختر من المعرض لاستخراج الـ IBAN والاسم تلقائياً',
+                style: GoogleFonts.cairo(
+                  color: Colors.grey,
+                  fontSize: 11,
+                  height: 1.4,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildScanSourceButton(
+                      icon: Icons.camera_alt_rounded,
+                      label: 'الكاميرا',
+                      sublabel: 'التقاط صورة جديدة',
+                      color: const Color(0xFF2563EB),
+                      onTap: () => Navigator.pop(ctx, ImageSource.camera),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildScanSourceButton(
+                      icon: Icons.photo_library_rounded,
+                      label: 'الاستوديو',
+                      sublabel: 'اختر من المعرض',
+                      color: Colors.purple,
+                      onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '🔒 الصور لا تُرفع للخوادم — المعالجة محلية على جهازك فقط',
+                style: GoogleFonts.cairo(
+                  color: Colors.green,
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (source == null) return;
+
+    // Pick image
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(
+      source: source,
+      imageQuality: 90,
+      maxWidth: 1600,
+    );
+
+    if (pickedFile == null) return;
+
+    setState(() => _isScanning = true);
+
+    try {
+      // Run OCR with ML Kit
+      final inputImage = InputImage.fromFilePath(pickedFile.path);
+      final textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
+      
+      final latinResult = await textRecognizer.processImage(inputImage);
+      
+      String fullText = latinResult.text;
+      
+      await textRecognizer.close();
+
+      // Extract data
+      final String iban = _extractIbanFromText(fullText);
+      final String bankId = iban.isNotEmpty ? _detectBankFromIban(iban) : '';
+      final String name = _extractNameFromText(fullText, iban);
+
+      if (!mounted) return;
+      setState(() => _isScanning = false);
+
+      if (iban.isEmpty) {
+        _showScanFailDialog();
+        return;
+      }
+
+      // Show confirmation dialog
+      _showScanResultDialog(iban: iban, bankId: bankId, name: name);
+
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isScanning = false);
+      _showSnackBar('فشل قراءة الصورة: تأكد من وضوح الصورة وأن IBAN مرئي', isError: true);
+    }
+  }
+
+  Widget _buildScanSourceButton({
+    required IconData icon,
+    required String label,
+    required String sublabel,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withOpacity(0.2)),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 32),
+            const SizedBox(height: 8),
+            Text(label, style: GoogleFonts.cairo(color: color, fontWeight: FontWeight.w900, fontSize: 13)),
+            Text(sublabel, style: GoogleFonts.cairo(color: color.withOpacity(0.7), fontSize: 9)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showScanResultDialog({required String iban, required String bankId, required String name}) {
+    final Map<String, String> bankNames = {
+      'snbe': 'البنك الأهلي السعودي',
+      'alrajhi': 'مصرف الراجحي',
+      'riyad': 'بنك الرياض',
+      'sab': 'البنك العربي الوطني',
+      'bsf': 'البنك السعودي الفرنسي',
+      'jazira': 'بنك الجزيرة',
+      'alinma': 'بنك الإنماء',
+      'stc_pay': 'STC Bank',
+    };
+    final bankName = bankId.isNotEmpty ? (bankNames[bankId] ?? 'غير معروف') : 'لم يُتعرف عليه';
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? const Color(0xFF1A2035) : Colors.white;
+    final textCol = isDark ? Colors.white : const Color(0xFF1A2035);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: bg,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        contentPadding: const EdgeInsets.all(24),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.check_circle, color: Colors.green, size: 24),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('تم استخراج البيانات', style: GoogleFonts.cairo(color: textCol, fontWeight: FontWeight.w900, fontSize: 15)),
+                      Text('راجع البيانات وأكد لتعبئتها', style: GoogleFonts.cairo(color: Colors.grey, fontSize: 10)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            _buildResultRow(Icons.account_balance, 'البنك', bankName, textCol),
+            const SizedBox(height: 12),
+            _buildResultRow(Icons.credit_card, 'رقم IBAN', iban, textCol, isMonospace: true),
+            if (name.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _buildResultRow(Icons.person, 'اسم الحساب', name, textCol),
+            ],
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: Text('إلغاء', style: GoogleFonts.cairo(color: Colors.grey, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      setState(() {
+                        _payoutIbanController.text = iban;
+                        if (bankId.isNotEmpty) _payoutBank = bankId;
+                        if (name.isNotEmpty) _payoutAccountNameController.text = name;
+                      });
+                      _showSnackBar('تم تعبئة البيانات تلقائياً بنجاح ✅');
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2563EB),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: Text('تعبئة الحقول', style: GoogleFonts.cairo(fontWeight: FontWeight.w900, fontSize: 13)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildResultRow(IconData icon, String label, String value, Color textCol, {bool isMonospace = false}) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.withOpacity(0.1)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: const Color(0xFF2563EB), size: 16),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: GoogleFonts.cairo(color: Colors.grey, fontSize: 9, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: isMonospace
+                      ? GoogleFonts.robotoMono(color: textCol, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1)
+                      : GoogleFonts.cairo(color: textCol, fontWeight: FontWeight.bold, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showScanFailDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.search_off_rounded, color: Colors.orange),
+            const SizedBox(width: 8),
+            Text('لم يُعثر على IBAN', style: GoogleFonts.cairo(fontWeight: FontWeight.w900, fontSize: 14)),
+          ],
+        ),
+        content: Text(
+          'تأكد من أن الصورة واضحة وأن رقم IBAN (يبدأ بـ SA) مرئي بالكامل دون انقطاع أو ظل. يمكنك التقاط صورة جديدة أو إدخال الرقم يدوياً.',
+          style: GoogleFonts.cairo(fontSize: 11, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () { Navigator.pop(ctx); _scanBankCard(); },
+            child: Text('إعادة المسح', style: GoogleFonts.cairo(color: const Color(0xFF2563EB), fontWeight: FontWeight.bold)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('إدخال يدوي', style: GoogleFonts.cairo(color: Colors.grey)),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _pickBannerImage() async {
@@ -1263,6 +1667,95 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Text(
                   'بيانات الحساب البنكي للتسوية المباشرة',
                   style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 10, fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 16),
+
+                // ── Smart Scan Button ──
+                _isScanning
+                    ? Container(
+                        padding: const EdgeInsets.symmetric(vertical: 18),
+                        child: const Center(
+                          child: Column(
+                            children: [
+                              CircularProgressIndicator(color: Color(0xFF2563EB), strokeWidth: 2),
+                              SizedBox(height: 10),
+                            ],
+                          ),
+                        ),
+                      )
+                    : GestureDetector(
+                        onTap: _scanBankCard,
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [const Color(0xFF2563EB), const Color(0xFF7C3AED)],
+                              begin: Alignment.centerRight,
+                              end: Alignment.centerLeft,
+                            ),
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF2563EB).withOpacity(0.3),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: const Icon(Icons.document_scanner_rounded, color: Colors.white, size: 22),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'مسح الحساب البنكي بالكاميرا',
+                                      style: GoogleFonts.cairo(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    Text(
+                                      'صوّر وثيقة حسابك واستخرج IBAN + الاسم + البنك تلقائياً',
+                                      style: GoogleFonts.cairo(
+                                        color: Colors.white.withOpacity(0.8),
+                                        fontSize: 9,
+                                        height: 1.3,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white, size: 14),
+                            ],
+                          ),
+                        ),
+                      ),
+                const SizedBox(height: 16),
+
+                Row(
+                  children: [
+                    const Expanded(child: Divider(thickness: 0.5)),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Text(
+                        'أو أدخل يدوياً',
+                        style: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 9, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    const Expanded(child: Divider(thickness: 0.5)),
+                  ],
                 ),
                 const SizedBox(height: 16),
 
