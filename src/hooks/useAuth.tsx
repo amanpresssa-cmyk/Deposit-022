@@ -10,7 +10,7 @@ import {
   ConfirmationResult,
   updateProfile
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp, updateDoc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, updateDoc, onSnapshot, query, collection, where, getDocs, writeBatch, addDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { UserProfile } from '../types';
 import { sendNotification } from '../lib/notificationService';
@@ -47,6 +47,77 @@ const generateShortId = () => {
   return Math.floor(1000 + Math.random() * 9000).toString();
 };
 
+const autoClaimOrders = async (uid: string, email: string | null, phone: string | null) => {
+  try {
+    const batch = writeBatch(db);
+    let hasUpdates = false;
+
+    // 1. Claim by Email
+    if (email) {
+      const emailQuery = query(
+        collection(db, 'orders'),
+        where('sellerId', '==', 'unknown'),
+        where('sellerEmail', '==', email.trim().toLowerCase())
+      );
+      const emailSnap = await getDocs(emailQuery);
+      for (const docSnap of emailSnap.docs) {
+        batch.update(docSnap.ref, { sellerId: uid, updatedAt: serverTimestamp() });
+        
+        // Record order event
+        const orderData = docSnap.data();
+        await addDoc(collection(db, 'orderLogs'), {
+          orderId: docSnap.id,
+          userId: uid,
+          action: 'ربط الحساب تلقائياً',
+          previousStatus: orderData.status || '',
+          newStatus: orderData.status || '',
+          comment: 'تم ربط حساب البائع بالصفقة تلقائياً عند تسجيل الدخول (عبر البريد)',
+          createdAt: serverTimestamp()
+        });
+        hasUpdates = true;
+      }
+    }
+
+    // 2. Claim by Phone
+    if (phone) {
+      let cleanPhone = phone.trim();
+      if (!cleanPhone.startsWith('+')) {
+        cleanPhone = `+966${cleanPhone.replace(/^0/, '')}`;
+      }
+
+      const phoneQuery = query(
+        collection(db, 'orders'),
+        where('sellerId', '==', 'unknown'),
+        where('sellerPhone', '==', cleanPhone)
+      );
+      const phoneSnap = await getDocs(phoneQuery);
+      for (const docSnap of phoneSnap.docs) {
+        batch.update(docSnap.ref, { sellerId: uid, updatedAt: serverTimestamp() });
+
+        // Record order event
+        const orderData = docSnap.data();
+        await addDoc(collection(db, 'orderLogs'), {
+          orderId: docSnap.id,
+          userId: uid,
+          action: 'ربط الحساب تلقائياً',
+          previousStatus: orderData.status || '',
+          newStatus: orderData.status || '',
+          comment: 'تم ربط حساب البائع بالصفقة تلقائياً عند تسجيل الدخول (عبر الجوال)',
+          createdAt: serverTimestamp()
+        });
+        hasUpdates = true;
+      }
+    }
+
+    if (hasUpdates) {
+      await batch.commit();
+      console.log(`✅ [useAuth] Auto-claimed orders for user ${uid}`);
+    }
+  } catch (error) {
+    console.error('❌ [useAuth] Error auto-claiming orders:', error);
+  }
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -72,6 +143,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     let unsubscribeProfile: (() => void) | null = null;
 
+    let autoClaimRun = false;
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       clearTimeout(timeout);
       
@@ -141,6 +213,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             await setDoc(userRef, newProfile);
             setProfile(newProfile);
             sessionStorage.setItem('isFirstLogin', 'true');
+            if (!autoClaimRun) {
+              autoClaimRun = true;
+              autoClaimOrders(user.uid, newProfile.email, newProfile.phoneNumber);
+            }
 
             // Send welcome notification
             await sendNotification(
@@ -170,6 +246,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               await updateDoc(userRef, { userShortId: shortId });
             }
             setProfile(data);
+            if (!autoClaimRun) {
+              autoClaimRun = true;
+              autoClaimOrders(user.uid, data.email, data.phoneNumber);
+            }
             
             // Check for 2FA requirement
             if (data.twoFactorEnabled && !twoFactorVerified) {

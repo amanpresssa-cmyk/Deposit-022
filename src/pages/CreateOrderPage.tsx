@@ -21,8 +21,7 @@ export const CreateOrderPage: React.FC = () => {
     title: '',
     description: '',
     amount: '',
-    targetEmail: '',
-    targetPhone: '',
+    targetContact: '',
     category: 'عام'
   });
 
@@ -68,8 +67,7 @@ export const CreateOrderPage: React.FC = () => {
       if (email || phone || title || amount || category || desc) {
         setFormData(prev => ({
           ...prev,
-          targetEmail: email || prev.targetEmail,
-          targetPhone: phone || prev.targetPhone,
+          targetContact: email || phone || prev.targetContact,
           title: title || prev.title,
           amount: amount || prev.amount,
           category: category || prev.category,
@@ -83,8 +81,7 @@ export const CreateOrderPage: React.FC = () => {
             const u = snap.data();
             setFormData(prev => ({
               ...prev,
-              targetEmail: u.email || prev.targetEmail,
-              targetPhone: u.phoneNumber || prev.targetPhone
+              targetContact: u.email || u.phoneNumber || prev.targetContact
             }));
           }
         });
@@ -251,21 +248,25 @@ export const CreateOrderPage: React.FC = () => {
     if (isNaN(amountNum) || amountNum <= 0) {
       setError('يرجى إدخال مبلغ صحيح أكبر من صفر'); return;
     }
-    if (!formData.targetEmail && !formData.targetPhone) {
+    const contact = formData.targetContact.trim();
+    if (!contact) {
       setError('يجب إدخال البريد الإلكتروني أو رقم الجوال للطرف الآخر للتمكن من دعوته'); return;
     }
+
+    // Determine if contact is email or phone
+    const isEmail = contact.includes('@');
+    const isPhone = !isEmail;
 
     setLoading(true);
     try {
       let targetRef = null;
       try {
-        if (formData.targetEmail) {
-          const emailQuery = query(collection(db, 'users'), where('email', '==', formData.targetEmail.trim().toLowerCase()), limit(1));
+        if (isEmail) {
+          const emailQuery = query(collection(db, 'users'), where('email', '==', contact.toLowerCase()), limit(1));
           const snap = await getDocs(emailQuery);
           if (!snap.empty) targetRef = snap.docs[0];
-        }
-        if (!targetRef && formData.targetPhone) {
-          let phone = formData.targetPhone.trim();
+        } else {
+          let phone = contact;
           if (!phone.startsWith('+')) phone = `+966${phone.replace(/^0/, '')}`;
           const phoneQuery = query(collection(db, 'users'), where('phoneNumber', '==', phone), limit(1));
           const snap = await getDocs(phoneQuery);
@@ -275,18 +276,31 @@ export const CreateOrderPage: React.FC = () => {
       
       const targetUserId = targetRef ? targetRef.id : 'unknown';
 
+      let formattedPhone: string | null = null;
+      if (isPhone) {
+        let phone = contact;
+        if (!phone.startsWith('+')) phone = `+966${phone.replace(/^0/, '')}`;
+        formattedPhone = phone;
+      }
+
       const orderData = {
         buyerId: myRole === 'buyer' ? user.uid : targetUserId,
         sellerId: myRole === 'seller' ? user.uid : targetUserId,
         creatorId: user.uid,
+        sellerEmail: myRole === 'buyer' 
+          ? (isEmail ? contact.toLowerCase() : null) 
+          : (user.email || null),
+        sellerPhone: myRole === 'buyer' 
+          ? formattedPhone 
+          : (profile?.phoneNumber || null),
         title: formData.title.trim(),
         description: formData.description.trim(),
         amount: amountNum,
         status: 'awaiting_acceptance',
         visibility: 'public',
         category: formData.category,
-        allowBNPL: true, // Default to true for manual standard forms
-        deliveryDays: 3, // Default to 3 days for standard forms
+        allowBNPL: true,
+        deliveryDays: 3,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
@@ -301,8 +315,8 @@ export const CreateOrderPage: React.FC = () => {
         await sendNotification(targetUserId, titleText, messageText, 'order_update', 'normal', docRef.id);
       }
       
-      if (formData.targetPhone) {
-        try { await sendOrderSMS(formData.targetPhone.trim(), docRef.id, formData.title, amountNum); } catch (e) {}
+      if (isPhone && formattedPhone) {
+        try { await sendOrderSMS(formattedPhone, docRef.id, formData.title, amountNum); } catch (e) {}
       }
 
       navigate(`/order/${docRef.id}`);
@@ -370,15 +384,24 @@ export const CreateOrderPage: React.FC = () => {
 
           <div className="space-y-6 pt-6 border-t border-gray-100">
             <h3 className="font-bold text-gray-900 border-b border-gray-100 pb-2">دعوة الطرف الآخر</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <label className="text-xs font-black text-gray-400 uppercase tracking-wider block">رقم الجوال</label>
-                <input type="tel" className="w-full px-5 py-4 bg-gray-50 rounded-2xl border border-gray-200 focus:border-blue-500 outline-none text-sm font-bold" placeholder="05XXXXXXXX" value={formData.targetPhone} onChange={(e) => setFormData({...formData, targetPhone: e.target.value})} />
+            <div className="space-y-2">
+              <label className="text-xs font-black text-gray-400 uppercase tracking-wider block">رقم الجوال أو البريد الإلكتروني</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  className="w-full px-5 py-4 pr-12 bg-gray-50 rounded-2xl border border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 outline-none text-sm font-bold transition-all"
+                  placeholder="05XXXXXXXX أو name@example.com"
+                  value={formData.targetContact}
+                  onChange={(e) => setFormData({...formData, targetContact: e.target.value})}
+                />
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+                  {formData.targetContact.includes('@')
+                    ? <Mail className="w-5 h-5 text-blue-500" />
+                    : <Smartphone className="w-5 h-5" />
+                  }
+                </div>
               </div>
-              <div className="space-y-2">
-                <label className="text-xs font-black text-gray-400 uppercase tracking-wider block">البريد الإلكتروني</label>
-                <input type="email" className="w-full px-5 py-4 bg-gray-50 rounded-2xl border border-gray-200 focus:border-blue-500 outline-none text-sm font-bold" placeholder="name@example.com" value={formData.targetEmail} onChange={(e) => setFormData({...formData, targetEmail: e.target.value})} />
-              </div>
+              <p className="text-xs text-gray-400 font-medium">سيتم إرسال دعوة واتساب أو بريد إلكتروني تلقائياً للطرف الآخر.</p>
             </div>
           </div>
 

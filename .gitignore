@@ -7,3 +7,5 @@ coverage/
 .env*
 .wwebjs_auth/
 .wwebjs_cache/
+public/*.apk
+

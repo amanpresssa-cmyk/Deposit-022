@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { doc, onSnapshot, updateDoc, serverTimestamp, increment, collection, query, where, orderBy, getDocs, getDoc, addDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -653,6 +653,7 @@ export const OrderDetailsPage: React.FC = () => {
     setActionLoading(true);
     try {
       await updateDoc(doc(db, 'orders', order.id), { sellerId: user.uid, updatedAt: serverTimestamp() });
+      toast.success('تم ربط حسابك بالصفقة تلقائياً!');
       await recordOrderEvent(order.id, user.uid, 'قبول الصفقة', order.status, order.status);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `orders/${order.id}`);
@@ -660,6 +661,13 @@ export const OrderDetailsPage: React.FC = () => {
       setActionLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (order && user && order.sellerId === 'unknown' && (isSellerByEmail || isSellerByPhone) && !actionLoading) {
+      console.log("⚡ [OrderDetailsPage] Auto-claiming order...");
+      claimOrder();
+    }
+  }, [order?.sellerId, isSellerByEmail, isSellerByPhone, user]);
 
   const steps = [
     { key: 'pending', label: 'بانتظار الموافقة', icon: <Clock /> },
@@ -903,6 +911,23 @@ export const OrderDetailsPage: React.FC = () => {
                        </div>
                     );
                   }
+                  if (!profile?.isVerified) {
+                    return (
+                      <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
+                        <p className="text-xs font-black text-amber-900 flex items-center gap-1.5">
+                          <AlertTriangle className="w-4 h-4 text-amber-600" />
+                          التوثيق مطلوب للتوقيع
+                        </p>
+                        <p className="text-[10px] text-amber-700 font-medium leading-relaxed">يجب توثيق هويتك لإتمام التوقيع على عقد الضمان.</p>
+                        <button
+                          onClick={() => navigate('/profile')}
+                          className="w-full bg-amber-600 text-white py-2.5 rounded-xl font-black text-xs hover:bg-amber-700 transition-all"
+                        >
+                          توثيق هويتي الآن
+                        </button>
+                      </div>
+                    );
+                  }
                   return (
                      <button
                        onClick={() => {
@@ -958,25 +983,42 @@ export const OrderDetailsPage: React.FC = () => {
                 </div>
              )}
              
-             {order.sellerId === 'unknown' && (isSellerByEmail || isSellerByPhone) && order.status !== 'awaiting_acceptance' && (
+             {false && (isSellerByEmail || isSellerByPhone) && order.status !== 'awaiting_acceptance' && (
                 <button onClick={claimOrder} disabled={actionLoading} className="w-full bg-blue-600 text-white px-4 py-3 rounded-xl font-bold">ربط حسابي بالصفقة</button>
              )}
              
              {order.status === 'pending' && isBuyer && (
-                <div className="space-y-3">
-                  <button onClick={() => setShowPaymentModal(true)} disabled={actionLoading} className="w-full bg-green-600 text-white px-4 py-4 rounded-xl font-black text-lg flex items-center justify-center gap-2 shadow-lg shadow-green-600/20 hover:scale-[1.02] transition-transform">
-                    <CreditCard className="w-6 h-6" />
-                    ادفع وعمّد الطلب بأمان
-                  </button>
-                  <p className="text-[10px] text-center text-gray-500 font-bold">المبلغ يبقى محجوزاً في المنصة ولا يسلّم للبائع إلا بعد موافقتك</p>
-                  
-                  <button onClick={() => setShowCancelConfirm(true)} disabled={actionLoading} className="w-full bg-white text-gray-400 border border-gray-200 px-4 py-3 rounded-xl font-bold hover:bg-gray-50 hover:text-red-500 transition-colors text-sm">
-                    إلغاء الطلب والتراجع
-                  </button>
-                </div>
-             )}
+                 <div className="space-y-3">
+                    {!profile?.isVerified ? (
+                      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-3">
+                        <div className="flex items-start gap-3">
+                          <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-black text-amber-900 text-sm">التوثيق مطلوب للدفع</p>
+                            <p className="text-xs text-amber-700 font-medium mt-1 leading-relaxed">لحماية حقوقك، يجب توثيق هويتك الوطنية قبل إتمام الدفع.</p>
+                          </div>
+                        </div>
+                        <button onClick={() => navigate('/profile')} className="w-full bg-amber-600 text-white py-3 rounded-xl font-black text-sm hover:bg-amber-700 transition-all shadow-lg shadow-amber-200">
+                          توثيق هويتي الآن
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <button onClick={() => setShowPaymentModal(true)} disabled={actionLoading} className="w-full bg-green-600 text-white px-4 py-4 rounded-xl font-black text-lg flex items-center justify-center gap-2 shadow-lg shadow-green-600/20 hover:scale-[1.02] transition-transform">
+                          <CreditCard className="w-6 h-6" />
+                          ادفع وعمّد الطلب بأمان
+                        </button>
+                        <p className="text-[10px] text-center text-gray-500 font-bold">المبلغ يبقى محجوزاً في المنصة ولا يسلّم للبائع إلا بعد موافقتك</p>
+                      </>
+                    )}
+                    
+                    <button onClick={() => setShowCancelConfirm(true)} disabled={actionLoading} className="w-full bg-white text-gray-400 border border-gray-200 px-4 py-3 rounded-xl font-bold hover:bg-gray-50 hover:text-red-500 transition-colors text-sm">
+                      إلغاء الطلب والتراجع
+                    </button>
+                 </div>
+              )}
 
-             {/* Custom Cancel Confirm Modal */}
+{/* Custom Cancel Confirm Modal */}
              {showCancelConfirm && (
                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                  <div className="bg-white rounded-3xl w-full max-w-md p-6 overflow-hidden shadow-2xl relative">
@@ -997,55 +1039,75 @@ export const OrderDetailsPage: React.FC = () => {
              )}
              
              {order.status === 'escrowed' && isSeller && (
-                <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm space-y-3">
-                  <p className="text-xs font-black text-gray-700">تسليم العمل النهائي</p>
-                  <textarea 
-                    className="w-full bg-gray-50 border border-gray-100 focus:border-blue-500 rounded-xl p-3 text-sm resize-none outline-none" 
-                    rows={3}
-                    placeholder="وصف العمل المنجز أو روابط التسليم (Google Drive وغيرها)..." 
-                    value={completionComment} 
-                    onChange={(e) => setCompletionComment(e.target.value)} 
-                  />
-                  <div className="text-[10px] text-gray-500 bg-blue-50 p-3 rounded-lg flex gap-2 mb-3 font-bold border border-blue-100 leading-relaxed">
-                    <AlertCircle className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                    تلميحات التسليم:
-                    <ul className="list-disc list-inside mt-1 space-y-1">
-                       <li>تأكد من تسليم العمل كاملاً كما تم الاتفاق عليه لتجنب أي تأخير في تحرير المبلغ.</li>
-                       <li>للملفات الكبيرة (أكثر من 25MB)، ارفعها على Google Drive أو Dropbox وضع الرابط أعلاه.</li>
-                    </ul>
-                  </div>
-                  <input 
-                    type="file" 
-                    title="اختر ملفاً لإرفاقه كجزء من تسليم العمل النهائي"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file && file.size > 25 * 1024 * 1024) {
-                        alert("عذراً، حجم الملف كبير جداً. يرجى ضغطه أو استخدام رابط خارجي.");
-                        e.target.value = '';
-                        setDeliveryFiles([]);
-                      } else {
-                        if (file) {
-                          setDeliveryFiles([file]);
-                        } else {
-                          setDeliveryFiles([]);
-                        }
-                      }
-                    }} 
-                    className="w-full text-xs file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer text-gray-500 mb-2" 
-                  />
-                  <button 
-                    onClick={() => updateStatus('delivered', completionComment)} 
-                    disabled={actionLoading || (!completionComment.trim() && deliveryFiles.length === 0)} 
-                    title="تسليم العمل النهائي لكي يقوم المشتري بمراجعته وتحرير المبلغ"
-                    className="w-full bg-blue-600 text-white px-4 py-3 rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 mt-2 flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-200"
-                  >
-                    <CheckCircle2 className="w-5 h-5" />
-                    إرسال وتسليم العمل
-                  </button>
-                </div>
-             )}
-             
-             {order.status === 'escrowed' && (isBuyer || isSeller) && (
+                 <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm space-y-3">
+                   <p className="text-xs font-black text-gray-700">تسليم العمل النهائي</p>
+                   {!profile?.isVerified ? (
+                     <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-3">
+                       <div className="flex items-start gap-3">
+                         <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                         <div>
+                           <p className="font-black text-amber-900 text-sm">التوثيق مطلوب للتسليم</p>
+                           <p className="text-xs text-amber-700 font-medium mt-1 leading-relaxed">يجب توثيق هويتك الوطنية لإثبات الأهلية قبل تسليم العمل واستلام المبلغ.</p>
+                         </div>
+                       </div>
+                       <button
+                         onClick={() => navigate('/profile')}
+                         className="w-full bg-amber-600 text-white py-3 rounded-xl font-black text-sm hover:bg-amber-700 transition-all"
+                       >
+                         توثيق هويتي الآن
+                       </button>
+                     </div>
+                   ) : (
+                     <>
+                       <textarea 
+                         className="w-full bg-gray-50 border border-gray-100 focus:border-blue-500 rounded-xl p-3 text-sm resize-none outline-none" 
+                         rows={3}
+                         placeholder="وصف العمل المنجز أو روابط التسليم (Google Drive وغيرها)..." 
+                         value={completionComment} 
+                         onChange={(e) => setCompletionComment(e.target.value)} 
+                       />
+                       <div className="text-[10px] text-gray-500 bg-blue-50 p-3 rounded-lg flex gap-2 mb-3 font-bold border border-blue-100 leading-relaxed">
+                         <AlertCircle className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                         تلميحات التسليم:
+                         <ul className="list-disc list-inside mt-1 space-y-1">
+                            <li>تأكد من تسليم العمل كاملاً كما تم الاتفاق عليه لتجنب أي تأخير في تحرير المبلغ.</li>
+                            <li>للملفات الكبيرة (أكثر من 25MB)، ارفعها على Google Drive أو Dropbox وضع الرابط أعلاه.</li>
+                         </ul>
+                       </div>
+                       <input 
+                         type="file" 
+                         title="اختر ملفاً لإرفاقه كجزء من تسليم العمل النهائي"
+                         onChange={(e) => {
+                           const file = e.target.files?.[0];
+                           if (file && file.size > 25 * 1024 * 1024) {
+                             alert("عذراً، حجم الملف كبير جداً. يرجى ضغطه أو استخدام رابط خارجي.");
+                             e.target.value = '';
+                             setDeliveryFiles([]);
+                           } else {
+                             if (file) {
+                               setDeliveryFiles([file]);
+                             } else {
+                               setDeliveryFiles([]);
+                             }
+                           }
+                         }} 
+                         className="w-full text-xs file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer text-gray-500 mb-2" 
+                       />
+                       <button 
+                         onClick={() => updateStatus('delivered', completionComment)} 
+                         disabled={actionLoading || (!completionComment.trim() && deliveryFiles.length === 0)} 
+                         title="تسليم العمل النهائي لكي يقوم المشتري بمراجعته وتحرير المبلغ"
+                         className="w-full bg-blue-600 text-white px-4 py-3 rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 mt-2 flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-200"
+                       >
+                         <CheckCircle2 className="w-5 h-5" />
+                         إرسال وتسليم العمل
+                       </button>
+                     </>
+                   )}
+                 </div>
+              )}
+
+{order.status === 'escrowed' && (isBuyer || isSeller) && (
                 <div className="pt-2">
                   <button onClick={() => setShowDisputeModal(true)} disabled={actionLoading} className="w-full bg-white text-red-600 border border-red-200 px-4 py-2.5 rounded-xl font-bold hover:bg-red-50 transition-colors text-sm flex items-center justify-center gap-2">
                     <AlertCircle className="w-4 h-4" />

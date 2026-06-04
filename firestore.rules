@@ -20,6 +20,10 @@ service cloud.firestore {
       return isSignedIn() && 'email' in request.auth.token && request.auth.token.email == email;
     }
 
+    function isOwnerByPhone(phone) {
+      return isSignedIn() && 'phone_number' in request.auth.token && request.auth.token.phone_number == phone;
+    }
+
     function isAdmin() {
       return isSignedIn() && (
         ('email' in request.auth.token && request.auth.token.email == 'khyratfarmdates@gmail.com') ||
@@ -83,7 +87,9 @@ service cloud.firestore {
           existing().buyerId == request.auth.uid || 
           existing().sellerId == request.auth.uid ||
           (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('email', '') == existing().get('sellerEmail', 'N/A'))
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('email', '') == existing().get('sellerEmail', 'N/A')) ||
+          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('phoneNumber', '') == existing().get('sellerPhone', 'N/A'))
         );
       }
 
@@ -93,7 +99,8 @@ service cloud.firestore {
                       isAdmin() ||
                       resource.data.buyerId == request.auth.uid || 
                       resource.data.sellerId == request.auth.uid ||
-                      resource.data.get('sellerEmail', '') == request.auth.token.email
+                      resource.data.get('sellerEmail', '') == request.auth.token.email ||
+                      resource.data.get('sellerPhone', '') == request.auth.token.phone_number
                     ));
       
       allow create: if isSignedIn() 
@@ -106,7 +113,8 @@ service cloud.firestore {
       allow update: if (isAdmin() || (isSignedIn() && (
           isOwner(existing().buyerId) || 
           isOwner(existing().sellerId) ||
-          ('sellerEmail' in existing() && isOwnerByEmail(existing().sellerEmail))
+          ('sellerEmail' in existing() && isOwnerByEmail(existing().sellerEmail)) ||
+          ('sellerPhone' in existing() && isOwnerByPhone(existing().sellerPhone))
         )))
         && (
           isAdmin() || (

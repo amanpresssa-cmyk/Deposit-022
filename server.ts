@@ -1012,6 +1012,43 @@ function startFirebaseListeners() {
           const orderData = orderDoc.data();
           const orderId = orderDoc.id;
           
+          // Unregistered seller invitation logic
+          if (change.type === 'added' && orderData.sellerId === 'unknown') {
+            const createdAt = orderData.createdAt ? orderData.createdAt.toDate() : new Date();
+            const now = new Date();
+            const diffMs = now.getTime() - createdAt.getTime();
+            const isRecent = diffMs < 5 * 60 * 1000;
+
+            if (isRecent) {
+              const orderUrl = `https://arboon.sa/order/${orderId}`;
+              
+              // 1. WhatsApp Invite
+              if (orderData.sellerPhone && whatsappStatus === 'connected' && whatsappClient) {
+                const formattedNum = formatWhatsAppNumber(orderData.sellerPhone);
+                const waMessage = `🛡️ *دعوة صفقة ضمان مالي من منصة عربون* 🛡️\n\nلقد قام المشتري بدعوتك لصفقة ضمان مالي جديدة بخصوص:\n📌 *الصفقة:* "${orderData.title}"\n💰 *المبلغ:* ${orderData.amount} ر.س\n\nلقبول الصفقة ومتابعة تفاصيلها بأمان، يرجى الضغط على الرابط التالي وتأكيد حسابك:\n🔗 ${orderUrl}\n\n_منصة عربون تضمن لك تعاملات مالية آمنة وموثقة._`;
+                
+                await whatsappClient.sendMessage(formattedNum, { text: waMessage })
+                  .then(() => console.log(`✅ [WhatsApp Invite] Sent to ${formattedNum} for Order #${orderId}`))
+                  .catch((err: any) => console.error(`❌ [WhatsApp Invite Error] to ${formattedNum}:`, err));
+              }
+
+              // 2. Simulated Email Invite
+              if (orderData.sellerEmail) {
+                const emailMessage = `منصة عربون: لديك دعوة لصفقة ضمان مالي جديدة بخصوص "${orderData.title}" بمبلغ ${orderData.amount} ر.س. للقبول والتفاصيل اضغط الرابط: ${orderUrl}`;
+                console.log(`✉️ [SIMULATED EMAIL] TO: ${orderData.sellerEmail}`);
+                console.log(`✉️ [SIMULATED EMAIL] MSG: ${emailMessage}`);
+                
+                await db.collection('email_logs').add({
+                  email: orderData.sellerEmail.trim().toLowerCase(),
+                  orderId: orderId,
+                  message: emailMessage,
+                  status: 'sent_simulated',
+                  createdAt: admin.firestore.FieldValue.serverTimestamp()
+                }).catch((err: any) => console.error("❌ [Email Log Error]:", err));
+              }
+            }
+          }
+          
           const sellerId = orderData.sellerId;
           const sellerNetShare = orderData.paymentFees?.sellerNetShare || orderData.amount || 0;
           
