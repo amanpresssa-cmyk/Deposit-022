@@ -407,8 +407,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           );
         } else {
           await updateDoc(userRef, { 
-            phoneNumber: result.user.phoneNumber,
-            isVerified: true 
+            phoneNumber: result.user.phoneNumber
           });
         }
       }

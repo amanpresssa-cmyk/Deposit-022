@@ -46,7 +46,7 @@ export const IdentityVerification: React.FC<Props> = ({ onClose }) => {
       
       setStep('otp');
       setTimer(120); 
-      toast.success(`تم إرسال رمز التحقق إلى جوالك المسجّل في أبشر ${maskedPhone} عبر بوابة التحقق الآمنة`);
+      toast.success(`تم إرسال رمز التحقق إلى جوالك المسجّل في أبشر ${maskedPhone} (رمز المحاكاة للتجربة هو 1234)`);
     } catch (err) {
       toast.error('حدث خطأ في النظام، يرجى المحاولة لاحقاً');
     } finally {
@@ -57,6 +57,11 @@ export const IdentityVerification: React.FC<Props> = ({ onClose }) => {
   const handleVerifyOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.otp.length < 4) return;
+
+    if (formData.otp !== '1234') {
+      toast.error('رمز التحقق غير صحيح! يرجى استخدام رمز المحاكاة 1234 للتجربة');
+      return;
+    }
 
     setLoading(true);
     try {
