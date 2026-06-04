@@ -70,11 +70,39 @@ class _VerificationScreenState extends State<VerificationScreen> {
       _loading = false;
       _step = 2;
     });
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.info,
+          content: Text(
+            'تم إرسال الرمز لجوالك بأبشر. (للتجربة، رمز المحاكاة هو 1234)',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.cairo(fontWeight: FontWeight.bold, color: Colors.white),
+          ),
+        ),
+      );
+    }
+    
     _startTimer();
   }
 
   void _verifyOTP() async {
     if (_otpController.text.trim().length != 4) return;
+
+    if (_otpController.text.trim() != '1234') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.alert,
+          content: Text(
+            'رمز التحقق غير صحيح! للتجربة استخدم رمز المحاكاة 1234',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.cairo(fontWeight: FontWeight.bold),
+          ),
+        ),
+      );
+      return;
+    }
 
     setState(() => _loading = true);
     
