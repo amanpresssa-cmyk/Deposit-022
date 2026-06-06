@@ -359,28 +359,25 @@ class _SupportScreenState extends State<SupportScreen> {
             ),
             child: const Icon(Icons.psychology_outlined, color: AppColors.accentGold, size: 24),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Flexible(
-                      child: Text(
-                        'أنيس المستشار المالي',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.cairo(
-                          color: AppColors.textLight,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w900,
-                        ),
+                    Text(
+                      'أنيس المستشار المالي',
+                      style: GoogleFonts.cairo(
+                        color: AppColors.textLight,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
                       ),
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 6),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                       decoration: BoxDecoration(
                         color: AppColors.accentGold.withOpacity(0.15),
                         borderRadius: BorderRadius.circular(4),
@@ -389,50 +386,93 @@ class _SupportScreenState extends State<SupportScreen> {
                         'AI',
                         style: GoogleFonts.outfit(
                           color: AppColors.accentGold,
-                          fontSize: 8,
+                          fontSize: 9,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
                     ),
                   ],
                 ),
+                const SizedBox(height: 2),
                 Text(
                   'نشط ومتصل بالذكاء الاصطناعي',
                   style: GoogleFonts.cairo(
                     color: AppColors.textMuted,
-                    fontSize: 8,
+                    fontSize: 9,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
               ],
             ),
           ),
-          // Actions: Arbitrator, Copy, Clear
-          Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.content_copy_rounded, color: AppColors.textMuted, size: 16),
-                tooltip: 'نسخ المحادثة',
-                onPressed: _copyChat,
-              ),
-              IconButton(
-                icon: const Icon(Icons.delete_sweep_outlined, color: AppColors.alert, size: 18),
-                tooltip: 'مسح المحادثة',
-                onPressed: _clearChat,
-              ),
-              const SizedBox(width: 2),
-              ElevatedButton.icon(
-                onPressed: _escalateToHumanArbitrator,
-                icon: const Icon(Icons.gavel_rounded, size: 10, color: Colors.white),
-                label: Text(
-                  'طلب مستشار بشري',
-                  style: GoogleFonts.cairo(fontSize: 7, fontWeight: FontWeight.bold, color: Colors.white),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert, color: AppColors.textLight),
+            color: AppColors.cardDark,
+            elevation: 8,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            onSelected: (value) {
+              if (value == 'arbitrator') {
+                _escalateToHumanArbitrator();
+              } else if (value == 'copy') {
+                _copyChat();
+              } else if (value == 'clear') {
+                _clearChat();
+              }
+            },
+            itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+              PopupMenuItem<String>(
+                value: 'arbitrator',
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Text(
+                      'طلب مستشار بشري',
+                      style: GoogleFonts.cairo(
+                        color: AppColors.alert,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Icon(Icons.gavel_rounded, color: AppColors.alert, size: 18),
+                  ],
                 ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.alert.withOpacity(0.85),
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              const PopupMenuDivider(),
+              PopupMenuItem<String>(
+                value: 'copy',
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Text(
+                      'نسخ المحادثة',
+                      style: GoogleFonts.cairo(
+                        color: AppColors.textLight,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Icon(Icons.content_copy_rounded, color: AppColors.textMuted, size: 18),
+                  ],
+                ),
+              ),
+              PopupMenuItem<String>(
+                value: 'clear',
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Text(
+                      'مسح المحادثة',
+                      style: GoogleFonts.cairo(
+                        color: AppColors.alert,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Icon(Icons.delete_sweep_outlined, color: AppColors.alert, size: 18),
+                  ],
                 ),
               ),
             ],
