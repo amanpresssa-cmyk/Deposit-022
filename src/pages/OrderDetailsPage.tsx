@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { doc, onSnapshot, updateDoc, serverTimestamp, increment, collection, query, where, orderBy, getDocs, getDoc, addDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -57,6 +57,32 @@ export const OrderDetailsPage: React.FC = () => {
   const [enteredOtp, setEnteredOtp] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [signing, setSigning] = useState(false);
+
+  const isBuyer = order?.buyerId === user?.uid;
+  const isSeller = order?.sellerId === user?.uid;
+  const isSellerByEmail = order?.sellerEmail === user?.email;
+  const isSellerByPhone = !!(order?.sellerPhone && user?.phoneNumber?.includes(order?.sellerPhone.replace(/^0/, '')));
+
+  const claimOrder = async () => {
+    if (!user || !order) return;
+    setActionLoading(true);
+    try {
+      await updateDoc(doc(db, 'orders', order.id), { sellerId: user.uid, updatedAt: serverTimestamp() });
+      toast.success('تم ربط حسابك بالصفقة تلقائياً!');
+      await recordOrderEvent(order.id, user.uid, 'قبول الصفقة', order.status, order.status);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `orders/${order.id}`);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (order && user && order.sellerId === 'unknown' && (isSellerByEmail || isSellerByPhone) && !actionLoading) {
+      console.log("⚡ [OrderDetailsPage] Auto-claiming order...");
+      claimOrder();
+    }
+  }, [order?.sellerId, isSellerByEmail, isSellerByPhone, user]);
 
   const copyOrderLink = () => {
     const url = window.location.href;
@@ -642,32 +668,6 @@ export const OrderDetailsPage: React.FC = () => {
       </div>
     );
   }
-
-  const isBuyer = order.buyerId === user?.uid;
-  const isSeller = order.sellerId === user?.uid;
-  const isSellerByEmail = order.sellerEmail === user?.email;
-  const isSellerByPhone = order.sellerPhone && user?.phoneNumber?.includes(order.sellerPhone.replace(/^0/, ''));
-
-  const claimOrder = async () => {
-    if (!user || !order) return;
-    setActionLoading(true);
-    try {
-      await updateDoc(doc(db, 'orders', order.id), { sellerId: user.uid, updatedAt: serverTimestamp() });
-      toast.success('تم ربط حسابك بالصفقة تلقائياً!');
-      await recordOrderEvent(order.id, user.uid, 'قبول الصفقة', order.status, order.status);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `orders/${order.id}`);
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (order && user && order.sellerId === 'unknown' && (isSellerByEmail || isSellerByPhone) && !actionLoading) {
-      console.log("⚡ [OrderDetailsPage] Auto-claiming order...");
-      claimOrder();
-    }
-  }, [order?.sellerId, isSellerByEmail, isSellerByPhone, user]);
 
   const steps = [
     { key: 'pending', label: 'بانتظار الموافقة', icon: <Clock /> },
