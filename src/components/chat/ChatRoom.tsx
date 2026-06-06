@@ -369,7 +369,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ orderId }) => {
               key={msg.id} 
               className={`flex ${isSystem ? 'justify-center w-full' : isOwn ? 'justify-end' : 'justify-start'}`}
             >
-              <div className={`max-w-[85%] sm:max-w-[85%] space-y-1 flex flex-col ${isSystem ? 'items-center w-full' : isOwn ? 'items-end' : 'items-start'}`}>
+              <div className={`max-w-[85%] sm:max-w-[85%] space-y-1 flex flex-col ${isSystem ? 'items-center w-full' : isOwn ? 'items-end w-fit' : 'items-start w-fit'}`}>
                 <div
                   className={`px-4 py-3 text-sm leading-relaxed shadow-sm w-full flex flex-col ${
                     isSystem 
@@ -380,9 +380,9 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ orderId }) => {
                   }`}
                   style={{ wordBreak: 'break-word' }}
                 >
-                  <div className="flex gap-3">
+                  <div className="flex gap-3 w-full">
                     {isSystem && <AlertCircle className="w-5 h-5 shrink-0 text-amber-600 mt-0.5" />}
-                    {msg.text && <span style={{ whiteSpace: 'pre-wrap' }}>{msg.text}</span>}
+                    {msg.text && <span className="flex-1" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{msg.text}</span>}
                   </div>
                   {msg.imageUrl && (
                     <a href={msg.imageUrl} target="_blank" rel="noreferrer" className="block mt-2 rounded-xl overflow-hidden border border-black/10 hover:opacity-90 transition-opacity">
