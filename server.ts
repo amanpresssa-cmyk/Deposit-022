@@ -1,4 +1,5 @@
 import express from "express";
+import { GoogleGenAI } from "@google/genai";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
@@ -1129,6 +1130,71 @@ async function startServer() {
       error: whatsappInitError,
       timestamp: Date.now()
     });
+  });
+
+  // ── AI CHATBOT PROXY ENDPOINT FOR MOBILE AND WEB ──
+  app.post("/api/support/chat", async (req, res) => {
+    try {
+      const { message, history } = req.body;
+      const apiKey = process.env.GEMINI_API_KEY;
+
+      if (!apiKey || apiKey === 'undefined' || apiKey === 'MY_GEMINI_API_KEY') {
+        return res.json({
+          reply: "يا هلا بك! أنا أنيس، مستشارك الذكي. عذراً طال عمرك، لم يقم المطور بتهيئة مفتاح الذكاء الاصطناعي (GEMINI_API_KEY) في خادم المنصة بعد. يرجى إضافته في إعدادات الخادم لتفعيل كامل قدراتي الذكية. حتى ذلك الحين، هل يمكنني مساعدتك بالأسئلة الشائعة المعروضة بالأسفل؟"
+        });
+      }
+
+      const systemPrompt = `أنت "أنيس المستشار المالي" الذكي الخاص بمنصة عربون (Escrow).
+منصة عربون هي منصة وساطة مالية تضمن حقوق البائع والمشتري في المملكة العربية السعودية.
+
+مميزات المنصة:
+1. نظام "العربون" (التعميد): يحفظ المشتري مبلغه في المنصة، ولا يتم تحويله للبائع إلا بعد تأكيد استلاف/استلام الخدمة.
+2. التوثيق الوطني: نلزم المستخدمين بتوثيق هويتهم الوطنية عبر نظام نفاذ (أبشر) لضمان الأمان والجدية.
+3. معقبين وخدمات محترفة: المنصة تركز بشكل أساسي على التعقيب والخدمات العامة والإلكترونية.
+4. الخصوصية والأمان: يجب أن يتم التواصل والدفع بالكامل داخل منصة عربون لضمان الحقوق وتجنب الاحتيال.
+5. العمولات: عمولة الحماية والضمان ثابتة بنسبة 3% من قيمة الصفقة ويتحملها المشتري.
+6. تسوية سريعة: معالجة سحب الأرباح البنكية تتم مجاناً خلال 24-48 ساعة، أو فورياً برسم 1% عبر خدمة Fast-Track.
+
+قواعدك الاستشارية:
+- أجب بلهجة سعودية ودية للغاية ومرحبة ومهذبة ("طال عمرك"، "أبشر"، "يا هلا ومسهلا").
+- شجع البائعين دائماً على إتمام توثيق حساباتهم عبر نفاذ لزيادة مستويات الثقة لديهم.
+- طمئن المشترين بأن مبالغهم محفوظة بمأمن في الضمان المالي ولن تُحرر للبائع إلا بموافقتهم أو حكم التحكيم.
+- عند الاستفسار عن نزاع، اشرح لهم أنهم يستطيعون بضغطة زر طلب مستشار تحكيم بشري حقيقي ليفصل بينهم بالعدل.
+- لا تعطي أو تشجع على أي وسائل تواصل خارج منصة عربون (كالواتساب الخاص أو الجوال الشخصي) لتضمن بقاء معاملاتهم تحت مظلة الحماية.
+- حافظ على إجاباتك مختصرة ومباشرة ومريحة للقراءة في شاشات الجوال.`;
+
+      const ai = new GoogleGenAI({ apiKey });
+      const contents = [];
+      
+      if (Array.isArray(history)) {
+        for (const msg of history) {
+          contents.push({
+            role: msg.isUser ? 'user' as const : 'model' as const,
+            parts: [{ text: msg.text }]
+          });
+        }
+      }
+      
+      contents.push({
+        role: 'user' as const,
+        parts: [{ text: message }]
+      });
+
+      const response = await ai.models.generateContent({
+        model: "gemini-1.5-flash",
+        contents: contents,
+        config: {
+          systemInstruction: systemPrompt,
+          temperature: 0.7,
+          maxOutputTokens: 400
+        }
+      });
+
+      res.json({ reply: (response.text || "").trim() });
+    } catch (err: any) {
+      console.error("❌ Support Chat AI Error:", err);
+      res.status(500).json({ error: "فشل الاتصال بالذكاء الاصطناعي" });
+    }
   });
 
   // ── DIRECT WHATSAPP TRIGGER (called by frontend after creating a notification) ──
