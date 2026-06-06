@@ -920,7 +920,7 @@ export const OrderDetailsPage: React.FC = () => {
                         </p>
                         <p className="text-[10px] text-amber-700 font-medium leading-relaxed">يجب توثيق هويتك لإتمام التوقيع على عقد الضمان.</p>
                         <button
-                          onClick={() => navigate('/profile')}
+                          onClick={() => navigate('/settings?section=security&verify=true')}
                           className="w-full bg-amber-600 text-white py-2.5 rounded-xl font-black text-xs hover:bg-amber-700 transition-all"
                         >
                           توثيق هويتي الآن
@@ -998,7 +998,7 @@ export const OrderDetailsPage: React.FC = () => {
                             <p className="text-xs text-amber-700 font-medium mt-1 leading-relaxed">لحماية حقوقك، يجب توثيق هويتك الوطنية قبل إتمام الدفع.</p>
                           </div>
                         </div>
-                        <button onClick={() => navigate('/profile')} className="w-full bg-amber-600 text-white py-3 rounded-xl font-black text-sm hover:bg-amber-700 transition-all shadow-lg shadow-amber-200">
+                        <button onClick={() => navigate('/settings?section=security&verify=true')} className="w-full bg-amber-600 text-white py-3 rounded-xl font-black text-sm hover:bg-amber-700 transition-all shadow-lg shadow-amber-200">
                           توثيق هويتي الآن
                         </button>
                       </div>
@@ -1051,7 +1051,7 @@ export const OrderDetailsPage: React.FC = () => {
                          </div>
                        </div>
                        <button
-                         onClick={() => navigate('/profile')}
+                         onClick={() => navigate('/settings?section=security&verify=true')}
                          className="w-full bg-amber-600 text-white py-3 rounded-xl font-black text-sm hover:bg-amber-700 transition-all"
                        >
                          توثيق هويتي الآن

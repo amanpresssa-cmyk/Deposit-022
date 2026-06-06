@@ -12,7 +12,7 @@ import { doc, updateDoc, serverTimestamp, getDocs, collection, query, where, lim
 import { PhoneVerification } from '../components/PhoneVerification';
 import { IdentityVerification } from '../components/IdentityVerification';
 import { toast } from 'sonner';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { sendNotification } from '../lib/notificationService';
 
 type Section = 'profile' | 'security' | 'notifications' | 'financial' | 'platform';
@@ -178,6 +178,17 @@ export const SettingsPage: React.FC = () => {
       payoutAccountName:        profile.payoutAccountName || '',
     }));
   }, [profile, user]);
+
+  React.useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const section = params.get('section') as Section;
+    if (section && SECTIONS.some(s => s.id === section)) {
+      setActiveSection(section);
+    }
+    if (params.get('verify') === 'true') {
+      setShowIdentityVerification(true);
+    }
+  }, [location.search]);
 
   const set = (key: keyof typeof form, value: any) => setForm(prev => ({ ...prev, [key]: value }));
 
