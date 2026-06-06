@@ -65,7 +65,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _mandatoryVerification = true;
   String _primaryColor = '#3b82f6';
 
-  late String _activeTab; // 'profile' | 'security' | 'notifications' | 'financial' | 'platform' | 'owner_dashboard'
+  late String _currentSubView; // 'index' | 'profile' | 'security' | 'notifications' | 'financial' | 'platform' | 'owner_dashboard'
 
   bool _loading = false;
   late final FirebaseFirestore _db;
@@ -81,7 +81,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
-    _activeTab = widget.initialTab;
+    if (widget.initialTab == 'profile') {
+      _currentSubView = 'index';
+    } else {
+      _currentSubView = widget.initialTab;
+    }
     _loadPreferences();
     _db = FirebaseFirestore.instanceFor(
       app: Firebase.app(),
@@ -751,209 +755,645 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final textCol = isDark ? AppColors.textLight : AppColors.textDark;
     final isAdmin = widget.currentUser.isAdmin;
 
-    return Scaffold(
-      backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Page Header
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return PopScope(
+      canPop: _currentSubView == 'index',
+      onPopInvoked: (didPop) {
+        if (didPop) return;
+        setState(() => _currentSubView = 'index');
+      },
+      child: Scaffold(
+        backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+        body: SafeArea(
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 220),
+            transitionBuilder: (Widget child, Animation<double> animation) {
+              return FadeTransition(
+                opacity: animation,
+                child: child,
+              );
+            },
+            child: _currentSubView == 'index'
+                ? Column(
+                    key: const ValueKey('settings_index_view'),
                     children: [
-                      Text(
-                        _activeTab == 'owner_dashboard' 
-                            ? 'لوحة تحكم المالك' 
-                            : _activeTab == 'platform' 
-                                ? 'إعدادات المنصة' 
-                                : 'إعدادات الحساب',
-                        style: GoogleFonts.cairo(
-                          color: textCol,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w900,
+                      // Page Header
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'إعدادات عربون',
+                                  style: GoogleFonts.cairo(
+                                    color: textCol,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                                if (_loading)
+                                  const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accentGold),
+                                  ),
+                              ],
+                            ),
+                            Text(
+                              'إدارة بياناتك الشخصية، الأمان، التنبيهات، والمعلومات المالية للمنصة',
+                              style: GoogleFonts.cairo(
+                                color: AppColors.textMuted,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      Row(
-                        children: [
-                          if (_loading)
-                            const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accentGold),
-                            ),
-                          if (_loading) const SizedBox(width: 8),
-                          if (widget.onLogout != null)
-                            GestureDetector(
-                              onTap: widget.onLogout,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                margin: const EdgeInsets.only(left: 8),
-                                decoration: BoxDecoration(
-                                  color: AppColors.alert.withOpacity(0.15),
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(color: AppColors.alert.withOpacity(0.3)),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(Icons.logout, size: 14, color: AppColors.alert),
-                                    const SizedBox(width: 5),
-                                    Text(
-                                      'خروج',
-                                      style: GoogleFonts.cairo(color: AppColors.alert, fontSize: 10, fontWeight: FontWeight.w900),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          // زر تبديل وضع الليلي / النهاري
-                          GestureDetector(
-                            onTap: widget.onThemeToggle,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: isDark
-                                    ? Colors.amber.withOpacity(0.15)
-                                    : Colors.indigo.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: isDark
-                                      ? Colors.amber.withOpacity(0.3)
-                                      : Colors.indigo.withOpacity(0.2),
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    isDark ? Icons.wb_sunny_rounded : Icons.nightlight_round,
-                                    size: 14,
-                                    color: isDark ? Colors.amber : Colors.indigo,
-                                  ),
-                                  const SizedBox(width: 5),
-                                  Text(
-                                    isDark ? 'فاتح' : 'مظلم',
-                                    style: GoogleFonts.cairo(
-                                      color: isDark ? Colors.amber : Colors.indigo,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w900,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
+                      Expanded(
+                        child: _buildSettingsIndex(cardBg, textCol, isAdmin),
+                      ),
+                    ],
+                  )
+                : _buildActiveSubView(cardBg, textCol, isAdmin),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActiveSubView(Color cardBg, Color textCol, bool isAdmin) {
+    switch (_currentSubView) {
+      case 'profile':
+        return _buildSubViewWrapper(
+          key: const ValueKey('profile_sub_view'),
+          title: 'الملف الشخصي والنبذة',
+          description: 'الاسم، النبذة التعريفية وصورة الغلاف بالملف الشخصي',
+          icon: Icons.person_outline_rounded,
+          color: Colors.blue,
+          child: _buildProfileSection(cardBg, textCol),
+        );
+      case 'financial':
+        return _buildSubViewWrapper(
+          key: const ValueKey('financial_sub_view'),
+          title: 'المعلومات البنكية والتسويات',
+          description: 'حساب التسوية البنكي والآيبان مع الماسح الذكي',
+          icon: Icons.credit_card_outlined,
+          color: Colors.purple,
+          child: _buildFinancialSection(cardBg, textCol),
+        );
+      case 'security':
+        return _buildSubViewWrapper(
+          key: const ValueKey('security_sub_view'),
+          title: 'الأمان والخصوصية',
+          description: 'الخصوصية، تفعيل التحقق الثنائي وبوابات التوثيق',
+          icon: Icons.lock_outline_rounded,
+          color: Colors.orange,
+          child: _buildSecuritySection(cardBg, textCol),
+        );
+      case 'notifications':
+        return _buildSubViewWrapper(
+          key: const ValueKey('notifications_sub_view'),
+          title: 'إشعارات المنصة والواتساب',
+          description: 'تفضيلات إشعارات العقود وتفعيل بوت الواتساب',
+          icon: Icons.notifications_none_rounded,
+          color: Colors.cyan,
+          child: _buildNotificationsSection(cardBg, textCol),
+        );
+      case 'platform':
+        if (isAdmin) {
+          return _buildSubViewWrapper(
+            key: const ValueKey('platform_sub_view'),
+            title: 'إعدادات المنصة العامة',
+            description: 'وضع الصيانة وإإعدادات الألوان للنظام للمسؤولين',
+            icon: Icons.settings_outlined,
+            color: Colors.redAccent,
+            child: _buildPlatformSection(cardBg, textCol),
+          );
+        }
+        break;
+      case 'owner_dashboard':
+        if (isAdmin) {
+          return _buildSubViewWrapper(
+            key: const ValueKey('owner_dashboard_sub_view'),
+            title: 'لوحة تحكم المالك',
+            description: 'إدارة طلبات التحكيم واعتماد تسويات الأرباح الجارية',
+            icon: Icons.admin_panel_settings_outlined,
+            color: Colors.teal,
+            child: _buildOwnerDashboardSection(cardBg, textCol),
+          );
+        }
+        break;
+    }
+    return const SizedBox();
+  }
+
+  Widget _buildSettingsIndex(Color cardBg, Color textCol, bool isAdmin) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      child: Column(
+        children: [
+          // 1. Profile Header Card
+          Container(
+            padding: const EdgeInsets.all(20),
+            margin: const EdgeInsets.only(bottom: 24),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: isDark
+                    ? [const Color(0xFF1E293B), const Color(0xFF0F172A)]
+                    : [Colors.white, const Color(0xFFF1F5F9)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.15),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                // Avatar
+                CircleAvatar(
+                  radius: 32,
+                  backgroundImage: widget.currentUser.photoURL.isNotEmpty ? NetworkImage(widget.currentUser.photoURL) : null,
+                  backgroundColor: AppColors.accentGold.withOpacity(0.1),
+                  child: widget.currentUser.photoURL.isEmpty ? const Icon(Icons.person, color: AppColors.accentGold, size: 36) : null,
+                ),
+                const SizedBox(width: 16),
+                // Name & Email
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _displayNameController.text.isNotEmpty ? _displayNameController.text : 'عضو عربون',
+                        style: GoogleFonts.cairo(fontWeight: FontWeight.w900, fontSize: 16, color: textCol),
+                      ),
+                      Text(
+                        widget.currentUser.email,
+                        style: GoogleFonts.outfit(color: AppColors.textMuted, fontSize: 11, fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
+                ),
+                // Verification status badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: widget.currentUser.isVerified ? AppColors.success.withOpacity(0.12) : AppColors.textMuted.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    widget.currentUser.isVerified ? 'موثق ✅' : 'غير موثق ⚠️',
+                    style: GoogleFonts.cairo(
+                      color: widget.currentUser.isVerified ? AppColors.success : AppColors.textMuted,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 10,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // 2. Settings Groups
+          _buildSettingsGroup(
+            title: 'الملف الشخصي والمالية',
+            children: [
+              _buildSettingsTile(
+                icon: Icons.person_outline_rounded,
+                iconColor: Colors.blue,
+                title: 'الملف الشخصي والنبذة',
+                subtitle: 'الاسم، النبذة التعريفية وصورة الغلاف',
+                onTap: () => setState(() => _currentSubView = 'profile'),
+              ),
+              _buildSettingsTile(
+                icon: Icons.credit_card_outlined,
+                iconColor: Colors.purple,
+                title: 'المعلومات البنكية والتسويات',
+                subtitle: 'البنك المستلم ورقم الآيبان (IBAN)',
+                onTap: () => setState(() => _currentSubView = 'financial'),
+              ),
+              _buildSettingsTile(
+                icon: Icons.verified_user_outlined,
+                iconColor: Colors.green,
+                title: 'توثيق الهوية الوطنية',
+                subtitle: 'حالة التوثيق الرسمية بالنفاذ الوطني الموحد',
+                trailing: Text(
+                  widget.currentUser.verificationStatus == 'verified' ? 'موثق' : 'تحقق الآن',
+                  style: GoogleFonts.cairo(
+                    color: widget.currentUser.verificationStatus == 'verified' ? AppColors.success : AppColors.accentGold,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 10,
+                  ),
+                ),
+                onTap: () {
+                  if (widget.currentUser.verificationStatus == 'verified') {
+                    _showSnackBar('الهوية الوطنية موثقة ومطابقة بالكامل بالنفاذ الوطني');
+                  } else {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => VerificationScreen(mockUser: widget.currentUser)),
+                    );
+                  }
+                },
+              ),
+            ],
+          ),
+
+          _buildSettingsGroup(
+            title: 'الأمان والتنبيهات',
+            children: [
+              _buildSettingsTile(
+                icon: Icons.lock_outline_rounded,
+                iconColor: Colors.orange,
+                title: 'الأمان والخصوصية',
+                subtitle: 'الحساب الخاص، التحقق بخطوتين وتغيير كلمة المرور',
+                onTap: () => setState(() => _currentSubView = 'security'),
+              ),
+              _buildSettingsTile(
+                icon: Icons.notifications_none_rounded,
+                iconColor: Colors.cyan,
+                title: 'إشعارات المنصة والواتساب',
+                subtitle: 'التنبيهات الفورية وبوت الواتساب التفاعلي',
+                onTap: () => setState(() => _currentSubView = 'notifications'),
+              ),
+            ],
+          ),
+
+          // App Toggles Group
+          _buildSettingsGroup(
+            title: 'خيارات التطبيق السريعة',
+            children: [
+              _buildSettingsToggleTile(
+                icon: Icons.volume_up_outlined,
+                iconColor: AppColors.accentGold,
+                title: 'أصوات المحادثات',
+                value: _chatSoundsEnabled,
+                onChanged: (bool val) async {
+                  setState(() => _chatSoundsEnabled = val);
+                  final prefs = await SharedPreferences.getInstance();
+                  prefs.setBool('chat_sounds_enabled', val);
+                },
+              ),
+              _buildSettingsToggleTile(
+                icon: isDark ? Icons.wb_sunny_outlined : Icons.nightlight_round_outlined,
+                iconColor: Colors.amber,
+                title: isDark ? 'الوضع النهاري' : 'الوضع الليلي',
+                value: isDark,
+                onChanged: (bool val) {
+                  if (widget.onThemeToggle != null) {
+                    widget.onThemeToggle!();
+                  }
+                },
+              ),
+            ],
+          ),
+
+          // 3. Admin Groups
+          if (isAdmin)
+            _buildSettingsGroup(
+              title: '⚖️ لوحة المشرفين والمسؤولين',
+              children: [
+                _buildSettingsTile(
+                  icon: Icons.settings_outlined,
+                  iconColor: Colors.redAccent,
+                  title: 'إعدادات المنصة العامة',
+                  subtitle: 'وضع الصيانة والألوان الأساسية للنظام',
+                  onTap: () => setState(() => _currentSubView = 'platform'),
+                ),
+                _buildSettingsTile(
+                  icon: Icons.admin_panel_settings_outlined,
+                  iconColor: Colors.teal,
+                  title: 'لوحة تحكم المالك',
+                  subtitle: 'إدارة النزاعات والموافقة على التحويلات المالية',
+                  onTap: () => setState(() => _currentSubView = 'owner_dashboard'),
+                ),
+              ],
+            ),
+
+          // 4. Logout / Legal Group
+          _buildSettingsGroup(
+            title: 'دعم النظام والخروج',
+            children: [
+              _buildSettingsTile(
+                icon: Icons.info_outline_rounded,
+                iconColor: Colors.grey,
+                title: 'المستندات والاتفاقيات القانونية',
+                subtitle: 'شروط الخدمة، سياسة الخصوصية وحقوق المستخدم',
+                onTap: () => _showSnackBar('تم فتح شروط الاستخدام والاتفاقيات المعتمدة'),
+              ),
+              _buildSettingsTile(
+                icon: Icons.logout_rounded,
+                iconColor: AppColors.alert,
+                title: 'تسجيل الخروج من الحساب',
+                subtitle: 'إنهاء الجلسة الحالية والعودة لصفحة الدخول',
+                trailing: const Icon(Icons.arrow_left_rounded, color: AppColors.alert, size: 24),
+                onTap: () {
+                  _showLogoutConfirmDialog();
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSettingsGroup({required String title, required List<Widget> children}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(right: 8, bottom: 8, top: 12),
+          child: Text(
+            title,
+            style: GoogleFonts.cairo(
+              color: AppColors.textMuted,
+              fontWeight: FontWeight.w900,
+              fontSize: 11,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ),
+        Container(
+          margin: const EdgeInsets.only(bottom: 20),
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.cardDark : AppColors.cardLight,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.04),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: children.length,
+              separatorBuilder: (context, index) => Divider(
+                height: 1,
+                thickness: 0.5,
+                color: isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.06),
+              ),
+              itemBuilder: (context, index) => children[index],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSettingsTile({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+    Widget? trailing,
+    required VoidCallback onTap,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textCol = isDark ? AppColors.textLight : AppColors.textDark;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: iconColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: iconColor, size: 20),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    _activeTab == 'owner_dashboard'
-                        ? 'إدارة النزاعات والموافقات المالية'
-                        : _activeTab == 'platform'
-                            ? 'تحكم النظام وإدارة الألوان'
-                            : 'إدارة بياناتك الشخصية، الأمان، التنبيهات، والمعلومات المالية للمنصة',
+                    title,
+                    style: GoogleFonts.cairo(
+                      color: textCol,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
                     style: GoogleFonts.cairo(
                       color: AppColors.textMuted,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
+                      fontSize: 9,
+                      height: 1.2,
                     ),
                   ),
                 ],
               ),
             ),
-
-            // Horizontal Segmented Tabs (Matches web layout navigation)
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                children: [
-                  _buildTabButton(id: 'profile', label: 'الملف الشخصي', icon: Icons.person_outline),
-                  _buildTabButton(id: 'security', label: 'الأمان والخصوصية', icon: Icons.lock_outline),
-                  _buildTabButton(id: 'notifications', label: 'التنبيهات', icon: Icons.notifications_none),
-                  _buildTabButton(id: 'financial', label: 'المعلومات المالية', icon: Icons.credit_card_outlined),
-                  if (isAdmin) ...[
-                    _buildTabButton(id: 'platform', label: 'إعدادات المنصة', icon: Icons.settings_outlined),
-                    _buildTabButton(id: 'owner_dashboard', label: '⚖️ لوحة المالك', icon: Icons.admin_panel_settings_outlined),
-                  ],
-                ],
+            if (trailing != null)
+              trailing
+            else
+              Icon(
+                Icons.arrow_back_ios_new_rounded,
+                color: AppColors.textMuted.withOpacity(0.5),
+                size: 12,
               ),
-            ),
-
-            // Main Settings Form Body
-            Expanded(
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  children: [
-                    if (_activeTab == 'profile') _buildProfileSection(cardBg, textCol),
-                    if (_activeTab == 'security') _buildSecuritySection(cardBg, textCol),
-                    if (_activeTab == 'notifications') _buildNotificationsSection(cardBg, textCol),
-                    if (_activeTab == 'financial') _buildFinancialSection(cardBg, textCol),
-                    if (_activeTab == 'platform' && isAdmin) _buildPlatformSection(cardBg, textCol),
-                    if (_activeTab == 'owner_dashboard' && isAdmin) _buildOwnerDashboardSection(cardBg, textCol),
-                  ],
-                ),
-              ),
-            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildTabButton({required String id, required String label, required IconData icon}) {
-    final active = _activeTab == id;
+  Widget _buildSettingsToggleTile({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
-    Color activeBg = AppColors.accentGold.withOpacity(0.12);
-    Color activeText = AppColors.accentGold;
-    
-    if (id == 'platform') {
-      activeBg = Colors.red.withOpacity(0.12);
-      activeText = Colors.redAccent;
-    } else if (id == 'owner_dashboard') {
-      activeBg = Colors.teal.withOpacity(0.12);
-      activeText = Colors.teal;
-    }
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 4),
-      child: InkWell(
-        onTap: () => setState(() => _activeTab = id),
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(
-            color: active ? activeBg : Colors.transparent,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: active ? activeText.withOpacity(0.3) : AppColors.textMuted.withOpacity(0.08),
+    final textCol = isDark ? AppColors.textLight : AppColors.textDark;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: iconColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: iconColor, size: 20),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              title,
+              style: GoogleFonts.cairo(
+                color: textCol,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
             ),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 16, color: active ? activeText : AppColors.textMuted),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: GoogleFonts.cairo(
-                  color: active ? activeText : (isDark ? AppColors.textLight : AppColors.textDark),
-                  fontSize: 11,
-                  fontWeight: active ? FontWeight.w900 : FontWeight.bold,
+          Switch.adaptive(
+            value: value,
+            activeColor: AppColors.accentGold,
+            onChanged: onChanged,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSubViewWrapper({
+    Key? key,
+    required String title,
+    required String description,
+    required IconData icon,
+    required Color color,
+    required Widget child,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textCol = isDark ? AppColors.textLight : AppColors.textDark;
+    return Container(
+      key: key,
+      child: Column(
+        children: [
+          // Premium custom app bar for the sub view
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.cardDark : AppColors.cardLight,
+              border: Border(
+                bottom: BorderSide(
+                  color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05),
                 ),
               ),
-            ],
+            ),
+            child: Row(
+              children: [
+                // Back Button returning to index
+                IconButton(
+                  icon: const Icon(Icons.arrow_forward_ios_rounded, size: 20), // Left arrow on RTL, right on LTR
+                  color: textCol,
+                  onPressed: () => setState(() => _currentSubView = 'index'),
+                ),
+                const SizedBox(width: 8),
+                // Icon of section
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: color, size: 16),
+                ),
+                const SizedBox(width: 12),
+                // Title
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: GoogleFonts.cairo(
+                          color: textCol,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 14,
+                        ),
+                      ),
+                      Text(
+                        description,
+                        style: GoogleFonts.cairo(
+                          color: AppColors.textMuted,
+                          fontSize: 9,
+                          height: 1.1,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
+          // Sub view form body
+          Expanded(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.all(20),
+              child: child,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showLogoutConfirmDialog() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? const Color(0xFF1A2035) : Colors.white;
+    final textCol = isDark ? Colors.white : const Color(0xFF1A2035);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: bg,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.logout, color: AppColors.alert),
+            const SizedBox(width: 8),
+            Text('تسجيل الخروج', style: GoogleFonts.cairo(fontWeight: FontWeight.w900, fontSize: 14, color: textCol)),
+          ],
         ),
+        content: Text(
+          'هل أنت متأكد من رغبتك في تسجيل الخروج من حسابك؟ سنحفظ جلسة العمل وتنبيهات صفقاتك بأمان.',
+          style: GoogleFonts.cairo(fontSize: 11, height: 1.5, color: textCol.withOpacity(0.8)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('إلغاء', style: GoogleFonts.cairo(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              if (widget.onLogout != null) {
+                widget.onLogout!();
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.alert,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: Text('خروج', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
+          ),
+        ],
       ),
     );
   }
@@ -2332,27 +2772,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildSaveBar({required VoidCallback onSave}) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          ElevatedButton.icon(
-            onPressed: _loading ? null : onSave,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryDark,
-              foregroundColor: AppColors.accentGold,
-              side: const BorderSide(color: AppColors.accentGold, width: 1.5),
-              minimumSize: const Size(140, 46),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              elevation: 0,
-            ),
-            icon: const Icon(Icons.save_outlined, size: 16),
-            label: Text(
-              'حفظ التغييرات',
-              style: GoogleFonts.cairo(fontWeight: FontWeight.w900, fontSize: 11),
-            ),
-          ),
-        ],
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: _loading ? null : onSave,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.accentGold,
+          foregroundColor: AppColors.primaryDark,
+          minimumSize: const Size(double.infinity, 52),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          elevation: 4,
+          shadowColor: AppColors.accentGold.withOpacity(0.3),
+        ),
+        icon: _loading
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primaryDark),
+              )
+            : const Icon(Icons.save_outlined, size: 20),
+        label: Text(
+          _loading ? 'جاري حفظ التغييرات...' : 'حفظ التغييرات والاعتماد',
+          style: GoogleFonts.cairo(fontWeight: FontWeight.w900, fontSize: 13),
+        ),
       ),
     );
   }
